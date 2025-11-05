@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient } from '@/lib/api/client';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function LoginPage() {
+function LoginForm() {
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -19,6 +20,14 @@ export default function LoginPage() {
   const router = useRouter();
   const { setUser, setToken } = useAuthStore();
 
+  // Prefill email from query parameter (when coming from registration page)
+  useEffect(() => {
+    const emailParam = searchParams.get('email');
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  }, [searchParams]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -27,22 +36,99 @@ export default function LoginPage() {
 
     try {
       // Sign in with Firebase
+      console.log('🔐 Step 1: Signing in with Firebase...', { email });
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      console.log('✅ Step 1: Firebase sign-in successful', { uid: userCredential.user.uid });
+      
+      console.log('🔐 Step 2: Getting ID token...');
       const idToken = await userCredential.user.getIdToken();
+      console.log('✅ Step 2: ID token obtained', { tokenLength: idToken.length });
 
       // Verify with backend
+      console.log('🔐 Step 3: Sending token to backend...');
       const response = await apiClient.post('/api/auth/login', {
         id_token: idToken,
       });
+      console.log('✅ Step 3: Backend login successful', { user: response.data.user });
 
       // Store token and user
       setToken(idToken);
       setUser(response.data.user);
 
       // Redirect to dashboard
+      console.log('✅ Step 4: Redirecting to dashboard...');
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      console.error('❌ Login error:', err);
+      
+      // Log detailed error information
+      if (err && typeof err === 'object' && 'response' in err) {
+        const axiosError = err as { response?: { status?: number; data?: any; statusText?: string } };
+        console.error('❌ Backend error details:', {
+          status: axiosError.response?.status,
+          statusText: axiosError.response?.statusText,
+          data: axiosError.response?.data,
+        });
+      }
+      let errorMessage = 'Login failed';
+      
+      // Handle Firebase Auth errors
+      if (err && typeof err === 'object' && 'code' in err) {
+        const firebaseError = err as { code: string; message: string };
+        switch (firebaseError.code) {
+          case 'auth/user-not-found':
+            errorMessage = 'No account found with this email. Please sign up first.';
+            break;
+          case 'auth/wrong-password':
+          case 'auth/invalid-credential':
+            errorMessage = 'Invalid email or password. Please try again.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email address. Please check your email.';
+            break;
+          case 'auth/network-request-failed':
+            errorMessage = 'Network error. Please check your connection.';
+            break;
+          default:
+            errorMessage = firebaseError.message || `Login failed: ${firebaseError.code}`;
+        }
+      } else if (err && typeof err === 'object' && 'response' in err) {
+        // API error
+        const apiError = err as { response?: { status?: number; data?: { detail?: string }; statusText?: string } };
+        const status = apiError.response?.status;
+        const detail = apiError.response?.data?.detail;
+        const statusText = apiError.response?.statusText;
+        
+        console.error('❌ Backend API Error:', {
+          status,
+          statusText,
+          detail,
+          fullData: apiError.response?.data,
+        });
+        
+        if (status === 404) {
+          errorMessage = 'User not found. Please register first.';
+        } else if (status === 401) {
+          errorMessage = 'Invalid credentials. Please check your email and password.';
+        } else if (status === 500) {
+          errorMessage = detail || 'Server error. Please check backend logs for details.';
+        } else {
+          errorMessage = detail || statusText || 'Login failed';
+        }
+      } else if (err && typeof err === 'object' && 'code' in err && (err as any).code === 'ERR_NETWORK') {
+        // Network error - server might not be running
+        errorMessage = 'Cannot connect to server. Make sure the backend is running on http://localhost:8080';
+        console.error('❌ Network Error - Backend server might not be running');
+        console.error('Check:', {
+          apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+          error: err
+        });
+      } else if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      console.error('❌ Final error message:', errorMessage);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -146,6 +232,7 @@ export default function LoginPage() {
                   id="email"
                   name="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -170,6 +257,7 @@ export default function LoginPage() {
                   id="password"
                   name="password"
                   type="password"
+                  autoComplete="current-password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -204,6 +292,18 @@ export default function LoginPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-white">Loading...</div>
+      </div>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }
 
