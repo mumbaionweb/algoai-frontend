@@ -1,4 +1,4 @@
-import { initializeApp } from 'firebase/app';
+import { initializeApp, getApps } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
@@ -10,8 +10,28 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Check if Firebase is already initialized
+let app;
+if (getApps().length === 0) {
+  // Validate config before initializing
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey === 'your-firebase-api-key') {
+    console.warn('Firebase config not found. Please set up .env.local with Firebase credentials.');
+    // Create a dummy app to prevent errors (won't work for auth, but prevents crash)
+    app = initializeApp({
+      apiKey: 'dummy-key',
+      authDomain: 'dummy.firebaseapp.com',
+      projectId: 'dummy',
+      storageBucket: 'dummy.appspot.com',
+      messagingSenderId: '123456789',
+      appId: 'dummy',
+    });
+  } else {
+    app = initializeApp(firebaseConfig);
+  }
+} else {
+  app = getApps()[0];
+}
+
 export const auth = getAuth(app);
 
 export default app;

@@ -6,6 +6,7 @@ import { auth } from '@/lib/firebase/config';
 import { useAuthStore } from '@/store/authStore';
 import { apiClient } from '@/lib/api/client';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -114,6 +115,18 @@ export default function RegisterPage() {
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>
+          </div>
+
+          <div className="text-center">
+            <p className="text-sm text-gray-400">
+              Already have an account?{' '}
+              <Link
+                href="/login"
+                className="font-medium text-blue-400 hover:text-blue-300"
+              >
+                Sign in
+              </Link>
+            </p>
           </div>
         </form>
       </div>
