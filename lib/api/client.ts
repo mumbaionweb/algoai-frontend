@@ -97,6 +97,12 @@ apiClient.interceptors.response.use(
     
     // Log 500 errors with extra details
     if (error.response?.status === 500) {
+      // Always log the error data as JSON string for easy reading
+      console.error('🔴 BACKEND 500 ERROR DATA (Read this):');
+      console.error('Error Response Data:', JSON.stringify(error.response.data, null, 2));
+      console.error('Error Detail Field:', error.response.data?.detail || 'No detail field');
+      console.error('Error Message Field:', error.response.data?.message || 'No message field');
+      
       console.error('❌ Backend 500 Error - Full Details:', {
         status: error.response.status,
         statusText: error.response.statusText,
