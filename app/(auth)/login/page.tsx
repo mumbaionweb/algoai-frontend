@@ -133,6 +133,13 @@ function LoginForm() {
         const detail = apiError.response?.data?.detail;
         const statusText = apiError.response?.statusText;
         
+        // Always log the error data in a readable format
+        console.error('🔴 BACKEND ERROR DATA (Expand this to see details):');
+        console.error('Error Response Data:', JSON.stringify(apiError.response?.data, null, 2));
+        console.error('Error Detail:', detail || 'No detail field found');
+        console.error('Error Message:', apiError.response?.data?.message || 'No message field found');
+        console.error('Full Error Response:', apiError.response?.data);
+        
         console.error('❌ Backend API Error - Full Debug Info:', {
           // Request details
           request: {
