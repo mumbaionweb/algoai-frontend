@@ -32,7 +32,15 @@ if (getApps().length === 0) {
   app = getApps()[0];
 }
 
+// Initialize Auth with optimized settings
 export const auth = getAuth(app);
+
+// Optimize auth settings for faster login
+// Disable unnecessary features that might cause extra API calls
+if (typeof window !== 'undefined') {
+  // Set language code (optional, but helps reduce locale detection calls)
+  auth.languageCode = 'en';
+}
 
 export default app;
 

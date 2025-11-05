@@ -18,20 +18,15 @@ apiClient.interceptors.request.use(
       config.headers.Authorization = `Bearer ${token}`;
     }
     
-    // Debug: Log request details
-    console.log('📤 API Request:', {
-      method: config.method?.toUpperCase(),
-      url: `${config.baseURL}${config.url}`,
-      fullUrl: config.url,
-      baseURL: config.baseURL,
-      headers: {
-        'Content-Type': config.headers['Content-Type'],
-        'Authorization': config.headers.Authorization ? 'Bearer ***' : 'None',
-      },
-      data: config.data ? (typeof config.data === 'string' ? config.data : JSON.stringify(config.data, null, 2)) : 'No data',
-      hasToken: !!token,
-      tokenLength: token?.length || 0,
-    });
+    // Debug: Log request details (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📤 API Request:', {
+        method: config.method?.toUpperCase(),
+        url: `${config.baseURL}${config.url}`,
+        baseURL: config.baseURL,
+        hasToken: !!token,
+      });
+    }
     
     return config;
   },
@@ -44,14 +39,13 @@ apiClient.interceptors.request.use(
 // Handle response errors with detailed logging
 apiClient.interceptors.response.use(
   (response) => {
-    // Log successful responses for debugging
-    console.log('📥 API Response (Success):', {
-      status: response.status,
-      statusText: response.statusText,
-      url: `${response.config.baseURL}${response.config.url}`,
-      data: response.data,
-      headers: response.headers,
-    });
+    // Log successful responses only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📥 API Response (Success):', {
+        status: response.status,
+        url: `${response.config.baseURL}${response.config.url}`,
+      });
+    }
     return response;
   },
   (error) => {

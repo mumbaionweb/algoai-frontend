@@ -13,6 +13,7 @@ function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -36,45 +37,25 @@ function LoginForm() {
 
     try {
       // Sign in with Firebase
-      console.log('🔐 Step 1: Signing in with Firebase...', { email });
+      setLoadingStep('Authenticating...');
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('✅ Step 1: Firebase sign-in successful', { uid: userCredential.user.uid });
       
-      console.log('🔐 Step 2: Getting ID token...');
-      const idToken = await userCredential.user.getIdToken();
-      console.log('✅ Step 2: ID token obtained', { tokenLength: idToken.length });
+      // Get ID token (use cached token if available to reduce API calls)
+      setLoadingStep('Getting token...');
+      const idToken = await userCredential.user.getIdToken(false);
 
       // Verify with backend
-      console.log('🔐 Step 3: Preparing backend request...');
-      console.log('📋 Step 3.1: Request details:', {
-        endpoint: '/api/auth/login',
-        baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
-        fullUrl: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/login`,
-        tokenLength: idToken.length,
-        tokenPreview: idToken.substring(0, 20) + '...' + idToken.substring(idToken.length - 20),
-        payload: { id_token: idToken.substring(0, 20) + '...[REDACTED]...' },
-      });
-      
-      console.log('📤 Step 3.2: Sending token to backend...');
+      setLoadingStep('Verifying with server...');
       const response = await apiClient.post('/api/auth/login', {
         id_token: idToken,
       });
-      
-      console.log('✅ Step 3.3: Backend response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        data: response.data,
-        headers: response.headers,
-      });
-      
-      console.log('✅ Step 3: Backend login successful', { user: response.data.user });
 
       // Store token and user
       setToken(idToken);
       setUser(response.data.user);
 
       // Redirect to dashboard
-      console.log('✅ Step 4: Redirecting to dashboard...');
+      setLoadingStep('Redirecting...');
       router.push('/dashboard');
     } catch (err: unknown) {
       console.error('❌ Login error:', err);
@@ -348,9 +329,15 @@ function LoginForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                className="w-full flex justify-center items-center gap-2 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                {loading ? 'Signing in...' : 'Sign in'}
+                {loading && (
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                {loading ? loadingStep || 'Signing in...' : 'Sign in'}
               </button>
             </div>
 
