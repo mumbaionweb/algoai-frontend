@@ -8,6 +8,21 @@ Please visit https://console.cloud.google.com/datastore/setup?project=algo-ai-47
 to add a Cloud Datastore or Cloud Firestore database.
 ```
 
+## ✅ Verified Database Name
+
+**Firebase CLI Verification:**
+```
+Database Name: projects/algo-ai-477010/databases/algoai
+```
+
+**Your database name is: `algoai` (NOT `default`)**
+
+## 🔧 Root Cause
+
+The backend is trying to connect to the **"default"** database, but your actual database is named **"algoai"**. 
+
+**This is a BACKEND configuration issue** - the backend needs to be configured to use the `algoai` database instead of `default`.
+
 ## ✅ Solution: Initialize Firestore
 
 Your backend needs Firestore to store user data and other information. Here's how to set it up:
