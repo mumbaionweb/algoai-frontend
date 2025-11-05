@@ -4,7 +4,7 @@
 env:
   # Backend API URL
   - variable: NEXT_PUBLIC_API_URL
-    value: https://algoai-backend-sbqvzhslha-el.a.run.app
+    value: https://algoai-backend-606435458040.asia-south1.run.app
     availability:
       - BUILD
       - RUNTIME
