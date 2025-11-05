@@ -13,11 +13,8 @@ env:
   # Get these values from: https://console.firebase.google.com/project/algo-ai-477010/settings/general
   # Scroll down to "Your apps" section and copy from your web app config
   
-  # TODO: Replace these placeholder values with your actual Firebase config values
-  # You can get them from Firebase Console → Project Settings → Your apps → Web app
-  
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    value: YOUR_FIREBASE_API_KEY_HERE
+    value: AIzaSyC36jQd1MSvFmhOj0XDNpSw0xnLaRSONbU
     availability:
       - BUILD
       - RUNTIME
@@ -41,14 +38,13 @@ env:
       - RUNTIME
 
   - variable: NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
-    value: YOUR_MESSAGING_SENDER_ID_HERE
+    value: 606435458040
     availability:
       - BUILD
       - RUNTIME
 
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    value: YOUR_FIREBASE_APP_ID_HERE
+    value: 1:606435458040:web:87b4b088759963035ff40d
     availability:
       - BUILD
       - RUNTIME
-
