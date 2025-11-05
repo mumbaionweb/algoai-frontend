@@ -45,10 +45,28 @@ function LoginForm() {
       console.log('✅ Step 2: ID token obtained', { tokenLength: idToken.length });
 
       // Verify with backend
-      console.log('🔐 Step 3: Sending token to backend...');
+      console.log('🔐 Step 3: Preparing backend request...');
+      console.log('📋 Step 3.1: Request details:', {
+        endpoint: '/api/auth/login',
+        baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+        fullUrl: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'}/api/auth/login`,
+        tokenLength: idToken.length,
+        tokenPreview: idToken.substring(0, 20) + '...' + idToken.substring(idToken.length - 20),
+        payload: { id_token: idToken.substring(0, 20) + '...[REDACTED]...' },
+      });
+      
+      console.log('📤 Step 3.2: Sending token to backend...');
       const response = await apiClient.post('/api/auth/login', {
         id_token: idToken,
       });
+      
+      console.log('✅ Step 3.3: Backend response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        data: response.data,
+        headers: response.headers,
+      });
+      
       console.log('✅ Step 3: Backend login successful', { user: response.data.user });
 
       // Store token and user
@@ -93,18 +111,70 @@ function LoginForm() {
             errorMessage = firebaseError.message || `Login failed: ${firebaseError.code}`;
         }
       } else if (err && typeof err === 'object' && 'response' in err) {
-        // API error
-        const apiError = err as { response?: { status?: number; data?: { detail?: string }; statusText?: string } };
+        // API error - Enhanced debugging
+        const apiError = err as { 
+          response?: { 
+            status?: number; 
+            data?: any; 
+            statusText?: string;
+            headers?: any;
+          };
+          config?: {
+            url?: string;
+            method?: string;
+            baseURL?: string;
+            data?: any;
+            headers?: any;
+          };
+          code?: string;
+          message?: string;
+        };
         const status = apiError.response?.status;
         const detail = apiError.response?.data?.detail;
         const statusText = apiError.response?.statusText;
         
-        console.error('❌ Backend API Error:', {
-          status,
-          statusText,
-          detail,
-          fullData: apiError.response?.data,
+        console.error('❌ Backend API Error - Full Debug Info:', {
+          // Request details
+          request: {
+            method: apiError.config?.method,
+            url: apiError.config?.url,
+            baseURL: apiError.config?.baseURL,
+            fullUrl: `${apiError.config?.baseURL || ''}${apiError.config?.url || ''}`,
+            data: apiError.config?.data,
+            headers: apiError.config?.headers,
+          },
+          // Response details
+          response: {
+            status,
+            statusText,
+            data: apiError.response?.data,
+            headers: apiError.response?.headers,
+          },
+          // Error details
+          error: {
+            code: apiError.code,
+            message: apiError.message,
+            detail: detail,
+          },
+          // Full error object
+          fullError: apiError,
         });
+        
+        // Specific handling for 500 errors
+        if (status === 500) {
+          console.error('🔍 Step 3 Debug - 500 Error Analysis:', {
+            backendUrl: `${apiError.config?.baseURL || ''}${apiError.config?.url || ''}`,
+            requestPayload: apiError.config?.data,
+            responseData: apiError.response?.data,
+            possibleCauses: [
+              'Backend server error - check backend logs',
+              'Firebase Admin SDK not initialized',
+              'Database connection issue',
+              'Token verification failing',
+              'Missing environment variables on backend',
+            ],
+          });
+        }
         
         if (status === 404) {
           errorMessage = 'User not found. Please register first.';

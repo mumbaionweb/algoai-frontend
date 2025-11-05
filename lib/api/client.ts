@@ -10,36 +10,109 @@ export const apiClient = axios.create({
   },
 });
 
-// Add auth token interceptor
+// Add auth token interceptor with detailed logging
 apiClient.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('firebase_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Debug: Log request details
+    console.log('📤 API Request:', {
+      method: config.method?.toUpperCase(),
+      url: `${config.baseURL}${config.url}`,
+      fullUrl: config.url,
+      baseURL: config.baseURL,
+      headers: {
+        'Content-Type': config.headers['Content-Type'],
+        'Authorization': config.headers.Authorization ? 'Bearer ***' : 'None',
+      },
+      data: config.data ? (typeof config.data === 'string' ? config.data : JSON.stringify(config.data, null, 2)) : 'No data',
+      hasToken: !!token,
+      tokenLength: token?.length || 0,
+    });
+    
     return config;
   },
   (error) => {
+    console.error('❌ Request Interceptor Error:', error);
     return Promise.reject(error);
   }
 );
 
-// Handle response errors
+// Handle response errors with detailed logging
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Log successful responses for debugging
+    console.log('📥 API Response (Success):', {
+      status: response.status,
+      statusText: response.statusText,
+      url: `${response.config.baseURL}${response.config.url}`,
+      data: response.data,
+      headers: response.headers,
+    });
+    return response;
+  },
   (error) => {
+    // Detailed error logging
+    console.error('📥 API Response (Error):', {
+      // Request details
+      request: {
+        method: error.config?.method?.toUpperCase(),
+        url: `${error.config?.baseURL || ''}${error.config?.url || ''}`,
+        baseURL: error.config?.baseURL,
+        fullUrl: error.config?.url,
+        data: error.config?.data,
+        headers: error.config?.headers,
+      },
+      // Response details (if available)
+      response: error.response ? {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        data: error.response.data,
+        headers: error.response.headers,
+      } : null,
+      // Network/connection errors
+      network: error.code || error.message ? {
+        code: error.code,
+        message: error.message,
+        name: error.name,
+      } : null,
+      // Full error object
+      fullError: error,
+    });
+    
     // Log network errors for debugging
     if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
-      console.error('❌ Network Error:', {
+      console.error('❌ Network Error Details:', {
         message: error.message,
         code: error.code,
         baseURL: API_URL,
         url: error.config?.url,
+        fullUrl: `${error.config?.baseURL || ''}${error.config?.url || ''}`,
+        isBackendReachable: 'Check if backend is running and accessible',
+      });
+    }
+    
+    // Log 500 errors with extra details
+    if (error.response?.status === 500) {
+      console.error('❌ Backend 500 Error - Full Details:', {
+        status: error.response.status,
+        statusText: error.response.statusText,
+        responseData: error.response.data,
+        responseHeaders: error.response.headers,
+        requestUrl: `${error.config?.baseURL || ''}${error.config?.url || ''}`,
+        requestMethod: error.config?.method,
+        requestData: error.config?.data,
+        requestHeaders: error.config?.headers,
+        timestamp: new Date().toISOString(),
       });
     }
     
     if (error.response?.status === 401) {
       // Handle unauthorized - redirect to login
+      console.warn('⚠️ Unauthorized (401) - Clearing token and redirecting to login');
       localStorage.removeItem('firebase_token');
       window.location.href = '/login';
     }
