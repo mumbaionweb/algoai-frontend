@@ -1,0 +1,7 @@
+{
+  "apphosting": {
+    "backend": {
+      "runtime": "nodejs20"
+    }
+  }
+}
