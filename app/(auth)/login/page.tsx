@@ -169,7 +169,15 @@ function LoginForm() {
         } else if (status === 401) {
           errorMessage = 'Invalid credentials. Please check your email and password.';
         } else if (status === 500) {
-          errorMessage = detail || 'Server error. Please check backend logs for details.';
+          // Check if it's the database name issue
+          if (detail && detail.includes('database (default) does not exist')) {
+            errorMessage = 'Backend database configuration error. The backend is trying to use the wrong database name. Backend team needs to fix: use database "algoai" instead of "default".';
+            console.error('🔴 CRITICAL: Backend database configuration error');
+            console.error('Error:', detail);
+            console.error('Fix Required: Backend must use database="algoai" instead of default');
+          } else {
+            errorMessage = detail || 'Server error. Please check backend logs for details.';
+          }
         } else {
           errorMessage = detail || statusText || 'Login failed';
         }
