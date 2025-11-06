@@ -105,16 +105,19 @@ apiClient.interceptors.response.use(
     
     // Log 500 errors with extra details
     if (axiosError.response?.status === 500) {
+      // Type the response data to allow property access
+      const responseData = axiosError.response.data as { detail?: string; message?: string; [key: string]: any };
+      
       // Always log the error data as JSON string for easy reading
       console.error('🔴 BACKEND 500 ERROR DATA (Read this):');
-      console.error('Error Response Data:', JSON.stringify(axiosError.response.data, null, 2));
-      console.error('Error Detail Field:', axiosError.response.data?.detail || 'No detail field');
-      console.error('Error Message Field:', axiosError.response.data?.message || 'No message field');
+      console.error('Error Response Data:', JSON.stringify(responseData, null, 2));
+      console.error('Error Detail Field:', responseData?.detail || 'No detail field');
+      console.error('Error Message Field:', responseData?.message || 'No message field');
       
       console.error('❌ Backend 500 Error - Full Details:', {
         status: axiosError.response.status,
         statusText: axiosError.response.statusText,
-        responseData: axiosError.response.data,
+        responseData: responseData,
         responseHeaders: axiosError.response.headers,
         requestUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
         requestMethod: axiosError.config?.method,
