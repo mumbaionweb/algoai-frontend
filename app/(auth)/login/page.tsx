@@ -178,17 +178,22 @@ function LoginForm() {
         
         // Timeout error
         if (errorCode === 'ECONNABORTED' || (err as any).message?.includes('timeout')) {
-          errorMessage = 'Request timed out. The backend is taking too long to respond. Please check backend logs or try again.';
+          errorMessage = 'Login request timed out. The backend is taking too long to respond (>30 seconds). This is likely a backend performance issue. Please contact support or try again later.';
           console.error('⏱️ Timeout Error - Backend taking >30 seconds to respond');
-          console.error('Possible causes:', {
+          console.error('Backend Issue - Action Items:', {
             backendUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+            endpoint: '/api/auth/login',
             timeout: '30 seconds',
-            suggestions: [
-              'Check if backend is processing slowly',
-              'Check Firestore database connection',
-              'Check backend logs for errors',
-              'Backend might be overloaded',
+            issue: 'Backend is not responding in time',
+            possibleCauses: [
+              'Slow Firestore database queries',
+              'Firestore database connection issues',
+              'Inefficient token verification',
+              'Backend code hanging or blocking',
+              'Missing Firestore indexes',
+              'Database name mismatch (should be "algoai")',
             ],
+            actionRequired: 'Backend team needs to investigate and optimize login endpoint performance',
           });
         }
         // Network error - server might not be running

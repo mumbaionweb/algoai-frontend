@@ -52,31 +52,29 @@ apiClient.interceptors.response.use(
     // Type guard for AxiosError
     const axiosError = error as AxiosError;
     
-    // Detailed error logging
-    console.error('📥 API Response (Error):', {
-      // Request details
-      request: axiosError.config ? {
-        method: axiosError.config.method?.toUpperCase(),
-        url: `${axiosError.config.baseURL || ''}${axiosError.config.url || ''}`,
-        baseURL: axiosError.config.baseURL,
-        fullUrl: axiosError.config.url,
-        data: axiosError.config.data,
-        headers: axiosError.config.headers,
-      } : null,
-      // Response details (if available)
-      response: axiosError.response ? {
-        status: axiosError.response.status,
-        statusText: axiosError.response.statusText,
-        data: axiosError.response.data,
-        headers: axiosError.response.headers,
-      } : null,
-      // Network/connection errors
-      network: axiosError.code || axiosError.message ? {
-        code: axiosError.code,
-        message: axiosError.message,
-        name: axiosError.name,
-      } : null,
-    });
+    // Detailed error logging (only in development to reduce noise)
+    if (process.env.NODE_ENV === 'development') {
+      console.error('📥 API Response (Error):', {
+        // Request details
+        request: axiosError.config ? {
+          method: axiosError.config.method?.toUpperCase(),
+          url: `${axiosError.config.baseURL || ''}${axiosError.config.url || ''}`,
+          baseURL: axiosError.config.baseURL,
+          fullUrl: axiosError.config.url,
+        } : null,
+        // Response details (if available)
+        response: axiosError.response ? {
+          status: axiosError.response.status,
+          statusText: axiosError.response.statusText,
+        } : null,
+        // Network/connection errors
+        network: axiosError.code || axiosError.message ? {
+          code: axiosError.code,
+          message: axiosError.message,
+          name: axiosError.name,
+        } : null,
+      });
+    }
     
     // Log timeout errors
     if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout')) {
