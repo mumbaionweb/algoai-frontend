@@ -54,8 +54,8 @@ export default function DashboardHeader({ title = 'AlgoAI Dashboard', backButton
     return user?.name || user?.email || 'User';
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 

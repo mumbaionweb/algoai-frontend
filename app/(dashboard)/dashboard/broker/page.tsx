@@ -21,7 +21,7 @@ import type {
 } from '@/types';
 
 export default function BrokerPage() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, isInitialized } = useAuthStore();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -43,12 +43,12 @@ export default function BrokerPage() {
   });
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (isInitialized && !isAuthenticated) {
       router.push('/login');
-    } else {
+    } else if (isInitialized && isAuthenticated) {
       loadData();
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, isInitialized, router]);
 
   const loadData = async () => {
     try {
@@ -164,6 +164,14 @@ export default function BrokerPage() {
       is_active: true,
     });
   };
+
+  if (!isInitialized) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+        <div className="text-white">Loading...</div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return null;
