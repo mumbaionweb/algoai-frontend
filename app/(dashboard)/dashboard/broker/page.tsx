@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import Link from 'next/link';
 import {
@@ -12,6 +12,7 @@ import {
   updateBrokerCredentials,
   deleteBrokerCredentials,
   initiateZerodhaOAuth,
+  refreshZerodhaToken,
 } from '@/lib/api/broker';
 import type {
   BrokerInfo,
@@ -20,9 +21,10 @@ import type {
   BrokerType,
 } from '@/types';
 
-export default function BrokerPage() {
+function BrokerPageContent() {
   const { isAuthenticated, isInitialized } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -41,6 +43,28 @@ export default function BrokerPage() {
     label: '',
     is_active: true,
   });
+
+  // Handle OAuth callback from Zerodha
+  useEffect(() => {
+    const oauthStatus = searchParams.get('oauth');
+    const broker = searchParams.get('broker');
+    const message = searchParams.get('message');
+
+    if (oauthStatus === 'success' && broker === 'zerodha') {
+      setSuccess('Zerodha connected successfully!');
+      // Clean up URL
+      router.replace('/dashboard/broker');
+      // Reload broker data to show updated status
+      if (isAuthenticated) {
+        loadData();
+      }
+    } else if (oauthStatus === 'error') {
+      setError(`Failed to connect Zerodha: ${message || 'Unknown error'}`);
+      // Clean up URL
+      router.replace('/dashboard/broker');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, router, isAuthenticated]);
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
@@ -143,13 +167,48 @@ export default function BrokerPage() {
   const handleZerodhaOAuth = async (credentialsId?: string) => {
     try {
       setError('');
+      setSuccess('');
+      setLoading(true);
+      
       const response = await initiateZerodhaOAuth(credentialsId);
-      // Open OAuth URL in new window
-      window.open(response.login_url, '_blank', 'width=600,height=700');
-      setSuccess('OAuth flow initiated. Please complete authentication in the popup window.');
+      
+      // Redirect user to Zerodha login page (not popup, as per backend docs)
+      // The backend will handle the callback and redirect back to our frontend
+      window.location.href = response.login_url;
+      
     } catch (err: any) {
       console.error('Failed to initiate OAuth:', err);
-      setError(err.response?.data?.detail || 'Failed to initiate OAuth flow');
+      setLoading(false);
+      
+      if (err.response?.status === 404) {
+        const errorDetail = err.response?.data?.detail || '';
+        if (errorDetail.includes('credentials not found')) {
+          setError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
+        } else {
+          setError(errorDetail || 'Zerodha credentials not found');
+        }
+      } else if (err.response?.status === 401) {
+        setError('Authentication failed. Please log in again.');
+      } else {
+        setError(err.response?.data?.detail || 'Failed to initiate OAuth flow');
+      }
+    }
+  };
+
+  const handleRefreshToken = async () => {
+    try {
+      setError('');
+      setSuccess('');
+      await refreshZerodhaToken();
+      setSuccess('Zerodha token refreshed successfully');
+      await loadData();
+    } catch (err: any) {
+      console.error('Failed to refresh token:', err);
+      if (err.response?.status === 404) {
+        setError('No tokens found. Please complete OAuth first.');
+      } else {
+        setError(err.response?.data?.detail || 'Failed to refresh token');
+      }
     }
   };
 
@@ -371,22 +430,34 @@ export default function BrokerPage() {
                       </div>
                       <div className="flex gap-2">
                         {cred.broker_type === 'zerodha' && (
-                          <button
-                            onClick={() => handleZerodhaOAuth(cred.id)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
-                          >
-                            OAuth
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleZerodhaOAuth(cred.id)}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                              disabled={loading}
+                            >
+                              Connect
+                            </button>
+                            <button
+                              onClick={handleRefreshToken}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
+                              disabled={loading}
+                            >
+                              Refresh Token
+                            </button>
+                          </>
                         )}
                         <button
                           onClick={() => handleEdit(cred)}
                           className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+                          disabled={loading}
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(cred.id)}
                           className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+                          disabled={loading}
                         >
                           Delete
                         </button>
@@ -410,5 +481,19 @@ export default function BrokerPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function BrokerPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-900">
+          <div className="text-white">Loading...</div>
+        </div>
+      }
+    >
+      <BrokerPageContent />
+    </Suspense>
   );
 }

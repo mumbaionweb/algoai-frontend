@@ -88,8 +88,13 @@ export async function deleteBrokerCredentials(credentialsId: string): Promise<vo
 
 /**
  * Initiate Zerodha OAuth flow
+ * Returns login_url that user should be redirected to
  */
-export async function initiateZerodhaOAuth(credentialsId?: string): Promise<{ login_url: string }> {
+export async function initiateZerodhaOAuth(credentialsId?: string): Promise<{
+  login_url: string;
+  redirect_url: string;
+  message: string;
+}> {
   const params = credentialsId ? `?credentials_id=${credentialsId}` : '';
   const response = await apiClient.get(`/api/zerodha/oauth/initiate${params}`);
   return response.data;

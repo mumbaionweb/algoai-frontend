@@ -1,14 +1,30 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 import { useAuthStore } from '@/store/authStore';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 
-export default function DashboardPage() {
+function DashboardPageContent() {
   const { isAuthenticated, isInitialized } = useAuthStore();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Handle OAuth callback from Zerodha (backend redirects to /dashboard?oauth=success)
+  useEffect(() => {
+    const oauthStatus = searchParams.get('oauth');
+    const broker = searchParams.get('broker');
+    const message = searchParams.get('message');
+
+    if (oauthStatus === 'success' && broker === 'zerodha') {
+      // Redirect to broker page to show success and updated status
+      router.replace('/dashboard/broker?oauth=success&broker=zerodha');
+    } else if (oauthStatus === 'error') {
+      // Redirect to broker page to show error
+      router.replace(`/dashboard/broker?oauth=error&message=${encodeURIComponent(message || 'Unknown error')}`);
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     // Wait for auth to initialize before checking
@@ -70,6 +86,20 @@ export default function DashboardPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-900">
+          <div className="text-white">Loading...</div>
+        </div>
+      }
+    >
+      <DashboardPageContent />
+    </Suspense>
   );
 }
 
