@@ -78,6 +78,19 @@ apiClient.interceptors.response.use(
       } : null,
     });
     
+    // Log timeout errors
+    if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout')) {
+      console.error('⏱️ Request Timeout Error:', {
+        message: axiosError.message,
+        code: axiosError.code,
+        baseURL: API_URL,
+        url: axiosError.config?.url,
+        fullUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
+        timeout: '30 seconds',
+        suggestion: 'Backend is taking too long to respond. Check backend logs or increase timeout.',
+      });
+    }
+    
     // Log network errors for debugging
     if (axiosError.code === 'ERR_NETWORK' || axiosError.message === 'Network Error') {
       console.error('❌ Network Error Details:', {

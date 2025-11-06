@@ -173,14 +173,35 @@ function LoginForm() {
         } else {
           errorMessage = detail || statusText || 'Login failed';
         }
-      } else if (err && typeof err === 'object' && 'code' in err && (err as any).code === 'ERR_NETWORK') {
+      } else if (err && typeof err === 'object' && 'code' in err) {
+        const errorCode = (err as any).code;
+        
+        // Timeout error
+        if (errorCode === 'ECONNABORTED' || (err as any).message?.includes('timeout')) {
+          errorMessage = 'Request timed out. The backend is taking too long to respond. Please check backend logs or try again.';
+          console.error('⏱️ Timeout Error - Backend taking >30 seconds to respond');
+          console.error('Possible causes:', {
+            backendUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+            timeout: '30 seconds',
+            suggestions: [
+              'Check if backend is processing slowly',
+              'Check Firestore database connection',
+              'Check backend logs for errors',
+              'Backend might be overloaded',
+            ],
+          });
+        }
         // Network error - server might not be running
-        errorMessage = 'Cannot connect to server. Make sure the backend is running on http://localhost:8080';
-        console.error('❌ Network Error - Backend server might not be running');
-        console.error('Check:', {
-          apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
-          error: err
-        });
+        else if (errorCode === 'ERR_NETWORK') {
+          errorMessage = 'Cannot connect to server. Make sure the backend is running on http://localhost:8080';
+          console.error('❌ Network Error - Backend server might not be running');
+          console.error('Check:', {
+            apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+            error: err
+          });
+        } else {
+          errorMessage = (err as any).message || 'Login failed';
+        }
       } else if (err instanceof Error) {
         errorMessage = err.message;
       }
