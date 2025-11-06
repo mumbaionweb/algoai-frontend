@@ -4,9 +4,10 @@ import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import DashboardHeader from '@/components/layout/DashboardHeader';
 
 export default function DashboardPage() {
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -21,22 +22,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <nav className="bg-gray-800 border-b border-gray-700">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center py-4">
-            <h1 className="text-xl font-bold text-white">AlgoAI Dashboard</h1>
-            <div className="flex items-center gap-4">
-              <span className="text-gray-300">{user?.email}</span>
-              <button
-                onClick={logout}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-              >
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <DashboardHeader />
 
       <main className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

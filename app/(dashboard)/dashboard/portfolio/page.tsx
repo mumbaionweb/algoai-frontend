@@ -4,9 +4,10 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
+import DashboardHeader from '@/components/layout/DashboardHeader';
 
 export default function PortfolioPage() {
-  const { isAuthenticated, logout } = useAuthStore();
+  const { isAuthenticated } = useAuthStore();
   const router = useRouter();
 
   useEffect(() => {
@@ -21,24 +22,7 @@ export default function PortfolioPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <nav className="bg-gray-800 border-b border-gray-700">
-        <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard" className="text-white hover:text-gray-300">
-                ← Back to Dashboard
-              </Link>
-              <h1 className="text-xl font-bold text-white">Portfolio</h1>
-            </div>
-            <button
-              onClick={logout}
-              className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      </nav>
+      <DashboardHeader title="Portfolio" backButton />
 
       <main className="container mx-auto px-4 py-8">
         <div className="bg-gray-800 rounded-lg p-8 text-center">
