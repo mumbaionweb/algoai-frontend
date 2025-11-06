@@ -11,7 +11,7 @@ import type {
  * Get list of available brokers
  */
 export async function getAvailableBrokers(): Promise<BrokerInfo[]> {
-  const response = await apiClient.get<BrokerInfo[]>('/broker-credentials/brokers');
+  const response = await apiClient.get<BrokerInfo[]>('/api/broker-credentials/brokers');
   return response.data;
 }
 
@@ -31,7 +31,7 @@ export async function getBrokerCredentials(
   }
 
   const response = await apiClient.get<BrokerCredentials[]>(
-    `/broker-credentials${params.toString() ? `?${params.toString()}` : ''}`
+    `/api/broker-credentials${params.toString() ? `?${params.toString()}` : ''}`
   );
   return response.data;
 }
@@ -40,7 +40,7 @@ export async function getBrokerCredentials(
  * Get specific broker credentials by ID
  */
 export async function getBrokerCredential(credentialsId: string): Promise<BrokerCredentials> {
-  const response = await apiClient.get<BrokerCredentials>(`/broker-credentials/${credentialsId}`);
+  const response = await apiClient.get<BrokerCredentials>(`/api/broker-credentials/${credentialsId}`);
   return response.data;
 }
 
@@ -48,7 +48,7 @@ export async function getBrokerCredential(credentialsId: string): Promise<Broker
  * Get broker credentials with decrypted secret (use with caution)
  */
 export async function getBrokerCredentialFull(credentialsId: string) {
-  const response = await apiClient.get(`/broker-credentials/${credentialsId}/full`);
+  const response = await apiClient.get(`/api/broker-credentials/${credentialsId}/full`);
   return response.data;
 }
 
@@ -59,7 +59,7 @@ export async function createBrokerCredentials(
   credentials: BrokerCredentialsCreate
 ): Promise<BrokerCredentials> {
   const response = await apiClient.post<BrokerCredentials>(
-    '/broker-credentials',
+    '/api/broker-credentials',
     credentials
   );
   return response.data;
@@ -73,7 +73,7 @@ export async function updateBrokerCredentials(
   updates: BrokerCredentialsUpdate
 ): Promise<BrokerCredentials> {
   const response = await apiClient.put<BrokerCredentials>(
-    `/broker-credentials/${credentialsId}`,
+    `/api/broker-credentials/${credentialsId}`,
     updates
   );
   return response.data;
@@ -83,7 +83,7 @@ export async function updateBrokerCredentials(
  * Delete broker credentials
  */
 export async function deleteBrokerCredentials(credentialsId: string): Promise<void> {
-  await apiClient.delete(`/broker-credentials/${credentialsId}`);
+  await apiClient.delete(`/api/broker-credentials/${credentialsId}`);
 }
 
 /**
@@ -91,7 +91,7 @@ export async function deleteBrokerCredentials(credentialsId: string): Promise<vo
  */
 export async function initiateZerodhaOAuth(credentialsId?: string): Promise<{ login_url: string }> {
   const params = credentialsId ? `?credentials_id=${credentialsId}` : '';
-  const response = await apiClient.get(`/zerodha/oauth/initiate${params}`);
+  const response = await apiClient.get(`/api/zerodha/oauth/initiate${params}`);
   return response.data;
 }
 
@@ -99,7 +99,7 @@ export async function initiateZerodhaOAuth(credentialsId?: string): Promise<{ lo
  * Refresh Zerodha access token
  */
 export async function refreshZerodhaToken(): Promise<any> {
-  const response = await apiClient.post('/zerodha/oauth/refresh');
+  const response = await apiClient.post('/api/zerodha/oauth/refresh');
   return response.data;
 }
 
