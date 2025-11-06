@@ -55,3 +55,44 @@ export interface BacktestResult {
   sqn: number;
 }
 
+// Broker Types
+export type BrokerType = 'zerodha' | string;
+
+export interface BrokerInfo {
+  type: BrokerType;
+  name: string;
+  description?: string;
+  logo_url?: string;
+  website?: string;
+}
+
+export interface BrokerCredentials {
+  id: string;
+  user_id: string;
+  broker_type: BrokerType;
+  api_key: string;
+  is_active: boolean;
+  label?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BrokerCredentialsFull extends BrokerCredentials {
+  api_secret: string;
+}
+
+export interface BrokerCredentialsCreate {
+  broker_type: BrokerType;
+  api_key: string;
+  api_secret: string;
+  is_active?: boolean;
+  label?: string | null;
+}
+
+export interface BrokerCredentialsUpdate {
+  api_key?: string;
+  api_secret?: string;
+  is_active?: boolean;
+  label?: string | null;
+}
+
