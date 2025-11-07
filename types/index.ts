@@ -37,12 +37,50 @@ export interface Order {
 }
 
 // Portfolio Types
+export interface PortfolioMargins {
+  available?: number;
+  utilised?: number;
+  net?: number;
+}
+
+export interface Position {
+  tradingsymbol: string;
+  exchange: string;
+  product: string;
+  quantity: number;
+  average_price: number;
+  last_price: number;
+  pnl: number;
+  pnl_percentage: number;
+  instrument_token?: number;
+}
+
+export interface Holding {
+  tradingsymbol: string;
+  exchange: string;
+  quantity: number;
+  average_price: number;
+  last_price: number;
+  pnl: number;
+  pnl_percentage: number;
+  instrument_token?: number;
+}
+
 export interface Portfolio {
   total_value: number;
-  available_cash: number;
-  invested_amount: number;
-  profit_loss: number;
-  profit_loss_percent: number;
+  invested_value: number;
+  current_value: number;
+  total_pnl: number;
+  total_pnl_percentage: number;
+  margins?: PortfolioMargins;
+  positions: Position[];
+  holdings: Holding[];
+}
+
+// Portfolio API Parameters
+export interface PortfolioParams {
+  broker_type?: 'zerodha' | string;
+  credentials_id?: string;
 }
 
 // Backtesting Types
