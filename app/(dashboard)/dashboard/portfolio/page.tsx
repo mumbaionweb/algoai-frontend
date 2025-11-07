@@ -31,20 +31,43 @@ function PortfolioPageContent() {
       setPortfolio(data);
     } catch (err: any) {
       console.error('Failed to load portfolio:', err);
+      console.error('Portfolio error details:', {
+        message: err.message,
+        response: err.response,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        config: err.config,
+      });
+      
       const errorDetail = err.response?.data?.detail || '';
       const status = err.response?.status;
 
+      // Log the full error response for debugging
+      if (err.response?.data) {
+        console.error('🔴 Portfolio API Error Response:', JSON.stringify(err.response.data, null, 2));
+        console.error('Error Detail Field:', errorDetail || 'No detail field');
+      }
+
       // Handle specific errors
       if (status === 400) {
-        if (errorDetail.includes('credentials not found')) {
+        if (errorDetail.includes('credentials not found') || errorDetail.includes('Zerodha credentials not found')) {
           setError('Please add your Zerodha API credentials first.');
-        } else if (errorDetail.includes('Access token not found')) {
+        } else if (errorDetail.includes('Access token not found') || errorDetail.includes('access token')) {
           setError('Please connect your Zerodha account first by completing the OAuth flow.');
+        } else if (errorDetail.includes('KiteConnect') || errorDetail.includes('Failed to create')) {
+          setError('Failed to connect to Zerodha. Please check your credentials and try again.');
         } else {
-          setError(errorDetail || 'Failed to fetch portfolio');
+          setError(errorDetail || 'Failed to fetch portfolio. Please check your Zerodha connection.');
         }
       } else if (status === 401) {
         setError('Authentication failed. Please log in again.');
+      } else if (status === 500) {
+        const responseData = err.response?.data as { detail?: string; message?: string; [key: string]: any };
+        console.error('🔴 BACKEND 500 ERROR DATA (Portfolio):');
+        console.error('Error Response Data:', JSON.stringify(responseData, null, 2));
+        console.error('Error Detail Field:', responseData?.detail || 'No detail field');
+        setError(responseData?.detail || 'Server error. Please try again later.');
       } else {
         setError(errorDetail || 'Failed to load portfolio. Please try again.');
       }
