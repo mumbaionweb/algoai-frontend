@@ -41,13 +41,20 @@ apiClient.interceptors.request.use(
     // Debug: Log request details (only in development)
     if (process.env.NODE_ENV === 'development') {
       const fullUrl = `${config.baseURL || ''}${config.url || ''}`;
+      const deviceId = typeof window !== 'undefined' ? getOrCreateDeviceId() : null;
       console.log('📤 API Request:', {
         method: config.method?.toUpperCase(),
         url: fullUrl,
         baseURL: config.baseURL,
         endpoint: config.url,
         hasToken: !!token,
-        hasDeviceId: typeof window !== 'undefined' && !!getOrCreateDeviceId(),
+        tokenPreview: token ? token.substring(0, 20) + '...' : 'none',
+        hasDeviceId: !!deviceId,
+        deviceIdPreview: deviceId ? deviceId.substring(0, 8) + '...' : 'none',
+        headers: {
+          Authorization: token ? `Bearer ${token.substring(0, 20)}...` : 'missing',
+          'X-Device-ID': deviceId || 'missing',
+        },
         apiUrlUsed: API_URL,
       });
     }

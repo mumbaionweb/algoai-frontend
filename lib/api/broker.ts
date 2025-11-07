@@ -89,14 +89,34 @@ export async function deleteBrokerCredentials(credentialsId: string): Promise<vo
 /**
  * Initiate Zerodha OAuth flow
  * Returns login_url that user should be redirected to
+ * 
+ * @param credentialsId Optional credentials ID. If not provided, uses the first Zerodha credential.
  */
 export async function initiateZerodhaOAuth(credentialsId?: string): Promise<{
   login_url: string;
   redirect_url: string;
   message: string;
 }> {
-  const params = credentialsId ? `?credentials_id=${credentialsId}` : '';
-  const response = await apiClient.get(`/api/zerodha/oauth/initiate${params}`);
+  // Build query parameters
+  const params = new URLSearchParams();
+  if (credentialsId) {
+    params.append('credentials_id', credentialsId);
+  }
+  const queryString = params.toString();
+  const url = `/api/zerodha/oauth/initiate${queryString ? `?${queryString}` : ''}`;
+  
+  // Debug logging (only in development)
+  if (process.env.NODE_ENV === 'development') {
+    const token = localStorage.getItem('firebase_token');
+    console.log('🔍 initiateZerodhaOAuth called:', {
+      url,
+      credentialsId,
+      hasToken: !!token,
+      fullUrl: `${apiClient.defaults.baseURL}${url}`,
+    });
+  }
+  
+  const response = await apiClient.get(url);
   return response.data;
 }
 

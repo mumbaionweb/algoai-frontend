@@ -170,27 +170,68 @@ function BrokerPageContent() {
       setSuccess('');
       setLoading(true);
       
+      // Debug: Check if token is available
+      const token = localStorage.getItem('firebase_token');
+      if (!token) {
+        throw new Error('No authentication token found. Please log in again.');
+      }
+      
+      // Debug: Verify credentials exist before calling OAuth
+      if (credentialsId) {
+        const credExists = credentials.find(c => c.id === credentialsId);
+        if (!credExists) {
+          throw new Error(`Credentials with ID ${credentialsId} not found. Please refresh the page.`);
+        }
+        console.log('🔍 Initiating OAuth with credentials:', {
+          credentialsId,
+          brokerType: credExists.broker_type,
+          isActive: credExists.is_active,
+          hasToken: !!token,
+        });
+      }
+      
+      console.log('🔍 Calling initiateZerodhaOAuth:', {
+        credentialsId,
+        hasToken: !!token,
+        tokenPreview: token.substring(0, 20) + '...',
+      });
+      
       const response = await initiateZerodhaOAuth(credentialsId);
+      
+      console.log('✅ OAuth initiated successfully:', response);
       
       // Redirect user to Zerodha login page (not popup, as per backend docs)
       // The backend will handle the callback and redirect back to our frontend
       window.location.href = response.login_url;
       
     } catch (err: any) {
-      console.error('Failed to initiate OAuth:', err);
+      console.error('❌ Failed to initiate OAuth:', err);
+      console.error('❌ Error details:', {
+        message: err.message,
+        response: err.response,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        data: err.response?.data,
+        config: err.config,
+      });
+      
       setLoading(false);
       
       if (err.response?.status === 404) {
         const errorDetail = err.response?.data?.detail || '';
-        if (errorDetail.includes('credentials not found')) {
+        if (errorDetail.includes('credentials not found') || errorDetail.includes('not found')) {
           setError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
+        } else if (errorDetail.includes('No Zerodha credentials')) {
+          setError('No Zerodha credentials found. Please add your Zerodha API credentials first.');
         } else {
-          setError(errorDetail || 'Zerodha credentials not found');
+          setError(errorDetail || 'Zerodha credentials not found. Please check if the credentials ID is correct.');
         }
       } else if (err.response?.status === 401) {
-        setError('Authentication failed. Please log in again.');
+        setError('Authentication failed. Your session may have expired. Please log in again.');
+      } else if (err.message) {
+        setError(err.message);
       } else {
-        setError(err.response?.data?.detail || 'Failed to initiate OAuth flow');
+        setError(err.response?.data?.detail || 'Failed to initiate OAuth flow. Please try again.');
       }
     }
   };
