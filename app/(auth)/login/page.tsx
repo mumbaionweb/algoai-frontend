@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/authStore';
 import { apiClient } from '@/lib/api/client';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { getDeviceInfo } from '@/utils/device';
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -44,10 +45,14 @@ function LoginForm() {
       setLoadingStep('Getting token...');
       const idToken = await userCredential.user.getIdToken(false);
 
-      // Verify with backend
+      // Get device info for tracking
+      const deviceInfo = getDeviceInfo();
+
+      // Verify with backend (include device info for tracking)
       setLoadingStep('Verifying with server...');
       const response = await apiClient.post('/api/auth/login', {
         id_token: idToken,
+        device_info: deviceInfo,
       });
 
       // Store token and user

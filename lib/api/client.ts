@@ -1,4 +1,5 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
+import { getOrCreateDeviceId } from '@/utils/device';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
 
@@ -19,12 +20,22 @@ export const apiClient = axios.create({
   },
 });
 
-// Add auth token interceptor with detailed logging
+// Add auth token and device ID interceptor with detailed logging
 apiClient.interceptors.request.use(
   (config) => {
+    // Add authentication token
     const token = localStorage.getItem('firebase_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    
+    // Add device ID header for device tracking
+    // Only add if we're in browser environment (not SSR)
+    if (typeof window !== 'undefined') {
+      const deviceId = getOrCreateDeviceId();
+      if (deviceId) {
+        config.headers['X-Device-ID'] = deviceId;
+      }
     }
     
     // Debug: Log request details (only in development)
@@ -36,6 +47,7 @@ apiClient.interceptors.request.use(
         baseURL: config.baseURL,
         endpoint: config.url,
         hasToken: !!token,
+        hasDeviceId: typeof window !== 'undefined' && !!getOrCreateDeviceId(),
         apiUrlUsed: API_URL,
       });
     }

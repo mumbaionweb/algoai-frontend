@@ -3,6 +3,7 @@ import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { apiClient } from '@/lib/api/client';
 import { useAuthStore } from '@/store/authStore';
 import { verifyToken, getCurrentUser, mapUserInfoToUser } from '@/lib/api/auth';
+import { getDeviceInfo } from '@/utils/device';
 import type { User } from '@/types';
 
 /**
@@ -49,8 +50,11 @@ export async function initializeAuth(): Promise<void> {
                 console.warn('Failed to get full user info, trying login endpoint:', userError);
                 
                 try {
+                  // Include device info for tracking
+                  const deviceInfo = typeof window !== 'undefined' ? getDeviceInfo() : undefined;
                   const response = await apiClient.post('/api/auth/login', {
                     id_token: idToken,
+                    ...(deviceInfo && { device_info: deviceInfo }),
                   });
                   useAuthStore.getState().setToken(idToken);
                   useAuthStore.getState().setUser(response.data.user);
@@ -87,8 +91,11 @@ export async function initializeAuth(): Promise<void> {
               // Network error or other issue - try login endpoint
               console.warn('Token verification failed, trying login endpoint:', verifyError);
               try {
+                // Include device info for tracking
+                const deviceInfo = typeof window !== 'undefined' ? getDeviceInfo() : undefined;
                 const response = await apiClient.post('/api/auth/login', {
                   id_token: idToken,
+                  ...(deviceInfo && { device_info: deviceInfo }),
                 });
                 useAuthStore.getState().setToken(idToken);
                 useAuthStore.getState().setUser(response.data.user);
