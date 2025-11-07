@@ -59,12 +59,28 @@ function BrokerPageContent() {
         loadData();
       }
     } else if (oauthStatus === 'error') {
-      setError(`Failed to connect Zerodha: ${message || 'Unknown error'}`);
-      // Clean up URL
-      router.replace('/dashboard/broker');
+      const decodedMessage = message ? decodeURIComponent(message) : 'Unknown error';
+      
+      // Handle decryption failure from OAuth callback
+      if (decodedMessage.includes('decrypt') || decodedMessage.includes('re-add')) {
+        setError('Your credentials need to be re-added due to a security update. Please update your API keys.');
+        // Clean up URL
+        router.replace('/dashboard/broker');
+        // Optionally show a prompt to update credentials after a delay
+        setTimeout(() => {
+          if (credentials.length > 0) {
+            // Show message to update credentials
+            setError('Please update your Zerodha API credentials to continue.');
+          }
+        }, 2000);
+      } else {
+        setError(`Failed to connect Zerodha: ${decodedMessage}`);
+        // Clean up URL
+        router.replace('/dashboard/broker');
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, router, isAuthenticated]);
+  }, [searchParams, router, isAuthenticated, credentials]);
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
@@ -131,9 +147,19 @@ function BrokerPageContent() {
       setShowAddForm(false);
       setEditingId(null);
       await loadData();
+      
+      // Show success message
+      setSuccess('Credentials saved successfully! You can now connect to Zerodha.');
     } catch (err: any) {
       console.error('Failed to save credentials:', err);
-      setError(err.response?.data?.detail || 'Failed to save credentials');
+      const errorDetail = err.response?.data?.detail || '';
+      
+      // Handle decryption-related errors during save
+      if (err.response?.status === 500 && (errorDetail.includes('decrypt') || errorDetail.includes('encrypt'))) {
+        setError('Failed to save credentials due to encryption error. Please try again or contact support.');
+      } else {
+        setError(errorDetail || 'Failed to save credentials');
+      }
     }
   };
 
@@ -217,10 +243,24 @@ function BrokerPageContent() {
       
       setLoading(false);
       
-      if (err.response?.status === 404) {
-        const errorDetail = err.response?.data?.detail || '';
-        
-        // Backend says credentials don't exist - refresh the list
+      const errorDetail = err.response?.data?.detail || '';
+      const status = err.response?.status;
+      
+      // Handle decryption failure (500 error with decrypt message)
+      if (status === 500 && (errorDetail.includes('decrypt') || errorDetail.includes('re-add'))) {
+        setError('Your credentials need to be re-added due to a security update. Please update your API keys.');
+        // Optionally redirect to edit the credentials
+        setTimeout(() => {
+          const cred = credentials.find(c => c.id === credentialsId);
+          if (cred) {
+            handleEdit(cred);
+          }
+        }, 2000);
+        return;
+      }
+      
+      // Handle 404 - credentials not found
+      if (status === 404) {
         if (errorDetail.includes('credentials not found') || errorDetail.includes('not found')) {
           setError(`${errorDetail} The credentials list may be out of sync. Refreshing...`);
           // Refresh credentials list to sync with backend
@@ -232,12 +272,47 @@ function BrokerPageContent() {
         } else {
           setError(errorDetail || 'Zerodha credentials not found. Please check if the credentials ID is correct.');
         }
-      } else if (err.response?.status === 401) {
+        return;
+      }
+      
+      // Handle 403 - credentials don't belong to user
+      if (status === 403) {
+        if (errorDetail.includes('do not belong') || errorDetail.includes('not belong')) {
+          setError('Security warning: These credentials do not belong to your account. Please contact support if this is unexpected.');
+        } else {
+          setError(errorDetail || 'Access denied. You do not have permission to use these credentials.');
+        }
+        return;
+      }
+      
+      // Handle 400 - credentials inactive
+      if (status === 400) {
+        if (errorDetail.includes('inactive')) {
+          setError('These credentials are inactive. Please activate them first.');
+          // Optionally redirect to edit the credentials
+          setTimeout(() => {
+            const cred = credentials.find(c => c.id === credentialsId);
+            if (cred) {
+              handleEdit(cred);
+            }
+          }, 2000);
+        } else {
+          setError(errorDetail || 'Invalid request. Please check your credentials.');
+        }
+        return;
+      }
+      
+      // Handle 401 - authentication failed
+      if (status === 401) {
         setError('Authentication failed. Your session may have expired. Please log in again.');
-      } else if (err.message) {
+        return;
+      }
+      
+      // Handle other errors
+      if (err.message) {
         setError(err.message);
       } else {
-        setError(err.response?.data?.detail || 'Failed to initiate OAuth flow. Please try again.');
+        setError(errorDetail || 'Failed to initiate OAuth flow. Please try again.');
       }
     }
   };
