@@ -37,7 +37,7 @@ export default function OrdersPage() {
           <h2 className="text-2xl font-semibold text-white mb-4">Order Management</h2>
           <p className="text-gray-400 mb-6">This feature is coming soon.</p>
           <Link
-            href="/dashboard"
+            href="/"
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded inline-block"
           >
             Return to Dashboard

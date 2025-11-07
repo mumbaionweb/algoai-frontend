@@ -66,7 +66,7 @@ export default function DashboardHeader({ title = 'AlgoAI Dashboard', backButton
           <div className="flex items-center gap-4">
             {backButton && (
               <Link
-                href="/dashboard"
+                href="/"
                 className="text-gray-400 hover:text-white transition"
               >
                 ← Back

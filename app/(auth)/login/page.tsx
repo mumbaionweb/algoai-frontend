@@ -54,9 +54,9 @@ function LoginForm() {
       setToken(idToken);
       setUser(response.data.user);
 
-      // Redirect to dashboard
+      // Redirect to home (dashboard)
       setLoadingStep('Redirecting...');
-      router.push('/dashboard');
+      router.push('/');
     } catch (err: unknown) {
       console.error('❌ Login error:', err);
       
@@ -69,6 +69,15 @@ function LoginForm() {
           data: axiosError.response?.data,
         });
       }
+      
+      // Check for network errors first (Axios network errors)
+      if (err && typeof err === 'object' && 'code' in err && (err as any).code === 'ERR_NETWORK') {
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
+        setError(`Cannot connect to backend server at ${apiUrl}. The server may be down or unreachable. Check the console for more details.`);
+        setLoading(false);
+        return;
+      }
+      
       let errorMessage = 'Login failed';
       
       // Handle Firebase Auth errors
@@ -189,7 +198,7 @@ function LoginForm() {
           errorMessage = 'Login request timed out. The backend is taking too long to respond (>30 seconds). This is likely a backend performance issue. Please contact support or try again later.';
           console.error('⏱️ Timeout Error - Backend taking >30 seconds to respond');
           console.error('Backend Issue - Action Items:', {
-            backendUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+            backendUrl: process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app',
             endpoint: '/api/auth/login',
             timeout: '30 seconds',
             issue: 'Backend is not responding in time',
@@ -205,11 +214,13 @@ function LoginForm() {
           });
         }
         // Network error - server might not be running
-        else if (errorCode === 'ERR_NETWORK') {
-          errorMessage = 'Cannot connect to server. Make sure the backend is running on http://localhost:8080';
+        else if (errorCode === 'ERR_NETWORK' || (err as any).message === 'Network Error') {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
+          errorMessage = `Cannot connect to backend server at ${apiUrl}. The server may be down or unreachable. Check the console for more details.`;
+          
           console.error('❌ Network Error - Backend server might not be running');
           console.error('Check:', {
-            apiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080',
+            apiUrl: apiUrl,
             error: err
           });
         } else {

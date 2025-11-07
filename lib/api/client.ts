@@ -1,6 +1,15 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
+
+// Log the API URL being used (only in development)
+if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
+  console.log('🔧 API Client Configuration:', {
+    apiUrl: API_URL,
+    envVar: process.env.NEXT_PUBLIC_API_URL || 'not set (using default)',
+    isProduction: API_URL.includes('algoai-backend'),
+  });
+}
 
 export const apiClient = axios.create({
   baseURL: API_URL,
@@ -20,11 +29,14 @@ apiClient.interceptors.request.use(
     
     // Debug: Log request details (only in development)
     if (process.env.NODE_ENV === 'development') {
+      const fullUrl = `${config.baseURL || ''}${config.url || ''}`;
       console.log('📤 API Request:', {
         method: config.method?.toUpperCase(),
-        url: `${config.baseURL}${config.url}`,
+        url: fullUrl,
         baseURL: config.baseURL,
+        endpoint: config.url,
         hasToken: !!token,
+        apiUrlUsed: API_URL,
       });
     }
     
@@ -54,26 +66,58 @@ apiClient.interceptors.response.use(
     
     // Detailed error logging (only in development to reduce noise)
     if (process.env.NODE_ENV === 'development') {
-      console.error('📥 API Response (Error):', {
-        // Request details
-        request: axiosError.config ? {
+      const errorDetails: Record<string, any> = {
+        // Always include basic error info
+        errorType: error?.constructor?.name || typeof error,
+        errorString: String(error),
+      };
+      
+      // Request details
+      if (axiosError?.config) {
+        errorDetails.request = {
           method: axiosError.config.method?.toUpperCase(),
           url: `${axiosError.config.baseURL || ''}${axiosError.config.url || ''}`,
           baseURL: axiosError.config.baseURL,
           fullUrl: axiosError.config.url,
-        } : null,
-        // Response details (if available)
-        response: axiosError.response ? {
+        };
+      }
+      
+      // Response details (if available)
+      if (axiosError?.response) {
+        errorDetails.response = {
           status: axiosError.response.status,
           statusText: axiosError.response.statusText,
-        } : null,
-        // Network/connection errors
-        network: axiosError.code || axiosError.message ? {
+          data: axiosError.response.data,
+        };
+      }
+      
+      // Network/connection errors
+      if (axiosError?.code || axiosError?.message) {
+        errorDetails.network = {
           code: axiosError.code,
           message: axiosError.message,
           name: axiosError.name,
-        } : null,
-      });
+        };
+      }
+      
+      // Try to extract more info from the error
+      if (error instanceof Error) {
+        errorDetails.message = error.message;
+        errorDetails.stack = error.stack;
+        errorDetails.name = error.name;
+      }
+      
+      // Log error details
+      try {
+        console.error('📥 API Response (Error):', errorDetails);
+      } catch (logError) {
+        // If logging fails, at least log the basic error
+        console.error('📥 API Response (Error - Fallback):', {
+          errorType: typeof error,
+          errorString: String(error),
+          logError: String(logError),
+        });
+      }
     }
     
     // Log timeout errors
@@ -91,14 +135,38 @@ apiClient.interceptors.response.use(
     
     // Log network errors for debugging
     if (axiosError.code === 'ERR_NETWORK' || axiosError.message === 'Network Error') {
-      console.error('❌ Network Error Details:', {
-        message: axiosError.message,
-        code: axiosError.code,
+      const fullUrl = `${axiosError.config?.baseURL || API_URL}${axiosError.config?.url || ''}`;
+      
+      const networkErrorDetails: Record<string, any> = {
+        errorType: 'Network Error',
         baseURL: API_URL,
-        url: axiosError.config?.url,
-        fullUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
-        isBackendReachable: 'Check if backend is running and accessible',
-      });
+        fullUrl: fullUrl,
+        troubleshooting: [
+          '1. Check if the backend URL is correct: ' + API_URL,
+          '2. Verify the backend service is deployed and running on Cloud Run',
+          '3. Check CORS configuration on the backend',
+          '4. Try accessing the health endpoint: ' + API_URL + '/health',
+          '5. Check network connectivity and firewall settings',
+          '6. Verify Cloud Run service is active and accessible'
+        ],
+        nextSteps: 'Verify backend deployment on Cloud Run or check if NEXT_PUBLIC_API_URL is correctly set',
+      };
+      
+      // Add error details if available
+      if (axiosError.message) {
+        networkErrorDetails.message = axiosError.message;
+      }
+      if (axiosError.code) {
+        networkErrorDetails.code = axiosError.code;
+      }
+      if (axiosError.config?.url) {
+        networkErrorDetails.endpoint = axiosError.config.url;
+      }
+      if (axiosError.name) {
+        networkErrorDetails.name = axiosError.name;
+      }
+      
+      console.error('❌ Network Error - Cannot connect to backend:', networkErrorDetails);
     }
     
     // Log 500 errors with extra details

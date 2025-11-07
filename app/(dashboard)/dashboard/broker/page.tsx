@@ -472,7 +472,7 @@ function BrokerPageContent() {
           {/* Back to Dashboard */}
           <div className="mt-6">
             <Link
-              href="/dashboard"
+              href="/"
               className="inline-flex items-center text-blue-400 hover:text-blue-300 transition-colors"
             >
               ← Back to Dashboard

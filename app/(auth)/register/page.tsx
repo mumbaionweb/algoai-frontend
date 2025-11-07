@@ -45,8 +45,8 @@ export default function RegisterPage() {
         is_active: true,
       });
 
-      // Redirect to dashboard
-      router.push('/dashboard');
+      // Redirect to home (dashboard)
+      router.push('/');
     } catch (err: unknown) {
       console.error('Registration error:', err);
       // Handle Firebase Auth errors

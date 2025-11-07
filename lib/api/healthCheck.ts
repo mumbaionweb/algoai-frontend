@@ -18,7 +18,7 @@ export interface HealthCheckResult {
  * Test backend connectivity
  */
 export async function checkBackendHealth(): Promise<HealthCheckResult> {
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
   
   console.log('🏥 Backend Health Check:', {
     backendUrl,
@@ -72,7 +72,7 @@ export async function checkBackendHealth(): Promise<HealthCheckResult> {
  * Test backend auth endpoint (without credentials)
  */
 export async function checkAuthEndpoint(): Promise<HealthCheckResult> {
-  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+  const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
   
   console.log('🔐 Backend Auth Endpoint Check:', {
     backendUrl,
