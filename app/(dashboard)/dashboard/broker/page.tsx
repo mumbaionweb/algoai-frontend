@@ -256,8 +256,8 @@ function BrokerPageContent() {
 
           {/* Header */}
           <div className="bg-gray-800 rounded-lg p-6 mb-6">
-            <div className="flex justify-between items-center">
-              <div>
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+              <div className="flex-1 min-w-0">
                 <h2 className="text-2xl font-semibold text-white mb-2">Broker Configuration</h2>
                 <p className="text-gray-400">
                   Manage your broker connections and API credentials for trading integrations.
@@ -266,7 +266,7 @@ function BrokerPageContent() {
               {!showAddForm && (
                 <button
                   onClick={() => setShowAddForm(true)}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors whitespace-nowrap sm:ml-4"
                 >
                   Add Broker
                 </button>
@@ -402,9 +402,9 @@ function BrokerPageContent() {
                     key={cred.id}
                     className="bg-gray-800 rounded-lg p-6 border border-gray-700"
                   >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                    <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
                           <h3 className="text-lg font-semibold text-white">
                             {broker?.name || cred.broker_type}
                           </h3>
@@ -412,7 +412,7 @@ function BrokerPageContent() {
                             <span className="text-sm text-gray-400">({cred.label})</span>
                           )}
                           <span
-                            className={`px-2 py-1 text-xs font-semibold rounded ${
+                            className={`px-2 py-1 text-xs font-semibold rounded whitespace-nowrap ${
                               cred.is_active
                                 ? 'bg-green-500/10 text-green-400'
                                 : 'bg-gray-500/10 text-gray-400'
@@ -421,26 +421,26 @@ function BrokerPageContent() {
                             {cred.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </div>
-                        <p className="text-sm text-gray-400 mb-2">
+                        <p className="text-sm text-gray-400 mb-2 break-words">
                           API Key: {cred.api_key.substring(0, 8)}...
                         </p>
                         <p className="text-xs text-gray-500">
                           Created: {new Date(cred.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2 lg:flex-nowrap">
                         {cred.broker_type === 'zerodha' && (
                           <>
                             <button
                               onClick={() => handleZerodhaOAuth(cred.id)}
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors"
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
                               disabled={loading}
                             >
                               Connect
                             </button>
                             <button
                               onClick={handleRefreshToken}
-                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors"
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
                               disabled={loading}
                             >
                               Refresh Token
@@ -449,14 +449,14 @@ function BrokerPageContent() {
                         )}
                         <button
                           onClick={() => handleEdit(cred)}
-                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
                           disabled={loading}
                         >
                           Edit
                         </button>
                         <button
                           onClick={() => handleDelete(cred.id)}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors"
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
                           disabled={loading}
                         >
                           Delete
