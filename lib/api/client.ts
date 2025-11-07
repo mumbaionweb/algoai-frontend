@@ -235,6 +235,7 @@ apiClient.interceptors.response.use(
     }
     
     // Log 404 errors with extra details (common for OAuth endpoints)
+    // Always log 404 errors (not just in development) to help diagnose production issues
     if (axiosError.response?.status === 404) {
       const responseData = axiosError.response.data as { detail?: string; message?: string; [key: string]: any };
       
@@ -243,25 +244,28 @@ apiClient.interceptors.response.use(
       console.error('Error Detail Field:', responseData?.detail || 'No detail field');
       console.error('Error Message Field:', responseData?.message || 'No message field');
       
+      const authHeader = axiosError.config?.headers?.Authorization;
+      const authHeaderPreview = (() => {
+        if (!authHeader) return 'MISSING';
+        if (typeof authHeader === 'string') return authHeader.substring(0, 30) + '...';
+        return String(authHeader).substring(0, 30) + '...';
+      })();
+      
       console.error('❌ Backend 404 Error - Full Details:', {
         status: axiosError.response.status,
         statusText: axiosError.response.statusText,
         responseData: responseData,
         requestUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
         requestMethod: axiosError.config?.method,
-        requestHeaders: axiosError.config?.headers,
-        hasAuthHeader: !!axiosError.config?.headers?.Authorization,
-        authHeaderPreview: (() => {
-          const authHeader = axiosError.config?.headers?.Authorization;
-          if (!authHeader) return 'MISSING';
-          if (typeof authHeader === 'string') return authHeader.substring(0, 30) + '...';
-          return String(authHeader).substring(0, 30) + '...';
-        })(),
+        hasAuthHeader: !!authHeader,
+        authHeaderPreview: authHeaderPreview,
         timestamp: new Date().toISOString(),
       });
       
       // Special handling for OAuth endpoints
       if (axiosError.config?.url?.includes('/zerodha/oauth/initiate')) {
+        const credentialsId = new URLSearchParams(axiosError.config.url?.split('?')[1] || '').get('credentials_id');
+        
         console.error('🔍 OAuth 404 Error Analysis:', {
           possibleCauses: [
             'Missing Authorization header (most likely)',
@@ -269,10 +273,25 @@ apiClient.interceptors.response.use(
             'Route not registered on backend',
             'Backend dependency (get_current_user) failed',
           ],
-          checkAuthHeader: axiosError.config.headers?.Authorization ? '✅ Present' : '❌ MISSING',
-          credentialsId: new URLSearchParams(axiosError.config.url?.split('?')[1] || '').get('credentials_id'),
-          suggestion: 'Check Network tab to verify Authorization header is being sent',
+          checkAuthHeader: authHeader ? '✅ Present' : '❌ MISSING',
+          credentialsId: credentialsId,
+          backendErrorDetail: responseData?.detail || 'No detail from backend',
+          suggestion: 'Check Network tab → Request Headers → Verify Authorization header is present',
         });
+        
+        // Additional helpful message
+        if (!authHeader) {
+          console.error('⚠️ CRITICAL: Authorization header is MISSING!');
+          console.error('This is likely the cause of the 404 error.');
+          console.error('The backend requires: Authorization: Bearer <firebase_token>');
+        } else {
+          console.error('✅ Authorization header is present, but still getting 404.');
+          console.error('Possible causes:');
+          console.error('1. Credentials ID does not exist for this user');
+          console.error('2. Backend route not registered');
+          console.error('3. Backend error in get_current_user dependency');
+          console.error('Backend error detail:', responseData?.detail);
+        }
       }
     }
     
