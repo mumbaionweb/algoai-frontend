@@ -219,8 +219,14 @@ function BrokerPageContent() {
       
       if (err.response?.status === 404) {
         const errorDetail = err.response?.data?.detail || '';
+        
+        // Backend says credentials don't exist - refresh the list
         if (errorDetail.includes('credentials not found') || errorDetail.includes('not found')) {
-          setError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
+          setError(`${errorDetail} The credentials list may be out of sync. Refreshing...`);
+          // Refresh credentials list to sync with backend
+          setTimeout(() => {
+            loadData();
+          }, 1000);
         } else if (errorDetail.includes('No Zerodha credentials')) {
           setError('No Zerodha credentials found. Please add your Zerodha API credentials first.');
         } else {
@@ -305,12 +311,22 @@ function BrokerPageContent() {
                 </p>
               </div>
               {!showAddForm && (
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors whitespace-nowrap sm:ml-4"
-                >
-                  Add Broker
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={loadData}
+                    disabled={loading}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                    title="Refresh credentials list"
+                  >
+                    {loading ? 'Loading...' : 'Refresh'}
+                  </button>
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors whitespace-nowrap"
+                  >
+                    Add Broker
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -474,8 +490,9 @@ function BrokerPageContent() {
                           <>
                             <button
                               onClick={() => handleZerodhaOAuth(cred.id)}
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
                               disabled={loading}
+                              title="Connect to Zerodha using these credentials"
                             >
                               Connect
                             </button>
