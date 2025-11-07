@@ -42,7 +42,9 @@ apiClient.interceptors.request.use(
     if (process.env.NODE_ENV === 'development') {
       const fullUrl = `${config.baseURL || ''}${config.url || ''}`;
       const deviceId = typeof window !== 'undefined' ? getOrCreateDeviceId() : null;
-      console.log('📤 API Request:', {
+      
+      // Log full request details including headers
+      const requestDetails = {
         method: config.method?.toUpperCase(),
         url: fullUrl,
         baseURL: config.baseURL,
@@ -52,11 +54,31 @@ apiClient.interceptors.request.use(
         hasDeviceId: !!deviceId,
         deviceIdPreview: deviceId ? deviceId.substring(0, 8) + '...' : 'none',
         headers: {
-          Authorization: token ? `Bearer ${token.substring(0, 20)}...` : 'missing',
+          Authorization: token ? `Bearer ${token.substring(0, 20)}...` : '❌ MISSING',
           'X-Device-ID': deviceId || 'missing',
+          'Content-Type': config.headers['Content-Type'] || 'missing',
         },
+        allHeaders: Object.keys(config.headers || {}),
         apiUrlUsed: API_URL,
-      });
+      };
+      
+      console.log('📤 API Request:', requestDetails);
+      
+      // For OAuth endpoint, log extra details
+      if (config.url?.includes('/zerodha/oauth/initiate')) {
+        const authHeader = config.headers.Authorization;
+        const authHeaderValue = typeof authHeader === 'string' 
+          ? authHeader.substring(0, 30) + '...' 
+          : authHeader ? String(authHeader).substring(0, 30) + '...' : 'MISSING';
+        
+        console.log('🔍 OAuth Request Details:', {
+          url: config.url,
+          fullUrl: fullUrl,
+          hasAuthHeader: !!authHeader,
+          authHeaderValue: authHeaderValue,
+          allRequestHeaders: config.headers,
+        });
+      }
     }
     
     return config;
@@ -210,6 +232,48 @@ apiClient.interceptors.response.use(
         requestHeaders: axiosError.config?.headers,
         timestamp: new Date().toISOString(),
       });
+    }
+    
+    // Log 404 errors with extra details (common for OAuth endpoints)
+    if (axiosError.response?.status === 404) {
+      const responseData = axiosError.response.data as { detail?: string; message?: string; [key: string]: any };
+      
+      console.error('🔴 BACKEND 404 ERROR (Resource Not Found):');
+      console.error('Error Response Data:', JSON.stringify(responseData, null, 2));
+      console.error('Error Detail Field:', responseData?.detail || 'No detail field');
+      console.error('Error Message Field:', responseData?.message || 'No message field');
+      
+      console.error('❌ Backend 404 Error - Full Details:', {
+        status: axiosError.response.status,
+        statusText: axiosError.response.statusText,
+        responseData: responseData,
+        requestUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
+        requestMethod: axiosError.config?.method,
+        requestHeaders: axiosError.config?.headers,
+        hasAuthHeader: !!axiosError.config?.headers?.Authorization,
+        authHeaderPreview: (() => {
+          const authHeader = axiosError.config?.headers?.Authorization;
+          if (!authHeader) return 'MISSING';
+          if (typeof authHeader === 'string') return authHeader.substring(0, 30) + '...';
+          return String(authHeader).substring(0, 30) + '...';
+        })(),
+        timestamp: new Date().toISOString(),
+      });
+      
+      // Special handling for OAuth endpoints
+      if (axiosError.config?.url?.includes('/zerodha/oauth/initiate')) {
+        console.error('🔍 OAuth 404 Error Analysis:', {
+          possibleCauses: [
+            'Missing Authorization header (most likely)',
+            'Credentials ID does not exist for this user',
+            'Route not registered on backend',
+            'Backend dependency (get_current_user) failed',
+          ],
+          checkAuthHeader: axiosError.config.headers?.Authorization ? '✅ Present' : '❌ MISSING',
+          credentialsId: new URLSearchParams(axiosError.config.url?.split('?')[1] || '').get('credentials_id'),
+          suggestion: 'Check Network tab to verify Authorization header is being sent',
+        });
+      }
     }
     
     if (axiosError.response?.status === 401) {
