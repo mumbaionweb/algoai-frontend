@@ -7,7 +7,8 @@ import Link from 'next/link';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { runBacktest, getBacktestHistory } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
-import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem } from '@/types';
+import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption } from '@/types';
+import { INTERVAL_OPTIONS } from '@/types';
 
 export default function BacktestingPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -111,6 +112,14 @@ class MyStrategy(bt.Strategy):
   const [commission, setCommission] = useState(() => 
     loadFromStorage('commission', 0.001)
   );
+  const [interval, setInterval] = useState<IntervalType>(() => {
+    const stored = loadFromStorage('interval', 'day');
+    // Validate stored interval
+    if (INTERVAL_OPTIONS.some(opt => opt.value === stored)) {
+      return stored as IntervalType;
+    }
+    return 'day';
+  });
 
   // Save to localStorage when values change
   useEffect(() => {
@@ -147,6 +156,11 @@ class MyStrategy(bt.Strategy):
     saveToStorage('commission', commission);
     console.log('💾 Saved commission to localStorage:', commission);
   }, [commission]);
+
+  useEffect(() => {
+    saveToStorage('interval', interval);
+    console.log('💾 Saved interval to localStorage:', interval);
+  }, [interval]);
   
   // Symbol validation state
   const [symbolError, setSymbolError] = useState('');
@@ -313,6 +327,7 @@ class MyStrategy(bt.Strategy):
       console.log('  - Exchange:', exchange.toUpperCase());
       console.log('  - From Date:', fromDate);
       console.log('  - To Date:', toDate);
+      console.log('  - Interval:', interval);
       console.log('  - Strategy Code Length:', strategyCode.length);
       console.log('  - Initial Cash:', initialCash);
       console.log('  - Commission:', commission);
@@ -325,6 +340,7 @@ class MyStrategy(bt.Strategy):
         to_date: toDate,
         initial_cash: initialCash,
         commission: commission,
+        interval: interval, // Include interval
       };
 
       // Log the exact symbol being sent
@@ -648,6 +664,54 @@ class MyStrategy(bt.Strategy):
                 </div>
               </div>
 
+              {/* Data Interval Selector */}
+              <div>
+                <label htmlFor="interval" className="block text-sm font-medium text-gray-300 mb-2">
+                  Data Interval
+                  <span className="ml-2 text-gray-400 text-xs" title="Select the time granularity for historical data">
+                    (ℹ️ affects data granularity)
+                  </span>
+                </label>
+                <select
+                  id="interval"
+                  value={interval}
+                  onChange={(e) => {
+                    const newInterval = e.target.value as IntervalType;
+                    console.log('📝 Interval changed:', newInterval);
+                    setInterval(newInterval);
+                  }}
+                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {INTERVAL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} - {option.description}
+                    </option>
+                  ))}
+                </select>
+                {fromDate && toDate && (() => {
+                  // Estimate data bars
+                  const start = new Date(fromDate);
+                  const end = new Date(toDate);
+                  const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+                  const tradingDays = Math.floor(daysDiff * 5 / 7); // Approximate trading days
+                  const selectedInterval = INTERVAL_OPTIONS.find(opt => opt.value === interval);
+                  const estimatedBars = selectedInterval ? Math.floor(tradingDays * selectedInterval.barsPerDay) : 0;
+                  
+                  return (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-400">
+                        Estimated data bars: <span className="text-white font-medium">{estimatedBars.toLocaleString()}</span>
+                        {interval !== 'day' && estimatedBars > 10000 && (
+                          <span className="ml-2 text-yellow-400">
+                            ⚠️ Large dataset - may take longer to process
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })()}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="initial_cash" className="block text-sm font-medium text-gray-300 mb-2">
@@ -807,6 +871,12 @@ class MyStrategy(bt.Strategy):
                     <div>
                       <span className="text-gray-400">Period:</span>
                       <span className="text-white ml-2">{results.from_date} to {results.to_date}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Data Interval:</span>
+                      <span className="text-white ml-2">
+                        {INTERVAL_OPTIONS.find(opt => opt.value === interval)?.label || interval || 'Daily'}
+                      </span>
                     </div>
                     <div>
                       <span className="text-gray-400">Initial Capital:</span>

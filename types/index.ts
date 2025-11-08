@@ -139,6 +139,32 @@ export interface PortfolioParams {
 }
 
 // Backtesting Types
+export type IntervalType = 
+  | 'day' 
+  | '60minute' 
+  | '30minute' 
+  | '15minute' 
+  | '5minute' 
+  | '3minute' 
+  | 'minute';
+
+export interface IntervalOption {
+  value: IntervalType;
+  label: string;
+  description: string;
+  barsPerDay: number;
+}
+
+export const INTERVAL_OPTIONS: IntervalOption[] = [
+  { value: 'day', label: 'Daily', description: '1 bar per trading day (~250/year)', barsPerDay: 1 },
+  { value: '60minute', label: 'Hourly', description: '~6.25 bars per day (~1,562/year)', barsPerDay: 6.25 },
+  { value: '30minute', label: '30 Minutes', description: '~12.5 bars per day (~3,125/year)', barsPerDay: 12.5 },
+  { value: '15minute', label: '15 Minutes', description: '~25 bars per day (~6,250/year)', barsPerDay: 25 },
+  { value: '5minute', label: '5 Minutes', description: '~75 bars per day (~18,750/year)', barsPerDay: 75 },
+  { value: '3minute', label: '3 Minutes', description: '~125 bars per day (~31,250/year)', barsPerDay: 125 },
+  { value: 'minute', label: '1 Minute', description: '~375 bars per day (~93,750/year)', barsPerDay: 375 },
+];
+
 export interface BacktestRequest {
   strategy_code: string;
   symbol: string;
@@ -147,6 +173,7 @@ export interface BacktestRequest {
   to_date: string; // Format: "YYYY-MM-DD"
   initial_cash?: number; // Default: 100000.0
   commission?: number; // Default: 0.001
+  interval?: string;  // NEW: Data interval (default: "day")
   strategy_params?: Record<string, any>;
   broker_type?: string; // Default: "zerodha"
 }
