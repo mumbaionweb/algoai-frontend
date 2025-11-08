@@ -359,31 +359,40 @@ The frontend automatically includes these headers in all requests.
 }
 ```
 
-### Enhanced Backtest Response (Recommended)
+### Historical Data Response Example
 ```json
 {
   "backtest_id": "abc123",
   "symbol": "LTF",
   "exchange": "NSE",
-  "interval": "day",  // NEW
+  "interval": "day",
   "from_date": "2025-05-08",
   "to_date": "2025-11-08",
-  // ... all existing fields ...
-  "data_bars_count": 127,
-  "historical_data_sample": [  // NEW: For chart visualization
+  "data_points": [
     {
       "time": "2025-05-08T00:00:00Z",
-      "close": 1000.0
+      "open": 1000.0,
+      "high": 1010.5,
+      "low": 995.0,
+      "close": 1005.5,
+      "volume": 1000000
     },
     {
       "time": "2025-05-09T00:00:00Z",
-      "close": 1005.5
+      "open": 1005.5,
+      "high": 1015.0,
+      "low": 1000.0,
+      "close": 1012.0,
+      "volume": 1200000
     }
-    // ... up to 200-500 data points
+    // ... more data points
   ],
-  "transactions": [...]
+  "total_points": 127,
+  "returned_points": 127
 }
 ```
+
+**Note:** The frontend will fetch this data separately using `GET /api/backtesting/{backtest_id}/data` after receiving the backtest results. This keeps the initial response lightweight while allowing on-demand access to full historical data.
 
 ---
 
