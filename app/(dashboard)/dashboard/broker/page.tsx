@@ -32,6 +32,10 @@ function BrokerPageContent() {
   // Data
   const [availableBrokers, setAvailableBrokers] = useState<BrokerInfo[]>([]);
   const [credentials, setCredentials] = useState<BrokerCredentials[]>([]);
+  
+  // Track OAuth connection status per credential ID
+  // Key: credential ID, Value: true if OAuth is connected, false if not
+  const [oauthConnectionStatus, setOauthConnectionStatus] = useState<Record<string, boolean>>({});
 
   // Form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -52,6 +56,17 @@ function BrokerPageContent() {
 
     if (oauthStatus === 'success' && broker === 'zerodha') {
       setSuccess('Zerodha connected successfully!');
+      // Mark OAuth as connected for all Zerodha credentials
+      // (We don't know which specific credential was used, so mark all Zerodha ones)
+      setOauthConnectionStatus((prev) => {
+        const updated = { ...prev };
+        credentials
+          .filter((cred) => cred.broker_type === 'zerodha')
+          .forEach((cred) => {
+            updated[cred.id] = true;
+          });
+        return updated;
+      });
       // Clean up URL
       router.replace('/dashboard/broker');
       // Reload broker data to show updated status
@@ -59,6 +74,16 @@ function BrokerPageContent() {
         loadData();
       }
     } else if (oauthStatus === 'error') {
+      // Mark OAuth as not connected for all Zerodha credentials when error occurs
+      setOauthConnectionStatus((prev) => {
+        const updated = { ...prev };
+        credentials
+          .filter((cred) => cred.broker_type === 'zerodha')
+          .forEach((cred) => {
+            updated[cred.id] = false;
+          });
+        return updated;
+      });
       const decodedMessage = message ? decodeURIComponent(message) : 'Unknown error';
       
       // Handle decryption failure from OAuth callback
@@ -113,6 +138,19 @@ function BrokerPageContent() {
       ]);
       setAvailableBrokers(brokers);
       setCredentials(creds);
+      
+      // Initialize OAuth connection status - assume not connected unless we have evidence
+      // Only set to true if we already have it marked as connected (from previous success)
+      setOauthConnectionStatus((prev) => {
+        const updated = { ...prev };
+        // Keep existing connection status, but initialize new credentials as not connected
+        creds.forEach((cred) => {
+          if (cred.broker_type === 'zerodha' && updated[cred.id] === undefined) {
+            updated[cred.id] = false; // Default to not connected
+          }
+        });
+        return updated;
+      });
     } catch (err: any) {
       console.error('Failed to load broker data:', err);
       setError(err.response?.data?.detail || 'Failed to load broker data');
@@ -336,9 +374,29 @@ function BrokerPageContent() {
       setSuccess('');
       await refreshZerodhaToken();
       setSuccess('Zerodha token refreshed successfully');
+      // Mark OAuth as connected after successful token refresh
+      setOauthConnectionStatus((prev) => {
+        const updated = { ...prev };
+        credentials
+          .filter((cred) => cred.broker_type === 'zerodha')
+          .forEach((cred) => {
+            updated[cred.id] = true;
+          });
+        return updated;
+      });
       await loadData();
     } catch (err: any) {
       console.error('Failed to refresh token:', err);
+      // Mark OAuth as not connected if refresh fails
+      setOauthConnectionStatus((prev) => {
+        const updated = { ...prev };
+        credentials
+          .filter((cred) => cred.broker_type === 'zerodha')
+          .forEach((cred) => {
+            updated[cred.id] = false;
+          });
+        return updated;
+      });
       if (err.response?.status === 404) {
         setError('No tokens found. Please complete OAuth first.');
       } else {
@@ -542,6 +600,13 @@ function BrokerPageContent() {
             <div className="space-y-4">
               {credentials.map((cred) => {
                 const broker = availableBrokers.find((b) => b.type === cred.broker_type);
+                // For Zerodha, check both is_active AND OAuth connection status
+                // For other brokers, just check is_active
+                const isOAuthConnected = cred.broker_type === 'zerodha' 
+                  ? oauthConnectionStatus[cred.id] === true 
+                  : true; // Non-Zerodha brokers don't need OAuth
+                const isFullyActive = cred.is_active && isOAuthConnected;
+                
                 return (
                   <div
                     key={cred.id}
@@ -558,12 +623,12 @@ function BrokerPageContent() {
                           )}
                           <span
                             className={`px-2 py-1 text-xs font-semibold rounded whitespace-nowrap ${
-                              cred.is_active
+                              isFullyActive
                                 ? 'bg-green-500/10 text-green-400'
                                 : 'bg-gray-500/10 text-gray-400'
                             }`}
                           >
-                            {cred.is_active ? 'Active' : 'Inactive'}
+                            {isFullyActive ? 'Active' : 'Inactive'}
                           </span>
                         </div>
                         <p className="text-sm text-gray-400 mb-2 break-words">
