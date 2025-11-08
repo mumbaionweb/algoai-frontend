@@ -9,7 +9,7 @@ import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type Histor
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
 import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
-import { createChart, ColorType, IChartApi, ISeriesApi, LineSeries } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 
 export default function BacktestingPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -1143,11 +1143,13 @@ class MyStrategy(bt.Strategy):
 
 // Timeseries Chart Component for Data Verification
 function DataBarsChart({ 
+  backtestId,
   dataBarsCount, 
   fromDate, 
   toDate, 
   symbol 
 }: { 
+  backtestId: string;
   dataBarsCount: number; 
   fromDate: string; 
   toDate: string; 
@@ -1156,6 +1158,53 @@ function DataBarsChart({
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Fetch historical data from backend
+  useEffect(() => {
+    const fetchHistoricalData = async () => {
+      if (!backtestId) return;
+
+      try {
+        setLoading(true);
+        setError(null);
+        
+        console.log('📊 Fetching historical data for backtest:', backtestId);
+        
+        // Fetch up to 2000 data points for chart (reasonable limit for visualization)
+        const limit = Math.min(dataBarsCount, 2000);
+        const historicalData = await getBacktestHistoricalData(backtestId, limit, 'json');
+        
+        console.log('✅ Historical data fetched:', {
+          total_points: historicalData.total_points,
+          returned_points: historicalData.returned_points,
+          data_points_count: historicalData.data_points.length,
+        });
+
+        // Update chart with real data
+        if (chartRef.current && seriesRef.current && historicalData.data_points.length > 0) {
+          const chartData = historicalData.data_points.map(point => ({
+            time: point.time as any,
+            value: point.close,
+          }));
+
+          seriesRef.current.setData(chartData);
+          setDataLoaded(true);
+        }
+      } catch (err: any) {
+        console.error('❌ Failed to fetch historical data:', err);
+        setError(err.response?.data?.detail || err.message || 'Failed to load historical data');
+        // Fall back to sample data if API fails
+        setDataLoaded(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHistoricalData();
+  }, [backtestId, dataBarsCount]);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -1181,7 +1230,7 @@ function DataBarsChart({
     chartRef.current = chart;
 
     // Create line series
-    const lineSeries = chart.addSeries(LineSeries, {
+    const lineSeries = chart.addLineSeries({
       color: '#10B981', // green-500
       lineWidth: 2,
       priceFormat: {
@@ -1193,26 +1242,25 @@ function DataBarsChart({
 
     seriesRef.current = lineSeries;
 
-    // Generate sample data based on date range and data bars count
+    // Generate sample data as fallback (only if real data not loaded)
     const generateSampleData = () => {
       const start = new Date(fromDate);
       const end = new Date(toDate);
       const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
       const tradingDays = Math.floor(daysDiff * 5 / 7); // Approximate trading days
       
-      // Generate data points (simplified - in real scenario, backend would provide this)
-      const dataPoints = Math.min(dataBarsCount, tradingDays * 10); // Limit to reasonable number
+      // Generate data points
+      const dataPoints = Math.min(dataBarsCount, tradingDays * 10);
       const data: { time: string; value: number }[] = [];
       
-      // Start with a base price (random between 100-1000)
+      // Start with a base price
       let basePrice = 500 + Math.random() * 500;
       
       for (let i = 0; i < dataPoints; i++) {
         const date = new Date(start);
         date.setDate(date.getDate() + Math.floor(i / (dataPoints / daysDiff)));
         
-        // Add some random variation to simulate price movement
-        const variation = (Math.random() - 0.5) * 20; // ±10 variation
+        const variation = (Math.random() - 0.5) * 20;
         basePrice = Math.max(100, basePrice + variation);
         
         data.push({
@@ -1224,11 +1272,14 @@ function DataBarsChart({
       return data;
     };
 
-    const chartData = generateSampleData();
-    lineSeries.setData(chartData.map(d => ({
-      time: d.time as any,
-      value: d.value,
-    })));
+    // Only use sample data if real data hasn't loaded yet
+    if (!dataLoaded) {
+      const chartData = generateSampleData();
+      lineSeries.setData(chartData.map(d => ({
+        time: d.time as any,
+        value: d.value,
+      })));
+    }
 
     // Handle resize
     const handleResize = () => {
@@ -1247,18 +1298,34 @@ function DataBarsChart({
         chartRef.current.remove();
       }
     };
-  }, [dataBarsCount, fromDate, toDate, symbol]);
+  }, [fromDate, toDate, dataBarsCount, dataLoaded]);
 
   return (
     <div className="w-full">
-      <div className="text-xs text-gray-400 mb-2">Price Trend ({symbol})</div>
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs text-gray-400">Price Trend ({symbol})</div>
+        {loading && (
+          <div className="text-xs text-gray-500">Loading...</div>
+        )}
+        {error && (
+          <div className="text-xs text-yellow-400" title={error}>
+            ⚠️ Using sample data
+          </div>
+        )}
+        {!loading && !error && dataLoaded && (
+          <div className="text-xs text-green-400">✓ Real data</div>
+        )}
+      </div>
       <div 
         ref={chartContainerRef} 
         className="w-full"
         style={{ height: '200px' }}
       />
       <div className="text-xs text-gray-500 mt-1">
-        Sample visualization based on {dataBarsCount} data bars
+        {dataLoaded 
+          ? `Historical data: ${dataBarsCount} bars`
+          : `Sample visualization based on ${dataBarsCount} data bars`
+        }
       </div>
     </div>
   );
