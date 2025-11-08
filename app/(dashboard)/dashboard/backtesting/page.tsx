@@ -22,8 +22,8 @@ export default function BacktestingPage() {
   const [credentials, setCredentials] = useState<BrokerCredentials[]>([]);
   const [selectedCredentialsId, setSelectedCredentialsId] = useState<string>('');
 
-  // Form state
-  const [strategyCode, setStrategyCode] = useState(`import backtrader as bt
+  // Default strategy code
+  const defaultStrategyCode = `import backtrader as bt
 
 class MyStrategy(bt.Strategy):
     """
@@ -59,19 +59,92 @@ class MyStrategy(bt.Strategy):
         elif self.crossover < 0 and self.position:
             # Sell all positions
             self.sell()
-`);
-  const [symbol, setSymbol] = useState('RELIANCE');
-  const [exchange, setExchange] = useState('NSE');
+`;
+
+  // Load from localStorage or use defaults
+  const loadFromStorage = (key: string, defaultValue: any) => {
+    if (typeof window === 'undefined') return defaultValue;
+    try {
+      const stored = localStorage.getItem(`backtest_${key}`);
+      return stored ? JSON.parse(stored) : defaultValue;
+    } catch {
+      return defaultValue;
+    }
+  };
+
+  const saveToStorage = (key: string, value: any) => {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem(`backtest_${key}`, JSON.stringify(value));
+    } catch (err) {
+      console.warn('Failed to save to localStorage:', err);
+    }
+  };
+
+  // Form state with localStorage persistence
+  const [strategyCode, setStrategyCode] = useState(() => 
+    loadFromStorage('strategy_code', defaultStrategyCode)
+  );
+  const [symbol, setSymbol] = useState(() => 
+    loadFromStorage('symbol', 'RELIANCE')
+  );
+  const [exchange, setExchange] = useState(() => 
+    loadFromStorage('exchange', 'NSE')
+  );
   const [fromDate, setFromDate] = useState(() => {
+    const stored = loadFromStorage('from_date', null);
+    if (stored) return stored;
     const date = new Date();
     date.setMonth(date.getMonth() - 6);
     return date.toISOString().split('T')[0];
   });
   const [toDate, setToDate] = useState(() => {
+    const stored = loadFromStorage('to_date', null);
+    if (stored) return stored;
     return new Date().toISOString().split('T')[0];
   });
-  const [initialCash, setInitialCash] = useState(100000);
-  const [commission, setCommission] = useState(0.001);
+  const [initialCash, setInitialCash] = useState(() => 
+    loadFromStorage('initial_cash', 100000)
+  );
+  const [commission, setCommission] = useState(() => 
+    loadFromStorage('commission', 0.001)
+  );
+
+  // Save to localStorage when values change
+  useEffect(() => {
+    saveToStorage('strategy_code', strategyCode);
+    console.log('💾 Saved strategy code to localStorage');
+  }, [strategyCode]);
+
+  useEffect(() => {
+    saveToStorage('symbol', symbol);
+    console.log('💾 Saved symbol to localStorage:', symbol);
+  }, [symbol]);
+
+  useEffect(() => {
+    saveToStorage('exchange', exchange);
+    console.log('💾 Saved exchange to localStorage:', exchange);
+  }, [exchange]);
+
+  useEffect(() => {
+    saveToStorage('from_date', fromDate);
+    console.log('💾 Saved from_date to localStorage:', fromDate);
+  }, [fromDate]);
+
+  useEffect(() => {
+    saveToStorage('to_date', toDate);
+    console.log('💾 Saved to_date to localStorage:', toDate);
+  }, [toDate]);
+
+  useEffect(() => {
+    saveToStorage('initial_cash', initialCash);
+    console.log('💾 Saved initial_cash to localStorage:', initialCash);
+  }, [initialCash]);
+
+  useEffect(() => {
+    saveToStorage('commission', commission);
+    console.log('💾 Saved commission to localStorage:', commission);
+  }, [commission]);
   
   // Symbol validation state
   const [symbolError, setSymbolError] = useState('');
@@ -104,6 +177,16 @@ class MyStrategy(bt.Strategy):
     if (isInitialized && !isAuthenticated) {
       router.push('/login');
     } else if (isInitialized && isAuthenticated) {
+      console.log('📄 Backtesting page loaded');
+      console.log('💾 Loaded from localStorage:', {
+        strategyCode: strategyCode.length > 0 ? `${strategyCode.length} chars` : 'empty',
+        symbol: symbol,
+        exchange: exchange,
+        fromDate: fromDate,
+        toDate: toDate,
+        initialCash: initialCash,
+        commission: commission,
+      });
       checkOAuthAndLoadCredentials();
     }
   }, [isInitialized, isAuthenticated, router]);
@@ -158,9 +241,22 @@ class MyStrategy(bt.Strategy):
     setResults(null);
     setSymbolError('');
 
+    console.log('🚀 Backtest submission started');
+    console.log('📋 Form values:', {
+      symbol: symbol,
+      exchange: exchange,
+      fromDate: fromDate,
+      toDate: toDate,
+      initialCash: initialCash,
+      commission: commission,
+      strategyCodeLength: strategyCode.length,
+      strategyCodePreview: strategyCode.substring(0, 100) + '...',
+    });
+
     // Validate symbol before sending
     const symbolValidation = validateSymbol(symbol);
     if (symbolValidation) {
+      console.error('❌ Symbol validation failed:', symbolValidation);
       setSymbolError(symbolValidation);
       setLoading(false);
       return;
@@ -170,10 +266,14 @@ class MyStrategy(bt.Strategy):
       // Check OAuth status before running backtest
       if (!oauthStatus?.is_connected) {
         if (!oauthStatus?.has_credentials) {
+          console.error('❌ OAuth check failed: No credentials');
           setError('Please add your Zerodha API credentials first. Go to Broker Settings to add them.');
+          setLoading(false);
           return;
         } else if (!oauthStatus?.has_tokens) {
+          console.error('❌ OAuth check failed: No tokens');
           setError('Please complete OAuth flow to connect your Zerodha account. Go to Broker Settings to connect.');
+          setLoading(false);
           return;
         }
       }
@@ -188,15 +288,68 @@ class MyStrategy(bt.Strategy):
         commission: commission,
       };
 
+      console.log('📤 Sending backtest request:', {
+        ...request,
+        strategy_code: request.strategy_code.substring(0, 200) + '... (truncated)',
+      });
+      console.log('🔧 Request config:', {
+        brokerType: 'zerodha',
+        credentialsId: selectedCredentialsId || 'none',
+      });
+
+      const startTime = Date.now();
       const result = await runBacktest(
         request,
         'zerodha',
         selectedCredentialsId || undefined
       );
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+      console.log('✅ Backtest completed successfully');
+      console.log('⏱️ Duration:', duration, 'ms', `(${(duration / 1000).toFixed(2)} seconds)`);
+      console.log('📊 Backtest results:', {
+        backtest_id: result.backtest_id,
+        symbol: result.symbol,
+        exchange: result.exchange,
+        total_trades: result.total_trades,
+        total_return_pct: result.total_return_pct,
+        total_pnl: result.total_pnl,
+        win_rate: result.win_rate,
+        final_value: result.final_value,
+        initial_cash: result.initial_cash,
+        fullResult: result,
+      });
+
+      // Check if results look suspicious (0 trades, 0 return, same as initial capital)
+      if (result.total_trades === 0 && result.total_return_pct === 0 && result.final_value === result.initial_cash) {
+        console.warn('⚠️ Suspicious results detected: 0 trades, 0 return, final value equals initial capital');
+        console.warn('This could mean:');
+        console.warn('1. The strategy found no trading opportunities in the date range');
+        console.warn('2. There was an error but the backend returned default values');
+        console.warn('3. The historical data was not available for the symbol/date range');
+        console.warn('4. The strategy code has an issue preventing trades');
+      }
+
       setResults(result);
     } catch (err: any) {
-      console.error('Backtest error:', err);
+      console.error('❌ Backtest error occurred');
+      console.error('Error object:', err);
+      console.error('Error response:', err.response);
+      console.error('Error status:', err.response?.status);
+      console.error('Error data:', err.response?.data);
+      console.error('Error config:', err.config);
+      
       const errorDetail = err.response?.data?.detail || '';
+      const errorMessage = err.message || '';
+      
+      console.error('Error details:', {
+        detail: errorDetail,
+        message: errorMessage,
+        status: err.response?.status,
+        statusText: err.response?.statusText,
+        fullError: err,
+      });
       
       // Handle specific errors
       if (err.response?.status === 400) {
@@ -325,9 +478,13 @@ class MyStrategy(bt.Strategy):
                 </label>
                 <textarea
                   id="strategy_code"
-                  value={strategyCode}
-                  onChange={(e) => setStrategyCode(e.target.value)}
-                  rows={15}
+                    value={strategyCode}
+                    onChange={(e) => {
+                      const newCode = e.target.value;
+                      console.log('📝 Strategy code changed, length:', newCode.length);
+                      setStrategyCode(newCode);
+                    }}
+                    rows={15}
                   required
                   className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Enter your trading strategy code using backtrader format..."
@@ -349,10 +506,16 @@ class MyStrategy(bt.Strategy):
                     value={symbol}
                     onChange={(e) => {
                       const newValue = e.target.value.toUpperCase().replace(/\s/g, '');
+                      console.log('📝 Symbol changed:', newValue);
                       setSymbol(newValue);
                       // Validate on change
                       const validation = validateSymbol(newValue);
                       setSymbolError(validation);
+                      if (validation) {
+                        console.warn('⚠️ Symbol validation error:', validation);
+                      } else {
+                        console.log('✅ Symbol is valid');
+                      }
                     }}
                     onBlur={() => {
                       // Final validation on blur
@@ -384,12 +547,16 @@ class MyStrategy(bt.Strategy):
                   <label htmlFor="exchange" className="block text-sm font-medium text-gray-300 mb-2">
                     Exchange
                   </label>
-                  <select
-                    id="exchange"
-                    value={exchange}
-                    onChange={(e) => setExchange(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  >
+                    <select
+                      id="exchange"
+                      value={exchange}
+                      onChange={(e) => {
+                        const newExchange = e.target.value;
+                        console.log('📝 Exchange changed:', newExchange);
+                        setExchange(newExchange);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    >
                     <option value="NSE">NSE</option>
                     <option value="BSE">BSE</option>
                   </select>
@@ -526,6 +693,20 @@ class MyStrategy(bt.Strategy):
 
             {results && (
               <div className="space-y-4">
+                {/* Warning for suspicious results */}
+                {results.total_trades === 0 && results.total_return_pct === 0 && results.final_value === results.initial_cash && (
+                  <div className="bg-yellow-500/10 border border-yellow-500 text-yellow-400 px-4 py-3 rounded-lg text-sm">
+                    <p className="font-semibold mb-2">⚠️ No trades executed</p>
+                    <p className="mb-2">The backtest completed but no trades were executed. This could mean:</p>
+                    <ul className="list-disc list-inside space-y-1 text-xs">
+                      <li>The strategy found no trading opportunities in the selected date range</li>
+                      <li>Historical data may not be available for this symbol/date range</li>
+                      <li>The strategy conditions were not met during this period</li>
+                      <li>Check the console logs for more details</li>
+                    </ul>
+                  </div>
+                )}
+                
                 {/* Backtest Info */}
                 <div className="bg-gray-700 rounded-lg p-4 mb-4">
                   <h3 className="text-sm font-semibold text-gray-300 mb-2">Backtest Information</h3>
