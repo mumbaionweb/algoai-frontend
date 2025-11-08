@@ -173,7 +173,7 @@ class MyStrategy(bt.Strategy):
           const symbolMatch = errorDetail.match(/Instrument not found for (\w+):(\w+)/);
           if (symbolMatch) {
             const [, errorExchange, errorSymbol] = symbolMatch;
-            setError(`Instrument not found: ${errorSymbol} on ${errorExchange}. This might be a backend issue with KiteConnect lookup. The symbol may need a suffix (e.g., ${errorSymbol}-EQ for equity) or the backend may need to refresh its instrument list. Please try again or contact support if the symbol is correct.`);
+            setError(`Instrument not found: ${errorSymbol} on ${errorExchange}. Please verify the symbol is correct and available on this exchange. Common issues: typos (e.g., LTF vs LTFS), symbol may need a suffix (e.g., ${errorSymbol}-EQ for equity), or the symbol might not be available for the selected date range.`);
           } else {
             setError('Invalid symbol or exchange. Please check and try again.');
           }
@@ -189,7 +189,7 @@ class MyStrategy(bt.Strategy):
               from_date: fromDate,
               to_date: toDate,
             },
-            suggestion: 'This might be a backend KiteConnect lookup issue. The backend may need to refresh its instrument master or the symbol format might need adjustment.',
+            suggestion: 'Please verify the symbol spelling and format. Common issues: typos, missing suffix, or symbol not available for the date range.',
           });
         } else if (errorDetail.includes('No historical data')) {
           setError('No historical data available for the selected symbol and date range.');
