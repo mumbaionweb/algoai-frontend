@@ -6,6 +6,7 @@ import type {
   BrokerCredentialsUpdate,
   BrokerType,
   OAuthStatus,
+  ZerodhaUserProfile,
 } from '@/types';
 
 /**
@@ -177,5 +178,24 @@ export async function checkZerodhaTokenStatus(credentialsId?: string): Promise<{
     }
     throw err;
   }
+}
+
+/**
+ * Get Zerodha user profile
+ * Returns user information including user_id, name, email, exchanges, products, order types, etc.
+ * 
+ * @param credentialsId Optional credentials ID to use (if user has multiple Zerodha accounts)
+ * @returns Zerodha user profile information
+ */
+export async function getZerodhaUserProfile(credentialsId?: string): Promise<ZerodhaUserProfile> {
+  const params = new URLSearchParams();
+  if (credentialsId) {
+    params.append('credentials_id', credentialsId);
+  }
+  const queryString = params.toString();
+  const url = `/api/zerodha/user/profile${queryString ? `?${queryString}` : ''}`;
+  
+  const response = await apiClient.get<ZerodhaUserProfile>(url);
+  return response.data;
 }
 

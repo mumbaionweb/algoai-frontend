@@ -145,3 +145,20 @@ export interface OAuthStatus {
   user_id: string;
 }
 
+// Zerodha User Profile Types
+export interface ZerodhaUserProfile {
+  user_id: string;
+  user_type: string;
+  email: string;
+  user_name: string;
+  user_shortname: string;
+  broker: string;
+  exchanges: string[];
+  products: string[];
+  order_types: string[];
+  avatar_url: string | null;
+  meta: {
+    demat_consent: string;
+  };
+}
+

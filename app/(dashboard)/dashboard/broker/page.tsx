@@ -14,6 +14,7 @@ import {
   initiateZerodhaOAuth,
   refreshZerodhaToken,
   getOAuthStatus,
+  getZerodhaUserProfile,
 } from '@/lib/api/broker';
 import type {
   BrokerInfo,
@@ -21,6 +22,7 @@ import type {
   BrokerCredentialsCreate,
   BrokerCredentialsUpdate,
   BrokerType,
+  ZerodhaUserProfile,
 } from '@/types';
 
 function BrokerPageContent() {
@@ -38,6 +40,13 @@ function BrokerPageContent() {
   // Track OAuth connection status per credential ID
   // Key: credential ID, Value: true if OAuth is connected, false if not
   const [oauthConnectionStatus, setOauthConnectionStatus] = useState<Record<string, boolean>>({});
+
+  // Profile modal state
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [profile, setProfile] = useState<ZerodhaUserProfile | null>(null);
+  const [profileCredentialsId, setProfileCredentialsId] = useState<string | null>(null);
 
   // Form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -551,6 +560,39 @@ function BrokerPageContent() {
     }
   };
 
+  const handleViewProfile = async (credentialsId: string) => {
+    try {
+      setProfileLoading(true);
+      setProfileError('');
+      setProfile(null);
+      setProfileCredentialsId(credentialsId);
+      setShowProfileModal(true);
+
+      const profileData = await getZerodhaUserProfile(credentialsId);
+      setProfile(profileData);
+    } catch (err: any) {
+      console.error('Failed to fetch profile:', err);
+      const errorDetail = err.response?.data?.detail || '';
+      
+      // Handle specific errors
+      if (err.response?.status === 400) {
+        if (errorDetail.includes('credentials not found') || errorDetail.includes('Zerodha credentials not found')) {
+          setProfileError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
+        } else if (errorDetail.includes('Access token not found') || errorDetail.includes('OAuth')) {
+          setProfileError('Please complete OAuth flow to connect your Zerodha account.');
+        } else {
+          setProfileError(errorDetail || 'Failed to fetch profile. Please check your Zerodha connection.');
+        }
+      } else if (err.response?.status === 500) {
+        setProfileError('Server error. Please try again later.');
+      } else {
+        setProfileError(errorDetail || 'Failed to fetch profile. Please try again.');
+      }
+    } finally {
+      setProfileLoading(false);
+    }
+  };
+
   const cancelForm = () => {
     setShowAddForm(false);
     setEditingId(null);
@@ -844,14 +886,24 @@ function BrokerPageContent() {
                             )}
                             {/* Show "Refresh Token" button only if OAuth IS connected */}
                             {oauthConnectionStatus[cred.id] && (
-                              <button
-                                onClick={() => handleRefreshToken(cred.id)}
-                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                                disabled={loading}
-                                title="Refresh Zerodha access token"
-                              >
-                                Refresh Token
-                              </button>
+                              <>
+                                <button
+                                  onClick={() => handleRefreshToken(cred.id)}
+                                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                                  disabled={loading}
+                                  title="Refresh Zerodha access token"
+                                >
+                                  Refresh Token
+                                </button>
+                                <button
+                                  onClick={() => handleViewProfile(cred.id)}
+                                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                                  disabled={loading}
+                                  title="View Zerodha user profile"
+                                >
+                                  Profile
+                                </button>
+                              </>
                             )}
                           </>
                         )}
@@ -888,6 +940,153 @@ function BrokerPageContent() {
           </div>
         </div>
       </main>
+
+      {/* Profile Modal */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-white">Zerodha User Profile</h2>
+              <button
+                onClick={() => {
+                  setShowProfileModal(false);
+                  setProfile(null);
+                  setProfileError('');
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {profileLoading ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  <p className="mt-4 text-gray-400">Loading profile...</p>
+                </div>
+              ) : profileError ? (
+                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
+                  {profileError}
+                  {profileError.includes('OAuth') && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => {
+                          const cred = credentials.find(c => c.id === profileCredentialsId);
+                          if (cred) {
+                            handleZerodhaOAuth(cred.id);
+                          }
+                        }}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                      >
+                        Connect to Zerodha
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : profile ? (
+                <div className="space-y-6">
+                  {/* Basic Info */}
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">User ID</p>
+                        <p className="text-white font-medium">{profile.user_id}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Name</p>
+                        <p className="text-white font-medium">{profile.user_name}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Email</p>
+                        <p className="text-white font-medium">{profile.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">User Type</p>
+                        <p className="text-white font-medium capitalize">{profile.user_type}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Broker</p>
+                        <p className="text-white font-medium">{profile.broker}</p>
+                      </div>
+                      {profile.avatar_url && (
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Avatar</p>
+                          <img src={profile.avatar_url} alt="Profile" className="w-16 h-16 rounded-full" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Exchanges */}
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Enabled Exchanges</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.exchanges.map((exchange) => (
+                        <span
+                          key={exchange}
+                          className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-medium"
+                        >
+                          {exchange}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Products */}
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Enabled Products</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.products.map((product) => (
+                        <span
+                          key={product}
+                          className="px-3 py-1 bg-green-500/20 text-green-300 rounded-lg text-sm font-medium"
+                        >
+                          {product}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Order Types */}
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Enabled Order Types</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {profile.order_types.map((orderType) => (
+                        <span
+                          key={orderType}
+                          className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-lg text-sm font-medium"
+                        >
+                          {orderType}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Metadata */}
+                  {profile.meta && (
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Additional Information</h3>
+                      <div className="space-y-2">
+                        {profile.meta.demat_consent && (
+                          <div>
+                            <p className="text-sm text-gray-400 mb-1">Demat Consent</p>
+                            <p className="text-white font-medium capitalize">{profile.meta.demat_consent}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
