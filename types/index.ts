@@ -14,11 +14,66 @@ export interface Strategy {
   user_id: string;
   name: string;
   description?: string;
-  code: string;
-  status: 'active' | 'inactive' | 'paused';
+  strategy_code?: string; // For backward compatibility, also support 'code'
+  code?: string; // Legacy field
+  status: 'draft' | 'active' | 'paused' | 'stopped' | 'error';
   parameters?: Record<string, any>;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
+  total_trades: number;
+  win_rate: number | null;
+  total_pnl: number;
+}
+
+export interface StrategyCreate {
+  name: string;
+  description?: string;
+  strategy_code: string;
+  parameters: {
+    symbol: string;
+    exchange?: string;
+    from_date?: string;
+    to_date?: string;
+    initial_cash?: number;
+    commission?: number;
+    interval?: string;
+    live?: boolean;
+    [key: string]: any; // Additional strategy parameters
+  };
+}
+
+export interface StrategyUpdate {
+  name?: string;
+  description?: string;
+  strategy_code?: string;
+  parameters?: Record<string, any>;
+}
+
+export interface StrategyActionResponse {
+  success: boolean;
+  message: string;
+  strategy_id: string;
+  status: string;
+}
+
+export interface StrategyPerformance {
+  strategy_id: string;
+  status: string;
+  total_trades: number;
+  win_rate: number | null;
+  total_pnl: number;
+  started_at?: string;
+  stopped_at?: string;
+}
+
+export interface StrategiesListResponse {
+  strategies: Strategy[];
+  total: number;
+}
+
+export interface StrategyParams {
+  broker_type?: string;
+  credentials_id?: string;
 }
 
 // Order Types
