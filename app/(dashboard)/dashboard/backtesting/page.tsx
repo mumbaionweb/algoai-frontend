@@ -72,6 +72,33 @@ class MyStrategy(bt.Strategy):
   });
   const [initialCash, setInitialCash] = useState(100000);
   const [commission, setCommission] = useState(0.001);
+  
+  // Symbol validation state
+  const [symbolError, setSymbolError] = useState('');
+
+  // Validate symbol format
+  const validateSymbol = (symbolValue: string): string => {
+    const trimmed = symbolValue.trim().toUpperCase();
+    
+    if (!trimmed) {
+      return 'Symbol is required';
+    }
+    
+    if (trimmed.length < 2) {
+      return 'Symbol must be at least 2 characters';
+    }
+    
+    if (trimmed.length > 20) {
+      return 'Symbol must be 20 characters or less';
+    }
+    
+    // Allow alphanumeric and hyphens (for suffixes like -EQ, -BE)
+    if (!/^[A-Z0-9-]+$/.test(trimmed)) {
+      return 'Symbol can only contain letters, numbers, and hyphens';
+    }
+    
+    return '';
+  };
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
@@ -79,7 +106,7 @@ class MyStrategy(bt.Strategy):
     } else if (isInitialized && isAuthenticated) {
       checkOAuthAndLoadCredentials();
     }
-  }, [isAuthenticated, isInitialized, router]);
+  }, [isInitialized, isAuthenticated, router]);
 
   const checkOAuthAndLoadCredentials = async () => {
     try {
@@ -129,6 +156,15 @@ class MyStrategy(bt.Strategy):
     setLoading(true);
     setError('');
     setResults(null);
+    setSymbolError('');
+
+    // Validate symbol before sending
+    const symbolValidation = validateSymbol(symbol);
+    if (symbolValidation) {
+      setSymbolError(symbolValidation);
+      setLoading(false);
+      return;
+    }
 
     try {
       // Check OAuth status before running backtest
@@ -144,7 +180,7 @@ class MyStrategy(bt.Strategy):
 
       const request = {
         strategy_code: strategyCode,
-        symbol: symbol.toUpperCase(),
+        symbol: symbol.trim().toUpperCase(),
         exchange: exchange.toUpperCase(),
         from_date: fromDate,
         to_date: toDate,
@@ -311,11 +347,37 @@ class MyStrategy(bt.Strategy):
                     id="symbol"
                     type="text"
                     value={symbol}
-                    onChange={(e) => setSymbol(e.target.value)}
+                    onChange={(e) => {
+                      const newValue = e.target.value.toUpperCase().replace(/\s/g, '');
+                      setSymbol(newValue);
+                      // Validate on change
+                      const validation = validateSymbol(newValue);
+                      setSymbolError(validation);
+                    }}
+                    onBlur={() => {
+                      // Final validation on blur
+                      const validation = validateSymbol(symbol);
+                      setSymbolError(validation);
+                    }}
                     required
-                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                      symbolError ? 'border-red-500' : 'border-gray-600'
+                    }`}
                     placeholder="RELIANCE"
                   />
+                  {symbolError && (
+                    <p className="mt-1 text-xs text-red-400">{symbolError}</p>
+                  )}
+                  {!symbolError && symbol && (
+                    <p className="mt-1 text-xs text-green-400">
+                      ✓ Valid format: {symbol.trim().toUpperCase()}
+                    </p>
+                  )}
+                  {!symbol && (
+                    <p className="mt-1 text-xs text-gray-400">
+                      Enter a valid NSE/BSE symbol (e.g., RELIANCE, TCS, INFY)
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -431,11 +493,16 @@ class MyStrategy(bt.Strategy):
 
               <button
                 type="submit"
-                disabled={loading || !oauthStatus?.is_connected}
+                disabled={loading || !oauthStatus?.is_connected || !!symbolError}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 {loading ? 'Running Backtest...' : 'Run Backtest'}
               </button>
+              {symbolError && (
+                <p className="text-xs text-red-400 text-center mt-2">
+                  Please fix the symbol error before running the backtest
+                </p>
+              )}
             </form>
             )}
           </div>
