@@ -128,6 +128,76 @@ export async function getBacktest(backtestId: string): Promise<BacktestHistoryIt
 }
 
 /**
+ * Historical OHLCV data point
+ */
+export interface HistoricalDataPoint {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+
+/**
+ * Historical data response
+ */
+export interface HistoricalDataResponse {
+  backtest_id: string;
+  symbol: string;
+  exchange: string;
+  interval: string;
+  from_date: string;
+  to_date: string;
+  data_points: HistoricalDataPoint[];
+  total_points: number;
+  returned_points: number;
+}
+
+/**
+ * Get historical OHLCV data for a backtest
+ * @param backtestId Backtest ID
+ * @param limit Maximum number of data points (default: 1000, max: 5000)
+ * @param format Response format: "json" or "csv" (default: "json")
+ * @returns Historical data response
+ */
+export async function getBacktestHistoricalData(
+  backtestId: string,
+  limit: number = 1000,
+  format: 'json' | 'csv' = 'json'
+): Promise<HistoricalDataResponse> {
+  try {
+    logApiCall('Fetching historical data', { 
+      backtest_id: backtestId,
+      limit,
+      format 
+    });
+
+    const params = new URLSearchParams();
+    if (limit) {
+      params.append('limit', limit.toString());
+    }
+    if (format) {
+      params.append('format', format);
+    }
+
+    const url = `/api/backtesting/${backtestId}/data${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await apiClient.get<HistoricalDataResponse>(url);
+
+    logApiCall('Historical data fetched', undefined, {
+      total_points: response.data.total_points,
+      returned_points: response.data.returned_points,
+      data_points_count: response.data.data_points.length,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    logError('Failed to fetch historical data', error);
+    throw error;
+  }
+}
+
+/**
  * Run a quick backtest with minimal parameters
  * 
  * @param strategyCode Strategy code (Python)

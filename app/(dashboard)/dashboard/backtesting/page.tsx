@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import DashboardHeader from '@/components/layout/DashboardHeader';
-import { runBacktest, getBacktestHistory } from '@/lib/api/backtesting';
+import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type HistoricalDataPoint } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
 import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
@@ -863,6 +863,7 @@ class MyStrategy(bt.Strategy):
                       {(results.data_bars_count || 0) > 0 && (
                         <div className="flex-1 min-w-0 lg:min-w-[300px]">
                           <DataBarsChart 
+                            backtestId={results.backtest_id}
                             dataBarsCount={results.data_bars_count || 0}
                             fromDate={results.from_date}
                             toDate={results.to_date}
