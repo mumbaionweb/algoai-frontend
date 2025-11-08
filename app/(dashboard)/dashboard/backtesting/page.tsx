@@ -172,11 +172,25 @@ class MyStrategy(bt.Strategy):
           // Extract symbol from error message if available
           const symbolMatch = errorDetail.match(/Instrument not found for (\w+):(\w+)/);
           if (symbolMatch) {
-            const [, exchange, symbol] = symbolMatch;
-            setError(`Instrument not found: ${symbol} on ${exchange}. Please check if the symbol is correct and available on this exchange.`);
+            const [, errorExchange, errorSymbol] = symbolMatch;
+            setError(`Instrument not found: ${errorSymbol} on ${errorExchange}. This might be a backend issue with KiteConnect lookup. The symbol may need a suffix (e.g., ${errorSymbol}-EQ for equity) or the backend may need to refresh its instrument list. Please try again or contact support if the symbol is correct.`);
           } else {
             setError('Invalid symbol or exchange. Please check and try again.');
           }
+          
+          // Log detailed error for debugging
+          console.error('🔍 Instrument Not Found - Debug Info:', {
+            requestedSymbol: symbol.toUpperCase(),
+            requestedExchange: exchange.toUpperCase(),
+            errorDetail: errorDetail,
+            requestPayload: {
+              symbol: symbol.toUpperCase(),
+              exchange: exchange.toUpperCase(),
+              from_date: fromDate,
+              to_date: toDate,
+            },
+            suggestion: 'This might be a backend KiteConnect lookup issue. The backend may need to refresh its instrument master or the symbol format might need adjustment.',
+          });
         } else if (errorDetail.includes('No historical data')) {
           setError('No historical data available for the selected symbol and date range.');
         } else if (errorDetail.includes('Strategy class not found') || errorDetail.includes('strategy class')) {
