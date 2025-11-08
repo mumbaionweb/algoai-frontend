@@ -67,17 +67,34 @@ The frontend now displays a timeseries chart in the "Data Verification" section,
 
 **Description:** Returns historical OHLCV (Open, High, Low, Close, Volume) data used in the backtest.
 
-**Query Parameters:**
-- `limit` (optional, default: 1000): Maximum number of data points to return
-- `format` (optional, default: "json"): Response format ("json" or "csv")
+**Authentication:** Required (Bearer token)
 
-**Request Example:**
+**Path Parameters:**
+- `backtest_id` (required): The ID of the backtest to retrieve data for
+
+**Query Parameters:**
+- `limit` (optional, default: 1000, max: 5000): Maximum number of data points to return
+- `format` (optional, default: "json"): Response format - either "json" or "csv"
+
+**Request Examples:**
+
+```http
+GET /api/backtesting/abc123/data
+Authorization: Bearer <firebase_token>
+```
+
 ```http
 GET /api/backtesting/abc123/data?limit=500
 Authorization: Bearer <firebase_token>
 ```
 
-**Response Format:**
+```http
+GET /api/backtesting/abc123/data?limit=2000&format=json
+Authorization: Bearer <firebase_token>
+```
+
+**Response Format (JSON):**
+
 ```json
 {
   "backtest_id": "abc123",
@@ -103,35 +120,76 @@ Authorization: Bearer <firebase_token>
       "close": 1255.25,
       "volume": 1200000
     }
-    // ... more data points
+    // ... more data points up to the limit
   ],
   "total_points": 127,
   "returned_points": 127
 }
 ```
 
-**Alternative: Include in Backtest Response**
+**Response Format (CSV):**
 
-Instead of a separate endpoint, you could include a sample of the historical data directly in the `POST /api/backtesting/run` response:
+When `format=csv`, the response should be a CSV file with the following structure:
+
+```csv
+time,open,high,low,close,volume
+2025-05-08T00:00:00Z,1234.50,1250.75,1230.25,1245.00,1000000
+2025-05-09T00:00:00Z,1245.00,1260.50,1240.00,1255.25,1200000
+...
+```
+
+**Response Fields:**
+
+- `backtest_id` (string): The backtest ID
+- `symbol` (string): Trading symbol (e.g., "LTF", "RELIANCE")
+- `exchange` (string): Exchange name (e.g., "NSE", "BSE")
+- `interval` (string): Data interval used (e.g., "day", "5minute", "60minute")
+- `from_date` (string): Start date in ISO format (YYYY-MM-DD)
+- `to_date` (string): End date in ISO format (YYYY-MM-DD)
+- `data_points` (array): Array of OHLCV data points
+  - `time` (string): Timestamp in ISO 8601 format
+  - `open` (number): Opening price
+  - `high` (number): Highest price
+  - `low` (number): Lowest price
+  - `close` (number): Closing price
+  - `volume` (number): Trading volume
+- `total_points` (number): Total number of data points available for this backtest
+- `returned_points` (number): Number of data points returned in this response (may be less than total_points if limit is applied)
+
+**Error Responses:**
 
 ```json
 {
-  "backtest_id": "abc123",
-  "symbol": "LTF",
-  "exchange": "NSE",
-  // ... existing fields ...
-  "data_bars_count": 127,
-  "historical_data_sample": [
-    {
-      "time": "2025-05-08T00:00:00Z",
-      "close": 1245.00
-    },
-    // ... first 100-200 data points for chart visualization
-  ]
+  "detail": "Backtest not found"
 }
 ```
 
-**Note:** For the chart, we only need `time` and `close` (or `value`) fields. OHLCV is optional but nice to have for future enhancements.
+```json
+{
+  "detail": "Limit exceeds maximum allowed (5000)"
+}
+```
+
+```json
+{
+  "detail": "Invalid format. Must be 'json' or 'csv'"
+}
+```
+
+**Implementation Notes:**
+
+1. **Data Ordering:** Data points should be returned in chronological order (oldest first)
+2. **Limit Handling:** If `limit` exceeds `total_points`, return all available points
+3. **Performance:** Consider pagination for very large datasets (future enhancement)
+4. **Caching:** Historical data can be cached since it doesn't change after backtest completion
+5. **Authorization:** Ensure the user can only access their own backtest data
+
+**Frontend Usage:**
+
+The frontend will use this endpoint to:
+- Display real price trends in the Data Verification chart
+- Show actual historical data instead of sample data
+- Allow users to visualize the data used in their backtest
 
 ---
 
@@ -332,7 +390,9 @@ The frontend automatically includes these headers in all requests.
 ## 🎯 Implementation Priority
 
 1. **High Priority:**
-   - Historical price data endpoint or include in backtest response
+   - ✅ **Historical price data endpoint:** `GET /api/backtesting/{backtest_id}/data`
+     - Returns OHLCV data with query parameters: `limit` (default: 1000, max: 5000) and `format` (default: "json")
+     - Response includes: backtest_id, symbol, exchange, interval, from_date, to_date, data_points array, total_points, returned_points
    - Fix Firestore index for backtest history
 
 2. **Medium Priority:**
