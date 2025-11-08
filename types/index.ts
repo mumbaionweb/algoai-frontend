@@ -84,6 +84,42 @@ export interface PortfolioParams {
 }
 
 // Backtesting Types
+export interface BacktestRequest {
+  strategy_code: string;
+  symbol: string;
+  exchange?: string; // Default: "NSE"
+  from_date: string; // Format: "YYYY-MM-DD"
+  to_date: string; // Format: "YYYY-MM-DD"
+  initial_cash?: number; // Default: 100000.0
+  commission?: number; // Default: 0.001
+  strategy_params?: Record<string, any>;
+  broker_type?: string; // Default: "zerodha"
+}
+
+export interface BacktestResponse {
+  backtest_id: string;
+  symbol: string;
+  exchange: string;
+  from_date: string;
+  to_date: string;
+  initial_cash: number;
+  final_value: number;
+  total_return: number;
+  total_return_pct: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number | null;
+  total_pnl: number;
+  sharpe_ratio: number | null;
+  max_drawdown: number | null;
+  max_drawdown_pct: number | null;
+  system_quality_number: number | null;
+  average_return: number | null;
+  annual_return: number | null;
+}
+
+// Legacy interface for backward compatibility
 export interface BacktestResult {
   total_return: number;
   win_rate: number;
