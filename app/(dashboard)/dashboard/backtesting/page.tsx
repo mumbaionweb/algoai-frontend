@@ -9,7 +9,7 @@ import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type Histor
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
 import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
-import { createChart, ColorType, IChartApi, ISeriesApi, LineSeries } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
 
 export default function BacktestingPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -1257,17 +1257,20 @@ function DataBarsChart({
         horzLines: { color: '#4B5563' }, // gray-600
       },
       width: chartContainerRef.current.clientWidth,
-      height: 200,
+      height: 100, // Reduced by 50% from 200px
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
+      },
+      watermark: {
+        visible: false, // Explicitly disable watermark
       },
     });
 
     chartRef.current = chart;
 
     // Create line series
-    const lineSeries = chart.addSeries(LineSeries, {
+    const lineSeries = chart.addLineSeries({
       color: '#10B981', // green-500
       lineWidth: 2,
       priceFormat: {
@@ -1281,13 +1284,40 @@ function DataBarsChart({
 
     // Update chart with real data when available
     if (historicalData && historicalData.length > 0) {
-      const chartData = historicalData.map(point => ({
-        time: point.time as any,
-        value: point.close,
-      }));
+      // Convert ISO time strings to Unix timestamps (seconds) for lightweight-charts
+      const chartData = historicalData
+        .map(point => {
+          try {
+            // Parse ISO 8601 string to Date, then to Unix timestamp (seconds)
+            const date = new Date(point.time);
+            if (isNaN(date.getTime())) {
+              console.warn('⚠️ Invalid date:', point.time);
+              return null;
+            }
+            
+            // Check for null/undefined close price
+            if (point.close === null || point.close === undefined || isNaN(point.close)) {
+              console.warn('⚠️ Invalid close price:', point.close);
+              return null;
+            }
 
-      lineSeries.setData(chartData);
-      console.log('📈 Chart updated with', chartData.length, 'data points');
+            return {
+              time: Math.floor(date.getTime() / 1000) as any, // Convert to Unix timestamp (seconds)
+              value: point.close,
+            };
+          } catch (err) {
+            console.error('❌ Error parsing data point:', point, err);
+            return null;
+          }
+        })
+        .filter((point): point is { time: any; value: number } => point !== null);
+
+      if (chartData.length > 0) {
+        lineSeries.setData(chartData);
+        console.log('📈 Chart updated with', chartData.length, 'data points (filtered from', historicalData.length, 'total)');
+      } else {
+        console.error('❌ No valid data points after filtering');
+      }
     }
 
     // Handle resize
@@ -1322,7 +1352,7 @@ function DataBarsChart({
       </div>
       
       {loading && (
-        <div className="w-full flex items-center justify-center" style={{ height: '200px' }}>
+        <div className="w-full flex items-center justify-center" style={{ height: '100px' }}>
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
             <p className="text-xs text-gray-400">Loading historical data...</p>
@@ -1331,7 +1361,7 @@ function DataBarsChart({
       )}
       
       {error && (
-        <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '200px' }}>
+        <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '100px' }}>
           <p className="font-semibold mb-2">⚠️ Failed to load historical data</p>
           <p className="mb-2">{error}</p>
           <p className="text-gray-500 mt-3">Troubleshooting:</p>
@@ -1350,7 +1380,7 @@ function DataBarsChart({
           <div 
             ref={chartContainerRef} 
             className="w-full"
-            style={{ height: '200px' }}
+            style={{ height: '100px' }}
           />
           <div className="text-xs text-gray-500 mt-1">
             Historical data: {historicalData.length} of {dataBarsCount} bars
@@ -1359,7 +1389,7 @@ function DataBarsChart({
       )}
       
       {!loading && !error && !historicalData && (
-        <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '200px' }}>
+        <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '100px' }}>
           <p className="font-semibold mb-2">⚠️ No data available</p>
           <p>Historical data was not returned from the API.</p>
         </div>
