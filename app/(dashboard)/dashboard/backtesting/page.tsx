@@ -23,35 +23,42 @@ export default function BacktestingPage() {
   const [selectedCredentialsId, setSelectedCredentialsId] = useState<string>('');
 
   // Form state
-  const [strategyCode, setStrategyCode] = useState(`# Simple Moving Average Crossover Strategy
-# Buy when short MA crosses above long MA
-# Sell when short MA crosses below long MA
+  const [strategyCode, setStrategyCode] = useState(`import backtrader as bt
 
-def initialize(context):
-    context.short_window = 20
-    context.long_window = 50
-    context.position = None
-
-def handle_data(context, data):
-    # Get historical data
-    prices = data.historical(context.symbol, context.long_window + 1)
+class MyStrategy(bt.Strategy):
+    """
+    Simple Moving Average Crossover Strategy
+    Buy when short MA crosses above long MA
+    Sell when short MA crosses below long MA
+    """
     
-    if len(prices) < context.long_window:
-        return
+    params = (
+        ('short_window', 20),
+        ('long_window', 50),
+    )
     
-    # Calculate moving averages
-    short_ma = prices[-context.short_window:].mean()
-    long_ma = prices[-context.long_window:].mean()
+    def __init__(self):
+        # Create moving averages
+        self.short_ma = bt.indicators.SMA(self.data.close, period=self.params.short_window)
+        self.long_ma = bt.indicators.SMA(self.data.close, period=self.params.long_window)
+        
+        # Crossover signal
+        self.crossover = bt.indicators.CrossOver(self.short_ma, self.long_ma)
     
-    # Trading logic
-    if short_ma > long_ma and context.position is None:
-        # Buy signal
-        order_target_percent(context.symbol, 1.0)
-        context.position = 'long'
-    elif short_ma < long_ma and context.position == 'long':
-        # Sell signal
-        order_target_percent(context.symbol, 0.0)
-        context.position = None
+    def next(self):
+        # Check if we have enough data
+        if len(self.data) < self.params.long_window:
+            return
+        
+        # Buy signal: short MA crosses above long MA (crossover > 0)
+        if self.crossover > 0 and not self.position:
+            # Buy with all available cash
+            self.buy()
+        
+        # Sell signal: short MA crosses below long MA (crossover < 0)
+        elif self.crossover < 0 and self.position:
+            # Sell all positions
+            self.sell()
 `);
   const [symbol, setSymbol] = useState('RELIANCE');
   const [exchange, setExchange] = useState('NSE');
@@ -165,6 +172,8 @@ def handle_data(context, data):
           setError('Invalid symbol or exchange. Please check and try again.');
         } else if (errorDetail.includes('No historical data')) {
           setError('No historical data available for the selected symbol and date range.');
+        } else if (errorDetail.includes('Strategy class not found') || errorDetail.includes('strategy class')) {
+          setError('Strategy class not found in code. Your strategy must define a class that inherits from bt.Strategy. Please check the example code in the textarea above.');
         } else {
           setError(errorDetail || 'Failed to run backtest. Please check your strategy code and parameters.');
         }
@@ -255,17 +264,21 @@ def handle_data(context, data):
                 )}
               <div>
                 <label htmlFor="strategy_code" className="block text-sm font-medium text-gray-300 mb-2">
-                  Strategy Code (Python)
+                  Strategy Code (Python - Backtrader Format)
                 </label>
                 <textarea
                   id="strategy_code"
                   value={strategyCode}
                   onChange={(e) => setStrategyCode(e.target.value)}
-                  rows={12}
+                  rows={15}
                   required
                   className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white font-mono text-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your trading strategy code..."
+                  placeholder="Enter your trading strategy code using backtrader format..."
                 />
+                <p className="mt-1 text-xs text-gray-400">
+                  Your strategy must define a class that inherits from <code className="text-blue-400">bt.Strategy</code>.
+                  Use the <code className="text-blue-400">next()</code> method for trading logic.
+                </p>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -367,7 +380,7 @@ def handle_data(context, data):
 
               {error && (
                 <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
-                  {error}
+                  <p className="whitespace-pre-wrap">{error}</p>
                   {(error.includes('credentials') || error.includes('OAuth')) && (
                     <div className="mt-3">
                       <Link
@@ -376,6 +389,20 @@ def handle_data(context, data):
                       >
                         Go to Broker Settings
                       </Link>
+                    </div>
+                  )}
+                  {error.includes('Strategy class not found') && (
+                    <div className="mt-3 p-3 bg-gray-700 rounded text-xs font-mono text-gray-300">
+                      <p className="mb-2">Example format:</p>
+                      <pre className="whitespace-pre-wrap">{`import backtrader as bt
+
+class MyStrategy(bt.Strategy):
+    def next(self):
+        # Your trading logic here
+        if self.data.close[0] > self.data.close[-1]:
+            self.buy()
+        else:
+            self.sell()`}</pre>
                     </div>
                   )}
                 </div>
