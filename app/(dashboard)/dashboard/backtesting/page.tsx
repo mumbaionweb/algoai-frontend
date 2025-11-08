@@ -988,8 +988,8 @@ class MyStrategy(bt.Strategy):
                     <div className={`text-2xl font-bold ${results.average_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {results.average_return.toFixed(4)}
                     </div>
-                  </div>
-                )}
+              </div>
+            )}
 
                 {/* Transactions Table */}
                 {results.transactions && results.transactions.length > 0 && (
@@ -1160,12 +1160,16 @@ function DataBarsChart({
   const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [dataLoaded, setDataLoaded] = useState(false);
+  const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[] | null>(null);
 
   // Fetch historical data from backend
   useEffect(() => {
     const fetchHistoricalData = async () => {
-      if (!backtestId) return;
+      if (!backtestId) {
+        setError('Backtest ID is missing');
+        setLoading(false);
+        return;
+      }
 
       try {
         setLoading(true);
@@ -1175,29 +1179,61 @@ function DataBarsChart({
         
         // Fetch up to 2000 data points for chart (reasonable limit for visualization)
         const limit = Math.min(dataBarsCount, 2000);
-        const historicalData = await getBacktestHistoricalData(backtestId, limit, 'json');
+        const data = await getBacktestHistoricalData(backtestId, limit, 'json');
         
         console.log('✅ Historical data fetched:', {
-          total_points: historicalData.total_points,
-          returned_points: historicalData.returned_points,
-          data_points_count: historicalData.data_points.length,
+          backtest_id: data.backtest_id,
+          symbol: data.symbol,
+          exchange: data.exchange,
+          interval: data.interval,
+          total_points: data.total_points,
+          returned_points: data.returned_points,
+          data_points_count: data.data_points.length,
         });
 
-        // Update chart with real data
-        if (chartRef.current && seriesRef.current && historicalData.data_points.length > 0) {
-          const chartData = historicalData.data_points.map(point => ({
-            time: point.time as any,
-            value: point.close,
-          }));
-
-          seriesRef.current.setData(chartData);
-          setDataLoaded(true);
+        if (data.data_points.length === 0) {
+          setError('No historical data points returned from API');
+          setHistoricalData(null);
+        } else {
+          setHistoricalData(data.data_points);
         }
       } catch (err: any) {
         console.error('❌ Failed to fetch historical data:', err);
-        setError(err.response?.data?.detail || err.message || 'Failed to load historical data');
-        // Fall back to sample data if API fails
-        setDataLoaded(false);
+        const errorDetail = err.response?.data?.detail || '';
+        const errorMessage = err.message || '';
+        const status = err.response?.status;
+        
+        // Detailed error logging for troubleshooting
+        console.error('🔴 Historical Data API Error Details:', {
+          backtest_id: backtestId,
+          status: status,
+          statusText: err.response?.statusText,
+          errorDetail: errorDetail,
+          errorMessage: errorMessage,
+          responseData: err.response?.data,
+          requestUrl: err.config?.url,
+          requestMethod: err.config?.method,
+          fullError: err,
+        });
+        
+        // Set detailed error message for user
+        if (status === 404) {
+          setError(`Backtest not found (404). Backtest ID: ${backtestId}`);
+        } else if (status === 401) {
+          setError('Authentication failed. Please refresh and try again.');
+        } else if (status === 403) {
+          setError('Access denied. You may not have permission to view this backtest data.');
+        } else if (status === 500) {
+          setError(`Server error (500): ${errorDetail || 'Internal server error. Please check backend logs.'}`);
+        } else if (errorDetail) {
+          setError(errorDetail);
+        } else if (errorMessage) {
+          setError(errorMessage);
+        } else {
+          setError('Failed to load historical data. Please check console for details.');
+        }
+        
+        setHistoricalData(null);
       } finally {
         setLoading(false);
       }
@@ -1206,6 +1242,7 @@ function DataBarsChart({
     fetchHistoricalData();
   }, [backtestId, dataBarsCount]);
 
+  // Initialize chart and update with data
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
@@ -1242,43 +1279,15 @@ function DataBarsChart({
 
     seriesRef.current = lineSeries;
 
-    // Generate sample data as fallback (only if real data not loaded)
-    const generateSampleData = () => {
-      const start = new Date(fromDate);
-      const end = new Date(toDate);
-      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-      const tradingDays = Math.floor(daysDiff * 5 / 7); // Approximate trading days
-      
-      // Generate data points
-      const dataPoints = Math.min(dataBarsCount, tradingDays * 10);
-      const data: { time: string; value: number }[] = [];
-      
-      // Start with a base price
-      let basePrice = 500 + Math.random() * 500;
-      
-      for (let i = 0; i < dataPoints; i++) {
-        const date = new Date(start);
-        date.setDate(date.getDate() + Math.floor(i / (dataPoints / daysDiff)));
-        
-        const variation = (Math.random() - 0.5) * 20;
-        basePrice = Math.max(100, basePrice + variation);
-        
-        data.push({
-          time: date.toISOString().split('T')[0] as string,
-          value: basePrice,
-        });
-      }
-      
-      return data;
-    };
+    // Update chart with real data when available
+    if (historicalData && historicalData.length > 0) {
+      const chartData = historicalData.map(point => ({
+        time: point.time as any,
+        value: point.close,
+      }));
 
-    // Only use sample data if real data hasn't loaded yet
-    if (!dataLoaded) {
-      const chartData = generateSampleData();
-      lineSeries.setData(chartData.map(d => ({
-        time: d.time as any,
-        value: d.value,
-      })));
+      lineSeries.setData(chartData);
+      console.log('📈 Chart updated with', chartData.length, 'data points');
     }
 
     // Handle resize
@@ -1298,7 +1307,7 @@ function DataBarsChart({
         chartRef.current.remove();
       }
     };
-  }, [fromDate, toDate, dataBarsCount, dataLoaded]);
+  }, [historicalData]);
 
   return (
     <div className="w-full">
@@ -1307,26 +1316,54 @@ function DataBarsChart({
         {loading && (
           <div className="text-xs text-gray-500">Loading...</div>
         )}
-        {error && (
-          <div className="text-xs text-yellow-400" title={error}>
-            ⚠️ Using sample data
+        {!loading && !error && historicalData && (
+          <div className="text-xs text-green-400">✓ Data loaded</div>
+        )}
+      </div>
+      
+      {loading && (
+        <div className="w-full flex items-center justify-center" style={{ height: '200px' }}>
+          <div className="text-center">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
+            <p className="text-xs text-gray-400">Loading historical data...</p>
           </div>
-        )}
-        {!loading && !error && dataLoaded && (
-          <div className="text-xs text-green-400">✓ Real data</div>
-        )}
-      </div>
-      <div 
-        ref={chartContainerRef} 
-        className="w-full"
-        style={{ height: '200px' }}
-      />
-      <div className="text-xs text-gray-500 mt-1">
-        {dataLoaded 
-          ? `Historical data: ${dataBarsCount} bars`
-          : `Sample visualization based on ${dataBarsCount} data bars`
-        }
-      </div>
+        </div>
+      )}
+      
+      {error && (
+        <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '200px' }}>
+          <p className="font-semibold mb-2">⚠️ Failed to load historical data</p>
+          <p className="mb-2">{error}</p>
+          <p className="text-gray-500 mt-3">Troubleshooting:</p>
+          <ul className="list-disc list-inside mt-1 space-y-1 text-gray-400">
+            <li>Check browser console for detailed error logs</li>
+            <li>Verify the backtest ID is correct: {backtestId}</li>
+            <li>Check network tab for API request/response details</li>
+            <li>Ensure backend endpoint is accessible: GET /api/backtesting/{backtestId}/data</li>
+            <li>Verify authentication token is valid</li>
+          </ul>
+        </div>
+      )}
+      
+      {!loading && !error && historicalData && (
+        <>
+          <div 
+            ref={chartContainerRef} 
+            className="w-full"
+            style={{ height: '200px' }}
+          />
+          <div className="text-xs text-gray-500 mt-1">
+            Historical data: {historicalData.length} of {dataBarsCount} bars
+          </div>
+        </>
+      )}
+      
+      {!loading && !error && !historicalData && (
+        <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '200px' }}>
+          <p className="font-semibold mb-2">⚠️ No data available</p>
+          <p>Historical data was not returned from the API.</p>
+        </div>
+      )}
     </div>
   );
 }
