@@ -128,3 +128,32 @@ export async function refreshZerodhaToken(): Promise<any> {
   return response.data;
 }
 
+/**
+ * Check if Zerodha OAuth tokens exist and are valid
+ * Returns status information about the OAuth connection
+ */
+export async function checkZerodhaTokenStatus(credentialsId?: string): Promise<{
+  has_tokens: boolean;
+  is_valid: boolean;
+  user_id?: string;
+  message?: string;
+}> {
+  const params = new URLSearchParams();
+  if (credentialsId) {
+    params.append('credentials_id', credentialsId);
+  }
+  const queryString = params.toString();
+  const url = `/api/zerodha/oauth/status${queryString ? `?${queryString}` : ''}`;
+  
+  try {
+    const response = await apiClient.get(url);
+    return response.data;
+  } catch (err: any) {
+    // If endpoint doesn't exist or returns error, assume no tokens
+    if (err.response?.status === 404) {
+      return { has_tokens: false, is_valid: false };
+    }
+    throw err;
+  }
+}
+

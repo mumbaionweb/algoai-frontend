@@ -13,6 +13,7 @@ import {
   deleteBrokerCredentials,
   initiateZerodhaOAuth,
   refreshZerodhaToken,
+  checkZerodhaTokenStatus,
 } from '@/lib/api/broker';
 import type {
   BrokerInfo,
@@ -84,22 +85,15 @@ function BrokerPageContent() {
 
     if (oauthStatus === 'success' && broker === 'zerodha') {
       setSuccess('Zerodha connected successfully!');
-      // Mark OAuth as connected for all Zerodha credentials
-      // (We don't know which specific credential was used, so mark all Zerodha ones)
-      setOauthConnectionStatus((prev) => {
-        const updated = { ...prev };
-        credentials
-          .filter((cred) => cred.broker_type === 'zerodha')
-          .forEach((cred) => {
-            updated[cred.id] = true;
-          });
-        return updated;
-      });
-      // Clean up URL
+      // Clean up URL first
       router.replace('/dashboard/broker');
-      // Reload broker data to show updated status
+      // Reload broker data to check actual token status from backend
+      // This ensures we get the accurate status from the backend
       if (isAuthenticated) {
-        loadData();
+        // Small delay to ensure backend has processed the OAuth callback
+        setTimeout(() => {
+          loadData();
+        }, 500);
       }
     } else if (oauthStatus === 'error') {
       // Mark OAuth as not connected for all Zerodha credentials when error occurs
@@ -167,16 +161,40 @@ function BrokerPageContent() {
       setAvailableBrokers(brokers);
       setCredentials(creds);
       
-      // Initialize OAuth connection status - assume not connected unless we have evidence
-      // Only set to true if we already have it marked as connected (from previous success)
+      // Check OAuth token status from backend for each Zerodha credential
+      const zerodhaCreds = creds.filter((cred) => cred.broker_type === 'zerodha');
+      const tokenStatusChecks = await Promise.allSettled(
+        zerodhaCreds.map(async (cred) => {
+          try {
+            const status = await checkZerodhaTokenStatus(cred.id);
+            return { credId: cred.id, hasTokens: status.has_tokens && status.is_valid };
+          } catch (err) {
+            console.warn(`Failed to check token status for credential ${cred.id}:`, err);
+            return { credId: cred.id, hasTokens: false };
+          }
+        })
+      );
+      
+      // Update OAuth connection status based on backend check
       setOauthConnectionStatus((prev) => {
         const updated = { ...prev };
-        // Keep existing connection status, but initialize new credentials as not connected
-        creds.forEach((cred) => {
-          if (cred.broker_type === 'zerodha' && updated[cred.id] === undefined) {
-            updated[cred.id] = false; // Default to not connected
+        
+        // Update status based on backend token checks
+        tokenStatusChecks.forEach((result) => {
+          if (result.status === 'fulfilled') {
+            const { credId, hasTokens } = result.value;
+            updated[credId] = hasTokens;
           }
         });
+        
+        // Initialize any new Zerodha credentials that weren't checked
+        creds.forEach((cred) => {
+          if (cred.broker_type === 'zerodha' && updated[cred.id] === undefined) {
+            // If we have a previous status, preserve it; otherwise default to false
+            updated[cred.id] = prev[cred.id] ?? false;
+          }
+        });
+        
         return updated;
       });
     } catch (err: any) {
@@ -472,37 +490,33 @@ function BrokerPageContent() {
     }
   };
 
-  const handleRefreshToken = async () => {
+  const handleRefreshToken = async (credentialsId?: string) => {
     try {
       setError('');
       setSuccess('');
       await refreshZerodhaToken();
       setSuccess('Zerodha token refreshed successfully');
-      // Mark OAuth as connected after successful token refresh
-      setOauthConnectionStatus((prev) => {
-        const updated = { ...prev };
-        credentials
-          .filter((cred) => cred.broker_type === 'zerodha')
-          .forEach((cred) => {
-            updated[cred.id] = true;
-          });
-        return updated;
-      });
+      // Reload data to check actual token status from backend
       await loadData();
     } catch (err: any) {
       console.error('Failed to refresh token:', err);
       // Mark OAuth as not connected if refresh fails
-      setOauthConnectionStatus((prev) => {
-        const updated = { ...prev };
-        credentials
-          .filter((cred) => cred.broker_type === 'zerodha')
-          .forEach((cred) => {
-            updated[cred.id] = false;
-          });
-        return updated;
-      });
       if (err.response?.status === 404) {
         setError('No tokens found. Please complete OAuth first.');
+        // Mark as not connected
+        setOauthConnectionStatus((prev) => {
+          const updated = { ...prev };
+          if (credentialsId) {
+            updated[credentialsId] = false;
+          } else {
+            credentials
+              .filter((cred) => cred.broker_type === 'zerodha')
+              .forEach((cred) => {
+                updated[cred.id] = false;
+              });
+          }
+          return updated;
+        });
       } else {
         setError(err.response?.data?.detail || 'Failed to refresh token');
       }
@@ -777,21 +791,28 @@ function BrokerPageContent() {
                       <div className="flex flex-wrap gap-2 lg:flex-nowrap">
                         {cred.broker_type === 'zerodha' && (
                           <>
-                            <button
-                              onClick={() => handleZerodhaOAuth(cred.id)}
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                              disabled={loading}
-                              title="Connect to Zerodha using these credentials"
-                            >
-                              Connect
-                            </button>
-                            <button
-                              onClick={handleRefreshToken}
-                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
-                              disabled={loading}
-                            >
-                              Refresh Token
-                            </button>
+                            {/* Show "Connect" button only if OAuth is NOT connected */}
+                            {!oauthConnectionStatus[cred.id] && (
+                              <button
+                                onClick={() => handleZerodhaOAuth(cred.id)}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                                disabled={loading}
+                                title="Connect to Zerodha using these credentials"
+                              >
+                                Connect
+                              </button>
+                            )}
+                            {/* Show "Refresh Token" button only if OAuth IS connected */}
+                            {oauthConnectionStatus[cred.id] && (
+                              <button
+                                onClick={() => handleRefreshToken(cred.id)}
+                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                                disabled={loading}
+                                title="Refresh Zerodha access token"
+                              >
+                                Refresh Token
+                              </button>
+                            )}
                           </>
                         )}
                         <button
