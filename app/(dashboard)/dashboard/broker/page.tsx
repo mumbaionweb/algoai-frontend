@@ -50,6 +50,32 @@ function BrokerPageContent() {
 
   // Handle OAuth callback from Zerodha
   useEffect(() => {
+    // 🔍 DEBUG: Log ALL URL parameters to see what Zerodha/backend sent
+    const allParams: Record<string, string> = {};
+    searchParams.forEach((value, key) => {
+      allParams[key] = value;
+    });
+    
+    console.log('🔍 OAuth Callback - Full URL Parameters:', {
+      fullUrl: typeof window !== 'undefined' ? window.location.href : 'N/A',
+      searchString: typeof window !== 'undefined' ? window.location.search : 'N/A',
+      allParams: allParams,
+      paramsCount: Object.keys(allParams).length,
+      timestamp: new Date().toISOString(),
+    });
+    
+    // Log each parameter individually for easy inspection
+    console.log('🔍 OAuth Callback - Individual Parameters:');
+    Object.entries(allParams).forEach(([key, value]) => {
+      console.log(`  - ${key}: ${value}`);
+    });
+    
+    // Note: The actual Zerodha response (request_token, user_id, etc.) is handled by the backend
+    // and not passed to the frontend. The backend processes it and only sends us oauth=success/error.
+    // To see the full Zerodha response, check the backend logs at the callback endpoint.
+    console.log('ℹ️ Note: Full Zerodha response (request_token, user_id, etc.) is handled by backend.');
+    console.log('ℹ️ Check backend logs at /api/zerodha/oauth/callback to see what Zerodha sent.');
+
     const oauthStatus = searchParams.get('oauth');
     const broker = searchParams.get('broker');
     const message = searchParams.get('message');
@@ -275,10 +301,57 @@ function BrokerPageContent() {
       
       const response = await initiateZerodhaOAuth(credentialsId);
       
-      console.log('✅ OAuth initiated successfully:', response);
+      // 🔍 DEBUG: Log the FULL OAuth initiation response
+      console.log('✅ OAuth Initiation - Full Response:', {
+        fullResponse: response,
+        loginUrl: response.login_url,
+        redirectUrl: response.redirect_url,
+        message: response.message,
+        loginUrlParsed: (() => {
+          try {
+            const url = new URL(response.login_url);
+            return {
+              origin: url.origin,
+              pathname: url.pathname,
+              searchParams: Object.fromEntries(url.searchParams.entries()),
+              fullSearchString: url.search,
+            };
+          } catch (e) {
+            return { error: 'Failed to parse login_url', url: response.login_url };
+          }
+        })(),
+        redirectUrlParsed: (() => {
+          try {
+            const url = new URL(response.redirect_url);
+            return {
+              origin: url.origin,
+              pathname: url.pathname,
+              searchParams: Object.fromEntries(url.searchParams.entries()),
+              fullSearchString: url.search,
+            };
+          } catch (e) {
+            return { error: 'Failed to parse redirect_url', url: response.redirect_url };
+          }
+        })(),
+        timestamp: new Date().toISOString(),
+      });
+      
+      // 🔍 DEBUG: Extract and log session_id from redirect_url if present
+      try {
+        const redirectUrl = new URL(response.redirect_url);
+        const sessionId = redirectUrl.searchParams.get('session_id');
+        if (sessionId) {
+          console.log('🔍 OAuth Initiation - Session ID from redirect_url:', sessionId);
+        } else {
+          console.log('⚠️ OAuth Initiation - No session_id found in redirect_url');
+        }
+      } catch (e) {
+        console.warn('⚠️ OAuth Initiation - Could not parse redirect_url for session_id:', e);
+      }
       
       // Redirect user to Zerodha login page (not popup, as per backend docs)
       // The backend will handle the callback and redirect back to our frontend
+      console.log('🔍 OAuth Initiation - Redirecting to Zerodha login URL:', response.login_url);
       window.location.href = response.login_url;
       
     } catch (err: any) {
