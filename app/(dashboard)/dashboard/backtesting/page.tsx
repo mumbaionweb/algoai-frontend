@@ -9,7 +9,18 @@ import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type Histor
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
 import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
-import { createChart, ColorType, IChartApi, ISeriesApi, LineSeries } from 'lightweight-charts';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
+import { Line } from 'react-chartjs-2';
 
 export default function BacktestingPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -1141,6 +1152,18 @@ class MyStrategy(bt.Strategy):
   );
 }
 
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
+
 // Timeseries Chart Component for Data Verification
 function DataBarsChart({ 
   backtestId,
@@ -1155,9 +1178,6 @@ function DataBarsChart({
   toDate: string; 
   symbol: string;
 }) {
-  const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
-  const seriesRef = useRef<ISeriesApi<'Line'> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[] | null>(null);
@@ -1242,99 +1262,43 @@ function DataBarsChart({
     fetchHistoricalData();
   }, [backtestId, dataBarsCount]);
 
-  // Initialize chart and update with data
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-
-    // Create chart
-    const chart = createChart(chartContainerRef.current, {
-      layout: {
-        background: { type: ColorType.Solid, color: '#374151' }, // gray-700
-        textColor: '#9CA3AF', // gray-400
-      },
-      grid: {
-        vertLines: { color: '#4B5563' }, // gray-600
-        horzLines: { color: '#4B5563' }, // gray-600
-      },
-      width: chartContainerRef.current.clientWidth,
-      height: 100, // Reduced by 50% from 200px
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-      },
-    });
-
-    chartRef.current = chart;
-
-    // Create line series
-    const lineSeries = chart.addSeries(LineSeries, {
-      color: '#10B981', // green-500
-      lineWidth: 2,
-      priceFormat: {
-        type: 'price',
-        precision: 2,
-        minMove: 0.01,
-      },
-    });
-
-    seriesRef.current = lineSeries;
-
-    // Update chart with real data when available
-    if (historicalData && historicalData.length > 0) {
-      // Convert ISO time strings to Unix timestamps (seconds) for lightweight-charts
-      const chartData = historicalData
-        .map(point => {
-          try {
-            // Parse ISO 8601 string to Date, then to Unix timestamp (seconds)
-            const date = new Date(point.time);
-            if (isNaN(date.getTime())) {
-              console.warn('⚠️ Invalid date:', point.time);
+  // Prepare chart data
+  const chartData = historicalData
+    ? {
+        labels: historicalData
+          .map(point => {
+            try {
+              const date = new Date(point.time);
+              if (isNaN(date.getTime())) return null;
+              // Format time for display (HH:mm for intraday, or date for daily)
+              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            } catch {
               return null;
             }
-            
-            // Check for null/undefined close price
-            if (point.close === null || point.close === undefined || isNaN(point.close)) {
-              console.warn('⚠️ Invalid close price:', point.close);
-              return null;
-            }
-
-            return {
-              time: Math.floor(date.getTime() / 1000) as any, // Convert to Unix timestamp (seconds)
-              value: point.close,
-            };
-          } catch (err) {
-            console.error('❌ Error parsing data point:', point, err);
-            return null;
-          }
-        })
-        .filter((point): point is { time: any; value: number } => point !== null);
-
-      if (chartData.length > 0) {
-        lineSeries.setData(chartData);
-        console.log('📈 Chart updated with', chartData.length, 'data points (filtered from', historicalData.length, 'total)');
-      } else {
-        console.error('❌ No valid data points after filtering');
+          })
+          .filter((label): label is string => label !== null),
+        datasets: [
+          {
+            label: 'Close Price',
+            data: historicalData
+              .map(point => {
+                if (point.close === null || point.close === undefined || isNaN(point.close)) {
+                  return null;
+                }
+                return point.close;
+              })
+              .filter((value): value is number => value !== null),
+            borderColor: '#10B981', // green-500
+            backgroundColor: 'rgba(16, 185, 129, 0.1)', // green-500 with opacity
+            borderWidth: 2,
+            fill: true,
+            tension: 0.1,
+            pointRadius: 0, // Hide points for cleaner look
+            pointHoverRadius: 4,
+          },
+        ],
       }
-    }
-
-    // Handle resize
-    const handleResize = () => {
-      if (chartContainerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({
-          width: chartContainerRef.current.clientWidth,
-        });
-      }
-    };
-
-    window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-      if (chartRef.current) {
-        chartRef.current.remove();
-      }
-    };
-  }, [historicalData]);
+    : null;
 
   return (
     <div className="w-full">
@@ -1349,7 +1313,7 @@ function DataBarsChart({
       </div>
       
       {loading && (
-        <div className="w-full flex items-center justify-center" style={{ height: '100px' }}>
+        <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
             <p className="text-xs text-gray-400">Loading historical data...</p>
@@ -1358,7 +1322,7 @@ function DataBarsChart({
       )}
       
       {error && (
-        <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '100px' }}>
+        <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '75px' }}>
           <p className="font-semibold mb-2">⚠️ Failed to load historical data</p>
           <p className="mb-2">{error}</p>
           <p className="text-gray-500 mt-3">Troubleshooting:</p>
@@ -1372,21 +1336,72 @@ function DataBarsChart({
         </div>
       )}
       
-      {!loading && !error && historicalData && (
+      {!loading && !error && chartData && (
         <>
-          <div 
-            ref={chartContainerRef} 
-            className="w-full"
-            style={{ height: '100px' }}
-          />
+          <div className="w-full" style={{ height: '75px' }}>
+            <Line
+              data={chartData}
+              options={{
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                  legend: {
+                    display: false,
+                  },
+                  tooltip: {
+                    enabled: true,
+                    mode: 'index',
+                    intersect: false,
+                    backgroundColor: '#1F2937', // gray-800
+                    titleColor: '#9CA3AF', // gray-400
+                    bodyColor: '#F3F4F6', // gray-100
+                    borderColor: '#4B5563', // gray-600
+                    borderWidth: 1,
+                  },
+                },
+                scales: {
+                  x: {
+                    display: true,
+                    grid: {
+                      color: '#4B5563', // gray-600
+                    },
+                    ticks: {
+                      color: '#9CA3AF', // gray-400
+                      font: {
+                        size: 10,
+                      },
+                      maxTicksLimit: 6, // Limit number of labels for cleaner look
+                    },
+                  },
+                  y: {
+                    display: true,
+                    grid: {
+                      color: '#4B5563', // gray-600
+                    },
+                    ticks: {
+                      color: '#9CA3AF', // gray-400
+                      font: {
+                        size: 10,
+                      },
+                    },
+                  },
+                },
+                elements: {
+                  line: {
+                    borderJoinStyle: 'round' as const,
+                  },
+                },
+              }}
+            />
+          </div>
           <div className="text-xs text-gray-500 mt-1">
-            Historical data: {historicalData.length} of {dataBarsCount} bars
+            Historical data: {historicalData?.length || 0} of {dataBarsCount} bars
           </div>
         </>
       )}
       
       {!loading && !error && !historicalData && (
-        <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '100px' }}>
+        <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '75px' }}>
           <p className="font-semibold mb-2">⚠️ No data available</p>
           <p>Historical data was not returned from the API.</p>
         </div>
