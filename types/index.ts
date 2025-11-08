@@ -151,6 +151,20 @@ export interface BacktestRequest {
   broker_type?: string; // Default: "zerodha"
 }
 
+// Transaction interface
+export interface Transaction {
+  date?: string;
+  symbol: string;
+  exchange: string;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  entry_price?: number;
+  exit_price?: number;
+  pnl?: number;
+  pnl_comm?: number;
+  status: string;
+}
+
 export interface BacktestResponse {
   backtest_id: string;
   symbol: string;
@@ -172,6 +186,35 @@ export interface BacktestResponse {
   system_quality_number: number | null;
   average_return: number | null;
   annual_return: number | null;
+  // NEW FIELDS
+  data_bars_count?: number;  // Number of historical data bars fetched
+  transactions?: Transaction[];  // Individual trade transactions
+}
+
+// Backtest History
+export interface BacktestHistoryItem {
+  id: string;
+  user_id: string;
+  backtest_id: string;
+  symbol: string;
+  exchange: string;
+  from_date: string;
+  to_date: string;
+  initial_cash: number;
+  final_value: number;
+  total_return: number;
+  total_trades: number;
+  win_rate: number | null;
+  total_pnl: number;
+  data_bars_count: number;
+  transactions_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BacktestHistoryResponse {
+  backtests: BacktestHistoryItem[];
+  total: number;
 }
 
 // Legacy interface for backward compatibility

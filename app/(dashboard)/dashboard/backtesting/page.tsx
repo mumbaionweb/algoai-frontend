@@ -5,9 +5,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import DashboardHeader from '@/components/layout/DashboardHeader';
-import { runBacktest } from '@/lib/api/backtesting';
+import { runBacktest, getBacktestHistory } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
-import type { BacktestResponse, BrokerCredentials } from '@/types';
+import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem } from '@/types';
 
 export default function BacktestingPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -15,6 +15,8 @@ export default function BacktestingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [results, setResults] = useState<BacktestResponse | null>(null);
+  const [history, setHistory] = useState<BacktestHistoryItem[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   
   // OAuth and credentials state
   const [checkingOAuth, setCheckingOAuth] = useState(true);
@@ -188,8 +190,22 @@ class MyStrategy(bt.Strategy):
         commission: commission,
       });
       checkOAuthAndLoadCredentials();
+      loadHistory();
     }
   }, [isInitialized, isAuthenticated, router]);
+
+  const loadHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      const historyData = await getBacktestHistory(50);
+      setHistory(historyData.backtests);
+      console.log('📜 Loaded backtest history:', historyData.total, 'items');
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
 
   const checkOAuthAndLoadCredentials = async () => {
     try {
@@ -318,20 +334,31 @@ class MyStrategy(bt.Strategy):
         win_rate: result.win_rate,
         final_value: result.final_value,
         initial_cash: result.initial_cash,
+        data_bars_count: result.data_bars_count || 0,
+        transactions_count: result.transactions?.length || 0,
         fullResult: result,
       });
 
       // Check if results look suspicious (0 trades, 0 return, same as initial capital)
       if (result.total_trades === 0 && result.total_return_pct === 0 && result.final_value === result.initial_cash) {
         console.warn('⚠️ Suspicious results detected: 0 trades, 0 return, final value equals initial capital');
+        console.warn('Data bars count:', result.data_bars_count || 0);
+        console.warn('Transactions count:', result.transactions?.length || 0);
         console.warn('This could mean:');
-        console.warn('1. The strategy found no trading opportunities in the date range');
+        if ((result.data_bars_count || 0) === 0) {
+          console.warn('1. ❌ NO HISTORICAL DATA - The backend could not fetch data for this symbol/date range');
+        } else {
+          console.warn('1. ✅ Data was fetched but the strategy found no trading opportunities in the date range');
+        }
         console.warn('2. There was an error but the backend returned default values');
-        console.warn('3. The historical data was not available for the symbol/date range');
-        console.warn('4. The strategy code has an issue preventing trades');
+        console.warn('3. The strategy code has an issue preventing trades');
+        console.warn('4. The date range might be too short or invalid');
       }
 
       setResults(result);
+      
+      // Refresh history after successful backtest
+      await loadHistory();
     } catch (err: any) {
       console.error('❌ Backtest error occurred');
       console.error('Error object:', err);
@@ -380,8 +407,8 @@ class MyStrategy(bt.Strategy):
             },
             suggestion: 'Please verify the symbol spelling and format. Common issues: typos, missing suffix, or symbol not available for the date range.',
           });
-        } else if (errorDetail.includes('No historical data')) {
-          setError('No historical data available for the selected symbol and date range.');
+        } else if (errorDetail.includes('No historical data found') || errorDetail.includes('No historical data')) {
+          setError(`No historical data found for ${symbol} in the specified date range. Please check the symbol and date range.`);
         } else if (errorDetail.includes('Strategy class not found') || errorDetail.includes('strategy class')) {
           setError('Strategy class not found in code. Your strategy must define a class that inherits from bt.Strategy. Please check the example code in the textarea above.');
         } else {
@@ -707,6 +734,36 @@ class MyStrategy(bt.Strategy):
                   </div>
                 )}
                 
+                {/* Data Verification Section */}
+                {(results.data_bars_count !== undefined || results.transactions !== undefined) && (
+                  <div className="bg-gray-700 rounded-lg p-4 mb-4">
+                    <h3 className="text-sm font-semibold text-gray-300 mb-3">Data Verification</h3>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-sm text-gray-400">Historical Data Bars:</span>
+                      <span className={`font-bold text-sm ${(results.data_bars_count || 0) === 0 ? 'text-red-400' : 'text-green-400'}`}>
+                        {results.data_bars_count || 0}
+                      </span>
+                    </div>
+                    
+                    {(results.data_bars_count || 0) === 0 && (
+                      <div className="mt-2 p-2 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs">
+                        ⚠️ No historical data found for this symbol/date range. Please check:
+                        <ul className="list-disc list-inside mt-1 space-y-1">
+                          <li>Symbol is correct (e.g., "RELIANCE" not "RELI")</li>
+                          <li>Date range is valid</li>
+                          <li>Exchange is correct</li>
+                        </ul>
+                      </div>
+                    )}
+                    
+                    {(results.data_bars_count || 0) > 0 && results.total_trades === 0 && (
+                      <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs">
+                        ℹ️ Data found but no trades generated. Your strategy didn't produce any buy/sell signals in this period.
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Backtest Info */}
                 <div className="bg-gray-700 rounded-lg p-4 mb-4">
                   <h3 className="text-sm font-semibold text-gray-300 mb-2">Backtest Information</h3>
@@ -816,6 +873,148 @@ class MyStrategy(bt.Strategy):
                     </div>
                   </div>
                 )}
+
+                {/* Transactions Table */}
+                {results.transactions && results.transactions.length > 0 && (
+                  <div className="bg-gray-700 rounded-lg p-4 mt-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Transaction History</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-600">
+                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date</th>
+                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
+                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
+                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Entry Price</th>
+                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Exit Price</th>
+                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L</th>
+                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {results.transactions.map((txn, idx) => (
+                            <tr 
+                              key={idx} 
+                                className={`border-b border-gray-600 hover:bg-gray-600/50 ${
+                                  txn.pnl && txn.pnl > 0 ? 'bg-green-500/5' : txn.pnl && txn.pnl < 0 ? 'bg-red-500/5' : ''
+                                }`}
+                              >
+                              <td className="py-3 px-4 text-white text-sm">
+                                {txn.date ? new Date(txn.date).toLocaleDateString() : 'N/A'}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                                  txn.type === 'BUY' 
+                                    ? 'bg-blue-500/20 text-blue-300' 
+                                    : 'bg-red-500/20 text-red-300'
+                                }`}>
+                                  {txn.type}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
+                              <td className="py-3 px-4 text-white text-sm text-right">
+                                {txn.entry_price ? `₹${txn.entry_price.toFixed(2)}` : 'N/A'}
+                              </td>
+                              <td className="py-3 px-4 text-white text-sm text-right">
+                                {txn.exit_price ? `₹${txn.exit_price.toFixed(2)}` : 'N/A'}
+                              </td>
+                              <td className={`py-3 px-4 text-sm font-semibold text-right ${
+                                txn.pnl && txn.pnl > 0 
+                                  ? 'text-green-400' 
+                                  : txn.pnl && txn.pnl < 0 
+                                  ? 'text-red-400' 
+                                  : 'text-gray-400'
+                              }`}>
+                                {txn.pnl !== null && txn.pnl !== undefined 
+                                  ? `₹${txn.pnl.toFixed(2)}` 
+                                  : 'N/A'}
+                              </td>
+                              <td className="py-3 px-4 text-gray-400 text-sm">{txn.status}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-4 text-sm text-gray-400">
+                      <p>Total Transactions: {results.transactions.length}</p>
+                    </div>
+                  </div>
+                )}
+
+                {results.transactions && results.transactions.length === 0 && (
+                  <div className="bg-gray-700 rounded-lg p-4 mt-4 text-center text-gray-400 text-sm">
+                    <p>No transaction details available.</p>
+                    <p className="mt-2 text-xs">
+                      Note: Transaction details may not be available if the strategy doesn't log trades.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* History Section */}
+          <div className="bg-gray-800 rounded-lg p-6 mt-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-white">Recent Backtests</h2>
+              <button
+                onClick={loadHistory}
+                disabled={loadingHistory}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
+              >
+                {loadingHistory ? 'Loading...' : 'Refresh'}
+              </button>
+            </div>
+            
+            {loadingHistory ? (
+              <div className="text-gray-400 text-center py-8">
+                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
+                <p>Loading history...</p>
+              </div>
+            ) : history.length === 0 ? (
+              <div className="text-gray-400 text-center py-8">
+                <p>No backtest history yet.</p>
+                <p className="text-sm mt-2">Run a backtest to see it here.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {history.map((item) => (
+                  <div key={item.id} className="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-colors">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold text-white">{item.symbol}</p>
+                          <span className="text-gray-400 text-sm">({item.exchange})</span>
+                          {(item.data_bars_count || 0) > 0 && (
+                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
+                              {item.data_bars_count} bars
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          {item.from_date} to {item.to_date}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(item.created_at).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="flex flex-col sm:items-end gap-1">
+                        <p className={`font-semibold text-lg ${item.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {item.total_return >= 0 ? '+' : ''}{item.total_return.toFixed(2)}%
+                        </p>
+                        <div className="flex gap-4 text-sm text-gray-400">
+                          <span>{item.total_trades} trades</span>
+                          {item.win_rate !== null && (
+                            <span>{item.win_rate.toFixed(1)}% win rate</span>
+                          )}
+                        </div>
+                        <p className={`text-sm font-medium ${item.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          ₹{item.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>
