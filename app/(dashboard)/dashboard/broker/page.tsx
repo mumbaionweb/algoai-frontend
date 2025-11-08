@@ -18,6 +18,7 @@ import type {
   BrokerInfo,
   BrokerCredentials,
   BrokerCredentialsCreate,
+  BrokerCredentialsUpdate,
   BrokerType,
 } from '@/types';
 
