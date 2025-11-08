@@ -1197,8 +1197,8 @@ function DataBarsChart({
         
         console.log('📊 Fetching historical data for backtest:', backtestId);
         
-        // Fetch up to 2000 data points for chart (reasonable limit for visualization)
-        const limit = Math.min(dataBarsCount, 2000);
+        // Fetch all available data points (up to 5000 max as per API limit)
+        const limit = Math.min(dataBarsCount, 5000);
         const data = await getBacktestHistoricalData(backtestId, limit, 'json');
         
         console.log('✅ Historical data fetched:', {
@@ -1262,32 +1262,19 @@ function DataBarsChart({
     fetchHistoricalData();
   }, [backtestId, dataBarsCount]);
 
-  // Prepare chart data
+  // Prepare chart data with time information for tooltips
   const chartData = historicalData
     ? {
-        labels: historicalData
-          .map(point => {
-            try {
-              const date = new Date(point.time);
-              if (isNaN(date.getTime())) return null;
-              // Format time for display (HH:mm for intraday, or date for daily)
-              return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            } catch {
-              return null;
-            }
-          })
-          .filter((label): label is string => label !== null),
+        labels: historicalData.map(() => ''), // Empty labels to hide x-axis
         datasets: [
           {
             label: 'Close Price',
-            data: historicalData
-              .map(point => {
-                if (point.close === null || point.close === undefined || isNaN(point.close)) {
-                  return null;
-                }
-                return point.close;
-              })
-              .filter((value): value is number => value !== null),
+            data: historicalData.map((point) => {
+              if (point.close === null || point.close === undefined || isNaN(point.close)) {
+                return null;
+              }
+              return point.close;
+            }),
             borderColor: '#10B981', // green-500
             backgroundColor: 'rgba(16, 185, 129, 0.1)', // green-500 with opacity
             borderWidth: 2,
@@ -1306,9 +1293,6 @@ function DataBarsChart({
         <div className="text-xs text-gray-400">Price Trend ({symbol})</div>
         {loading && (
           <div className="text-xs text-gray-500">Loading...</div>
-        )}
-        {!loading && !error && historicalData && (
-          <div className="text-xs text-green-400">✓ Data loaded</div>
         )}
       </div>
       
@@ -1357,20 +1341,38 @@ function DataBarsChart({
                     bodyColor: '#F3F4F6', // gray-100
                     borderColor: '#4B5563', // gray-600
                     borderWidth: 1,
+                    callbacks: {
+                      title: (tooltipItems) => {
+                        if (tooltipItems.length > 0) {
+                          const dataIndex = tooltipItems[0].dataIndex;
+                          if (historicalData && historicalData[dataIndex]) {
+                            const date = new Date(historicalData[dataIndex].time);
+                            if (!isNaN(date.getTime())) {
+                              // Format: "MMM DD, YYYY HH:mm AM/PM"
+                              return date.toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true,
+                              });
+                            }
+                          }
+                        }
+                        return '';
+                      },
+                      label: (context) => {
+                        return `Close Price: ₹${context.parsed.y?.toFixed(2) || 'N/A'}`;
+                      },
+                    },
                   },
                 },
                 scales: {
                   x: {
-                    display: true,
+                    display: false, // Hide x-axis labels
                     grid: {
-                      color: '#4B5563', // gray-600
-                    },
-                    ticks: {
-                      color: '#9CA3AF', // gray-400
-                      font: {
-                        size: 10,
-                      },
-                      maxTicksLimit: 6, // Limit number of labels for cleaner look
+                      display: false, // Hide grid lines on x-axis
                     },
                   },
                   y: {
