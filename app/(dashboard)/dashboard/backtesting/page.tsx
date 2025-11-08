@@ -50,8 +50,8 @@ class MyStrategy(bt.Strategy):
     def next(self):
         # Check if we have enough data
         if len(self.data) < self.params.long_window:
-            return
-        
+        return
+    
         # Buy signal: short MA crosses above long MA (crossover > 0)
         if self.crossover > 0 and not self.position:
             # Buy with all available cash
@@ -180,18 +180,12 @@ class MyStrategy(bt.Strategy):
       router.push('/login');
     } else if (isInitialized && isAuthenticated) {
       console.log('📄 Backtesting page loaded');
-      console.log('💾 Loaded from localStorage:', {
-        strategyCode: strategyCode.length > 0 ? `${strategyCode.length} chars` : 'empty',
-        symbol: symbol,
-        exchange: exchange,
-        fromDate: fromDate,
-        toDate: toDate,
-        initialCash: initialCash,
-        commission: commission,
-      });
+      // Note: This log shows initial state values, not necessarily what was loaded from localStorage
+      // The actual localStorage values are loaded in useState initializers above
       checkOAuthAndLoadCredentials();
       loadHistory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, isAuthenticated, router]);
 
   const loadHistory = async () => {
@@ -200,8 +194,20 @@ class MyStrategy(bt.Strategy):
       const historyData = await getBacktestHistory(50);
       setHistory(historyData.backtests);
       console.log('📜 Loaded backtest history:', historyData.total, 'items');
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to load history:', err);
+      const errorDetail = err.response?.data?.detail || '';
+      
+      // Handle Firestore index error gracefully
+      if (errorDetail.includes('requires an index') || errorDetail.includes('index')) {
+        console.warn('⚠️ Firestore index required for backtest history. This is a backend configuration issue.');
+        console.warn('The backend team needs to create the Firestore composite index.');
+        // Don't show error to user - history is optional
+        setHistory([]);
+      } else {
+        // Other errors - could show a non-blocking message
+        console.error('History loading error:', errorDetail);
+      }
     } finally {
       setLoadingHistory(false);
     }
@@ -258,16 +264,21 @@ class MyStrategy(bt.Strategy):
     setSymbolError('');
 
     console.log('🚀 Backtest submission started');
-    console.log('📋 Form values:', {
-      symbol: symbol,
-      exchange: exchange,
-      fromDate: fromDate,
-      toDate: toDate,
-      initialCash: initialCash,
-      commission: commission,
-      strategyCodeLength: strategyCode.length,
-      strategyCodePreview: strategyCode.substring(0, 100) + '...',
-    });
+    console.log('📋 Current form state values (at submission time):');
+    console.log('  - Symbol state:', symbol);
+    console.log('  - Symbol trimmed/uppercase:', symbol.trim().toUpperCase());
+    console.log('  - Exchange:', exchange);
+    console.log('  - From Date:', fromDate);
+    console.log('  - To Date:', toDate);
+    console.log('  - Initial Cash:', initialCash);
+    console.log('  - Commission:', commission);
+    console.log('  - Strategy Code Length:', strategyCode.length);
+    
+    // Also check localStorage to see what's stored
+    if (typeof window !== 'undefined') {
+      const storedSymbol = localStorage.getItem('backtest_symbol');
+      console.log('  - Symbol in localStorage:', storedSymbol ? JSON.parse(storedSymbol) : 'not found');
+    }
 
     // Validate symbol before sending
     const symbolValidation = validateSymbol(symbol);
@@ -294,9 +305,21 @@ class MyStrategy(bt.Strategy):
         }
       }
 
+      // Get current symbol value (ensure we're using the latest state)
+      const currentSymbol = symbol.trim().toUpperCase();
+      
+      console.log('📤 Preparing backtest request with current form values:');
+      console.log('  - Symbol:', currentSymbol);
+      console.log('  - Exchange:', exchange.toUpperCase());
+      console.log('  - From Date:', fromDate);
+      console.log('  - To Date:', toDate);
+      console.log('  - Strategy Code Length:', strategyCode.length);
+      console.log('  - Initial Cash:', initialCash);
+      console.log('  - Commission:', commission);
+
       const request = {
         strategy_code: strategyCode,
-        symbol: symbol.trim().toUpperCase(),
+        symbol: currentSymbol,
         exchange: exchange.toUpperCase(),
         from_date: fromDate,
         to_date: toDate,
@@ -304,7 +327,12 @@ class MyStrategy(bt.Strategy):
         commission: commission,
       };
 
-      console.log('📤 Sending backtest request:', {
+      // Log the exact symbol being sent
+      console.log('🔍 FINAL SYMBOL CHECK - Symbol being sent to backend:', currentSymbol);
+      console.log('🔍 Symbol state value:', symbol);
+      console.log('🔍 Symbol after trim/uppercase:', currentSymbol);
+
+      console.log('📤 Sending backtest request (strategy code truncated):', {
         ...request,
         strategy_code: request.strategy_code.substring(0, 200) + '... (truncated)',
       });
@@ -435,13 +463,13 @@ class MyStrategy(bt.Strategy):
             {!oauthStatus.has_credentials ? (
               <div>
                 <p className="mb-2">Please add your Zerodha API credentials first.</p>
-                <Link
+              <Link
                   href="/dashboard/broker"
                   className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
-                >
+              >
                   Go to Broker Settings
-                </Link>
-              </div>
+              </Link>
+            </div>
             ) : !oauthStatus.has_tokens ? (
               <div>
                 <p className="mb-2">Please complete OAuth flow to connect your Zerodha account.</p>
@@ -451,7 +479,7 @@ class MyStrategy(bt.Strategy):
                 >
                   Connect to Zerodha
                 </Link>
-              </div>
+            </div>
             ) : null}
           </div>
         )}
@@ -467,7 +495,7 @@ class MyStrategy(bt.Strategy):
                 <p className="text-gray-400">Checking connection status...</p>
               </div>
             ) : (
-              <form onSubmit={handleRunBacktest} className="space-y-4">
+            <form onSubmit={handleRunBacktest} className="space-y-4">
                 {/* Credentials Selection */}
                 {credentials.length > 1 && (
                   <div>
@@ -505,7 +533,7 @@ class MyStrategy(bt.Strategy):
                 </label>
                 <textarea
                   id="strategy_code"
-                    value={strategyCode}
+                  value={strategyCode}
                     onChange={(e) => {
                       const newCode = e.target.value;
                       console.log('📝 Strategy code changed, length:', newCode.length);
@@ -574,16 +602,16 @@ class MyStrategy(bt.Strategy):
                   <label htmlFor="exchange" className="block text-sm font-medium text-gray-300 mb-2">
                     Exchange
                   </label>
-                    <select
-                      id="exchange"
-                      value={exchange}
+                  <select
+                    id="exchange"
+                    value={exchange}
                       onChange={(e) => {
                         const newExchange = e.target.value;
                         console.log('📝 Exchange changed:', newExchange);
                         setExchange(newExchange);
                       }}
-                      className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    >
+                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
                     <option value="NSE">NSE</option>
                     <option value="BSE">BSE</option>
                   </select>
