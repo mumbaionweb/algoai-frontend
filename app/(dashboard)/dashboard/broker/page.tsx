@@ -45,6 +45,7 @@ function BrokerPageContent() {
     api_key: '',
     api_secret: '',
     label: '',
+    zerodha_user_id: '',
     is_active: true,
   });
 
@@ -190,15 +191,36 @@ function BrokerPageContent() {
     setError('');
     setSuccess('');
 
+    // Validate Zerodha User ID for Zerodha broker
+    if (formData.broker_type === 'zerodha') {
+      if (!formData.zerodha_user_id || formData.zerodha_user_id.trim() === '') {
+        setError('Zerodha User ID is required for Zerodha broker');
+        return;
+      }
+    }
+
+    // Validate that zerodha_user_id is not provided for non-Zerodha brokers
+    if (formData.broker_type !== 'zerodha' && formData.zerodha_user_id) {
+      setError('Zerodha User ID should only be provided for Zerodha broker');
+      return;
+    }
+
     try {
       if (editingId) {
         // Update existing
-        await updateBrokerCredentials(editingId, {
+        const updatePayload: BrokerCredentialsUpdate = {
           api_key: formData.api_key,
           api_secret: formData.api_secret,
           label: formData.label || null,
           is_active: formData.is_active,
-        });
+        };
+        
+        // Include zerodha_user_id if broker type is Zerodha
+        if (formData.broker_type === 'zerodha') {
+          updatePayload.zerodha_user_id = formData.zerodha_user_id || null;
+        }
+        
+        await updateBrokerCredentials(editingId, updatePayload);
         setSuccess('Credentials updated successfully');
       } else {
         // Create new
@@ -209,6 +231,12 @@ function BrokerPageContent() {
           label: formData.label || null,
           is_active: formData.is_active,
         };
+        
+        // Include zerodha_user_id only for Zerodha
+        if (formData.broker_type === 'zerodha') {
+          newCreds.zerodha_user_id = formData.zerodha_user_id || null;
+        }
+        
         await createBrokerCredentials(newCreds);
         setSuccess('Credentials added successfully');
       }
@@ -219,6 +247,7 @@ function BrokerPageContent() {
         api_key: '',
         api_secret: '',
         label: '',
+        zerodha_user_id: '',
         is_active: true,
       });
       setShowAddForm(false);
@@ -247,6 +276,7 @@ function BrokerPageContent() {
       api_key: cred.api_key, // This will be masked, user needs to re-enter
       api_secret: '', // Secret is never shown, user needs to re-enter
       label: cred.label || '',
+      zerodha_user_id: cred.zerodha_user_id || '',
       is_active: cred.is_active,
     });
     setShowAddForm(true);
@@ -486,6 +516,7 @@ function BrokerPageContent() {
       api_key: '',
       api_secret: '',
       label: '',
+      zerodha_user_id: '',
       is_active: true,
     });
   };
@@ -563,9 +594,15 @@ function BrokerPageContent() {
                   </label>
                   <select
                     value={formData.broker_type}
-                    onChange={(e) =>
-                      setFormData({ ...formData, broker_type: e.target.value as BrokerType })
-                    }
+                    onChange={(e) => {
+                      const newBrokerType = e.target.value as BrokerType;
+                      setFormData({
+                        ...formData,
+                        broker_type: newBrokerType,
+                        // Clear zerodha_user_id if switching away from Zerodha
+                        zerodha_user_id: newBrokerType === 'zerodha' ? formData.zerodha_user_id : '',
+                      });
+                    }}
                     required
                     disabled={!!editingId}
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -624,6 +661,26 @@ function BrokerPageContent() {
                     </p>
                   )}
                 </div>
+
+                {/* Zerodha User ID - Only show for Zerodha broker */}
+                {formData.broker_type === 'zerodha' && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Zerodha User ID <span className="text-red-400">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.zerodha_user_id}
+                      onChange={(e) => setFormData({ ...formData, zerodha_user_id: e.target.value })}
+                      required
+                      placeholder="Enter your Zerodha User ID (e.g., AB1234)"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      This is your Zerodha user ID. You can find it in your Zerodha Kite Connect app settings or after completing OAuth.
+                    </p>
+                  </div>
+                )}
 
                 <div className="flex items-center">
                   <input
@@ -707,6 +764,11 @@ function BrokerPageContent() {
                         <p className="text-sm text-gray-400 mb-2 break-words">
                           API Key: {cred.api_key.substring(0, 8)}...
                         </p>
+                        {cred.broker_type === 'zerodha' && cred.zerodha_user_id && (
+                          <p className="text-sm text-gray-400 mb-2">
+                            Zerodha User ID: <span className="text-white font-medium">{cred.zerodha_user_id}</span>
+                          </p>
+                        )}
                         <p className="text-xs text-gray-500">
                           Created: {new Date(cred.created_at).toLocaleDateString()}
                         </p>

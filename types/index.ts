@@ -111,6 +111,7 @@ export interface BrokerCredentials {
   api_key: string;
   is_active: boolean;
   label?: string | null;
+  zerodha_user_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -125,6 +126,7 @@ export interface BrokerCredentialsCreate {
   api_secret: string;
   is_active?: boolean;
   label?: string | null;
+  zerodha_user_id?: string | null;
 }
 
 export interface BrokerCredentialsUpdate {
@@ -132,5 +134,6 @@ export interface BrokerCredentialsUpdate {
   api_secret?: string;
   is_active?: boolean;
   label?: string | null;
+  zerodha_user_id?: string | null;
 }
 
