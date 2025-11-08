@@ -5,6 +5,7 @@ import type {
   BrokerCredentialsCreate,
   BrokerCredentialsUpdate,
   BrokerType,
+  OAuthStatus,
 } from '@/types';
 
 /**
@@ -129,8 +130,29 @@ export async function refreshZerodhaToken(): Promise<any> {
 }
 
 /**
+ * Get OAuth status for Zerodha
+ * Returns comprehensive status information about OAuth connection
+ * 
+ * @param credentialsId Optional credentials ID to check status for
+ * @returns OAuth status with is_connected, has_credentials, has_tokens, and user_id
+ */
+export async function getOAuthStatus(credentialsId?: string): Promise<OAuthStatus> {
+  const params = new URLSearchParams();
+  if (credentialsId) {
+    params.append('credentials_id', credentialsId);
+  }
+  const queryString = params.toString();
+  const url = `/api/zerodha/oauth/status${queryString ? `?${queryString}` : ''}`;
+  
+  const response = await apiClient.get<OAuthStatus>(url);
+  return response.data;
+}
+
+/**
  * Check if Zerodha OAuth tokens exist and are valid
  * Returns status information about the OAuth connection
+ * 
+ * @deprecated Use getOAuthStatus instead for more comprehensive status
  */
 export async function checkZerodhaTokenStatus(credentialsId?: string): Promise<{
   has_tokens: boolean;

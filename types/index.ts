@@ -137,3 +137,11 @@ export interface BrokerCredentialsUpdate {
   zerodha_user_id?: string | null;
 }
 
+// OAuth Status Types
+export interface OAuthStatus {
+  is_connected: boolean;
+  has_credentials: boolean;
+  has_tokens: boolean;
+  user_id: string;
+}
+
