@@ -73,7 +73,20 @@ function BrokerPageContent() {
             setError('Please update your Zerodha API credentials to continue.');
           }
         }, 2000);
-      } else {
+      } 
+      // Handle backend errors (Python errors, missing imports, etc.)
+      else if (decodedMessage.includes('hashlib') || 
+               decodedMessage.includes('cannot access local variable') ||
+               decodedMessage.includes('NameError') ||
+               decodedMessage.includes('ImportError') ||
+               decodedMessage.includes('AttributeError')) {
+        setError('Backend error during OAuth connection. This is a server-side issue. Please contact support or try again later. The backend team needs to fix this error.');
+        console.error('🔴 Backend OAuth Error:', decodedMessage);
+        // Clean up URL
+        router.replace('/dashboard/broker');
+      } 
+      // Handle other errors
+      else {
         setError(`Failed to connect Zerodha: ${decodedMessage}`);
         // Clean up URL
         router.replace('/dashboard/broker');
