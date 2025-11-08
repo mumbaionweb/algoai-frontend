@@ -9,7 +9,7 @@ import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type Histor
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
 import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
-import { createChart, ColorType, IChartApi, ISeriesApi } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi, LineSeries } from 'lightweight-charts';
 
 export default function BacktestingPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -1262,15 +1262,12 @@ function DataBarsChart({
         timeVisible: true,
         secondsVisible: false,
       },
-      watermark: {
-        visible: false, // Explicitly disable watermark
-      },
     });
 
     chartRef.current = chart;
 
     // Create line series
-    const lineSeries = chart.addLineSeries({
+    const lineSeries = chart.addSeries(LineSeries, {
       color: '#10B981', // green-500
       lineWidth: 2,
       priceFormat: {
