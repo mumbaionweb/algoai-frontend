@@ -169,7 +169,14 @@ class MyStrategy(bt.Strategy):
         } else if (errorDetail.includes('Access token not found') || errorDetail.includes('OAuth')) {
           setError('Please complete OAuth flow to connect your Zerodha account.');
         } else if (errorDetail.includes('Instrument not found')) {
-          setError('Invalid symbol or exchange. Please check and try again.');
+          // Extract symbol from error message if available
+          const symbolMatch = errorDetail.match(/Instrument not found for (\w+):(\w+)/);
+          if (symbolMatch) {
+            const [, exchange, symbol] = symbolMatch;
+            setError(`Instrument not found: ${symbol} on ${exchange}. Please check if the symbol is correct and available on this exchange.`);
+          } else {
+            setError('Invalid symbol or exchange. Please check and try again.');
+          }
         } else if (errorDetail.includes('No historical data')) {
           setError('No historical data available for the selected symbol and date range.');
         } else if (errorDetail.includes('Strategy class not found') || errorDetail.includes('strategy class')) {
