@@ -13,7 +13,6 @@ import {
   deleteBrokerCredentials,
   initiateZerodhaOAuth,
   refreshZerodhaToken,
-  checkZerodhaTokenStatus,
   getOAuthStatus,
 } from '@/lib/api/broker';
 import type {
@@ -86,6 +85,7 @@ function BrokerPageContent() {
 
     if (oauthStatus === 'success' && broker === 'zerodha') {
       setSuccess('Zerodha connected successfully!');
+      console.log('✅ OAuth success detected - reloading data to check status');
       // Clean up URL first
       router.replace('/dashboard/broker');
       // Reload broker data to check actual token status from backend
@@ -93,8 +93,9 @@ function BrokerPageContent() {
       if (isAuthenticated) {
         // Small delay to ensure backend has processed the OAuth callback
         setTimeout(() => {
+          console.log('🔄 Reloading broker data after OAuth success...');
           loadData();
-        }, 500);
+        }, 1000); // Increased delay to ensure backend has processed
       }
     } else if (oauthStatus === 'error') {
       // Mark OAuth as not connected for all Zerodha credentials when error occurs
@@ -164,40 +165,66 @@ function BrokerPageContent() {
       
       // Check OAuth token status from backend for each Zerodha credential
       const zerodhaCreds = creds.filter((cred) => cred.broker_type === 'zerodha');
-      const tokenStatusChecks = await Promise.allSettled(
-        zerodhaCreds.map(async (cred) => {
-          try {
-            const status = await checkZerodhaTokenStatus(cred.id);
-            return { credId: cred.id, hasTokens: status.has_tokens && status.is_valid };
-          } catch (err) {
-            console.warn(`Failed to check token status for credential ${cred.id}:`, err);
-            return { credId: cred.id, hasTokens: false };
-          }
-        })
-      );
       
-      // Update OAuth connection status based on backend check
-      setOauthConnectionStatus((prev) => {
-        const updated = { ...prev };
+      if (zerodhaCreds.length > 0) {
+        console.log('🔍 Checking OAuth status for Zerodha credentials:', zerodhaCreds.map(c => ({ id: c.id, is_active: c.is_active })));
         
-        // Update status based on backend token checks
-        tokenStatusChecks.forEach((result) => {
-          if (result.status === 'fulfilled') {
-            const { credId, hasTokens } = result.value;
-            updated[credId] = hasTokens;
-          }
+        const tokenStatusChecks = await Promise.allSettled(
+          zerodhaCreds.map(async (cred) => {
+            try {
+              const status = await getOAuthStatus(cred.id);
+              console.log(`✅ OAuth status for credential ${cred.id}:`, {
+                is_connected: status.is_connected,
+                has_tokens: status.has_tokens,
+                has_credentials: status.has_credentials,
+                user_id: status.user_id,
+              });
+              return { credId: cred.id, isConnected: status.is_connected };
+            } catch (err: any) {
+              console.warn(`⚠️ Failed to check OAuth status for credential ${cred.id}:`, {
+                error: err,
+                message: err.message,
+                response: err.response?.data,
+                status: err.response?.status,
+              });
+              // If 404 or other error, assume not connected
+              return { credId: cred.id, isConnected: false };
+            }
+          })
+        );
+        
+        // Update OAuth connection status based on backend check
+        setOauthConnectionStatus((prev) => {
+          const updated = { ...prev };
+          
+          // Update status based on backend OAuth checks
+          tokenStatusChecks.forEach((result) => {
+            if (result.status === 'fulfilled') {
+              const { credId, isConnected } = result.value;
+              updated[credId] = isConnected;
+              console.log(`📝 Updated OAuth status for ${credId}: ${isConnected ? '✅ Connected' : '❌ Not Connected'}`);
+            } else {
+              // If promise was rejected, mark as not connected
+              console.warn(`⚠️ OAuth status check failed for a credential`);
+            }
+          });
+          
+          // Initialize any new Zerodha credentials that weren't checked
+          creds.forEach((cred) => {
+            if (cred.broker_type === 'zerodha' && updated[cred.id] === undefined) {
+              // Default to false for new credentials
+              updated[cred.id] = false;
+              console.log(`📝 Initialized OAuth status for ${cred.id}: ❌ Not Connected (default)`);
+            }
+          });
+          
+          console.log('📊 Final OAuth connection status map:', updated);
+          console.log('📊 Current credentials:', creds.map(c => ({ id: c.id, broker_type: c.broker_type, is_active: c.is_active })));
+          return updated;
         });
-        
-        // Initialize any new Zerodha credentials that weren't checked
-        creds.forEach((cred) => {
-          if (cred.broker_type === 'zerodha' && updated[cred.id] === undefined) {
-            // If we have a previous status, preserve it; otherwise default to false
-            updated[cred.id] = prev[cred.id] ?? false;
-          }
-        });
-        
-        return updated;
-      });
+      } else {
+        console.log('ℹ️ No Zerodha credentials found to check OAuth status');
+      }
     } catch (err: any) {
       console.error('Failed to load broker data:', err);
       setError(err.response?.data?.detail || 'Failed to load broker data');
@@ -752,6 +779,18 @@ function BrokerPageContent() {
                   ? oauthConnectionStatus[cred.id] === true 
                   : true; // Non-Zerodha brokers don't need OAuth
                 const isFullyActive = cred.is_active && isOAuthConnected;
+                
+                // Debug logging for status calculation
+                if (cred.broker_type === 'zerodha') {
+                  console.log(`🔍 Status check for credential ${cred.id}:`, {
+                    credId: cred.id,
+                    is_active: cred.is_active,
+                    oauthStatus: oauthConnectionStatus[cred.id],
+                    isOAuthConnected,
+                    isFullyActive,
+                    willShow: isFullyActive ? 'Active' : 'Inactive',
+                  });
+                }
                 
                 return (
                   <div
