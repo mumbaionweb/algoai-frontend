@@ -205,9 +205,9 @@ class MyStrategy(bt.Strategy):
   const loadHistory = async () => {
     try {
       setLoadingHistory(true);
-      const historyData = await getBacktestHistory(50);
-      setHistory(historyData.backtests);
-      console.log('📜 Loaded backtest history:', historyData.total, 'items');
+      const historyData = await getBacktestHistory(5); // Limit to 5 recent backtests
+      setHistory(historyData.backtests.slice(0, 5)); // Ensure max 5 items
+      console.log('📜 Loaded backtest history:', historyData.total, 'items (showing max 5)');
     } catch (err: any) {
       console.error('Failed to load history:', err);
       const errorDetail = err.response?.data?.detail || '';
