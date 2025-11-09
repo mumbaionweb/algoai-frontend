@@ -190,6 +190,31 @@ export interface Transaction {
   pnl?: number;
   pnl_comm?: number;
   status: string;
+  // Position and trade tracking fields
+  trade_id?: string;
+  position_type?: 'LONG' | 'SHORT';
+  entry_action?: 'BUY' | 'SELL';
+  exit_action?: 'BUY' | 'SELL';
+  entry_date?: string;
+  exit_date?: string;
+}
+
+// Position interface for Position View
+export interface Position {
+  trade_id: string;
+  position_type: 'LONG' | 'SHORT';
+  entry_action: string;
+  exit_action: string;
+  entry_date: string;
+  entry_price: number;
+  total_quantity: number;
+  total_pnl: number;
+  total_pnl_comm: number;
+  transactions: Transaction[];
+  is_closed: boolean;
+  remaining_quantity?: number;
+  symbol?: string;
+  exchange?: string;
 }
 
 export interface BacktestResponse {

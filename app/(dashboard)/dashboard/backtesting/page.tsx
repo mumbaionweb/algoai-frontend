@@ -7,7 +7,7 @@ import Link from 'next/link';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type HistoricalDataPoint } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
-import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption } from '@/types';
+import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, Position } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
 import {
   Chart as ChartJS,
@@ -30,6 +30,9 @@ export default function BacktestingPage() {
   const [results, setResults] = useState<BacktestResponse | null>(null);
   const [history, setHistory] = useState<BacktestHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  // Transaction view mode: 'position' (default) or 'transaction'
+  const [viewMode, setViewMode] = useState<'position' | 'transaction'>('position');
   
   // OAuth and credentials state
   const [checkingOAuth, setCheckingOAuth] = useState(true);
@@ -1029,117 +1032,48 @@ class MyStrategy(bt.Strategy):
               </div>
             )}
 
-                {/* Transactions Table */}
+                {/* Transaction History with Position and Transaction Views */}
                 {results.transactions && results.transactions.length > 0 && (
                   <div className="bg-gray-700 rounded-lg p-4 mt-4">
-                    <h3 className="text-lg font-semibold text-white mb-4">
-                      Transaction History ({results.transactions.length} transactions)
-                    </h3>
-                    <div className="overflow-x-auto">
-                      {/* Table wrapper with conditional max-height and scrollbar */}
-                      <div 
-                        className={`${
-                          results.transactions.length > 10 
-                            ? 'max-h-[500px] overflow-y-auto transaction-table-scroll' 
-                            : ''
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-semibold text-white">
+                        Transaction History ({results.transactions.length} transactions)
+                      </h3>
+                    </div>
+                    
+                    {/* Tab Navigation */}
+                    <div className="flex gap-2 mb-4 border-b border-gray-600">
+                      <button
+                        onClick={() => setViewMode('position')}
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                          viewMode === 'position'
+                            ? 'text-blue-400 border-b-2 border-blue-400'
+                            : 'text-gray-400 hover:text-gray-300'
                         }`}
-                        style={{
-                          // Custom scrollbar styling for Firefox
-                          scrollbarWidth: results.transactions.length > 10 ? 'thin' : 'none',
-                          scrollbarColor: results.transactions.length > 10 ? '#4B5563 #374151' : 'transparent transparent',
-                        }}
                       >
-                        <table className="w-full">
-                          <thead className="sticky top-0 bg-gray-700 z-10">
-                            <tr className="border-b border-gray-600">
-                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date</th>
-                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
-                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Symbol</th>
-                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
-                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Entry Price</th>
-                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Exit Price</th>
-                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L</th>
-                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L (After Comm)</th>
-                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Status</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {results.transactions.map((txn, idx) => (
-                              <tr 
-                                key={idx} 
-                                className={`border-b border-gray-600 hover:bg-gray-600/50 ${
-                                  txn.pnl && txn.pnl > 0 ? 'bg-green-500/5' : txn.pnl && txn.pnl < 0 ? 'bg-red-500/5' : ''
-                                }`}
-                              >
-                                <td className="py-3 px-4 text-white text-sm">
-                                  {txn.date ? new Date(txn.date).toLocaleString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true,
-                                  }) : 'N/A'}
-                                </td>
-                                <td className="py-3 px-4">
-                                  <span className={`px-2 py-1 text-xs font-semibold rounded ${
-                                    txn.type === 'BUY' 
-                                      ? 'bg-blue-500/20 text-blue-300' 
-                                      : 'bg-red-500/20 text-red-300'
-                                  }`}>
-                                    {txn.type}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 text-white text-sm">
-                                  {txn.symbol}
-                                  {txn.exchange && (
-                                    <span className="text-gray-400 text-xs ml-1">({txn.exchange})</span>
-                                  )}
-                                </td>
-                                <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
-                                <td className="py-3 px-4 text-white text-sm text-right">
-                                  {txn.entry_price !== null && txn.entry_price !== undefined 
-                                    ? `₹${txn.entry_price.toFixed(2)}` 
-                                    : 'N/A'}
-                                </td>
-                                <td className="py-3 px-4 text-white text-sm text-right">
-                                  {txn.exit_price !== null && txn.exit_price !== undefined 
-                                    ? `₹${txn.exit_price.toFixed(2)}` 
-                                    : 'N/A'}
-                                </td>
-                                <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                                  txn.pnl !== null && txn.pnl !== undefined
-                                    ? (txn.pnl >= 0 ? 'text-green-400' : 'text-red-400')
-                                    : 'text-gray-400'
-                                }`}>
-                                  {txn.pnl !== null && txn.pnl !== undefined 
-                                    ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
-                                    : 'N/A'}
-                                </td>
-                                <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                                  txn.pnl_comm !== null && txn.pnl_comm !== undefined
-                                    ? (txn.pnl_comm >= 0 ? 'text-green-400' : 'text-red-400')
-                                    : 'text-gray-400'
-                                }`}>
-                                  {txn.pnl_comm !== null && txn.pnl_comm !== undefined 
-                                    ? `${txn.pnl_comm >= 0 ? '+' : ''}₹${txn.pnl_comm.toFixed(2)}` 
-                                    : 'N/A'}
-                                </td>
-                                <td className="py-3 px-4 text-gray-400 text-sm">{txn.status || 'N/A'}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                        📊 Position View
+                      </button>
+                      <button
+                        onClick={() => setViewMode('transaction')}
+                        className={`px-4 py-2 text-sm font-medium transition-colors ${
+                          viewMode === 'transaction'
+                            ? 'text-blue-400 border-b-2 border-blue-400'
+                            : 'text-gray-400 hover:text-gray-300'
+                        }`}
+                      >
+                        📋 Transaction View
+                      </button>
                     </div>
-                    <div className="mt-4 text-sm text-gray-400">
-                      <p>Total Transactions: {results.transactions.length} of {results.total_trades} trades</p>
-                      {results.transactions.length > 10 && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Showing first 10 transactions. Scroll to view all {results.transactions.length} transactions.
-                        </p>
-                      )}
-                    </div>
+
+                    {/* Position View */}
+                    {viewMode === 'position' && (
+                      <PositionView transactions={results.transactions} />
+                    )}
+
+                    {/* Transaction View */}
+                    {viewMode === 'transaction' && (
+                      <TransactionView transactions={results.transactions} />
+                    )}
                   </div>
                 )}
 
@@ -1248,6 +1182,379 @@ class MyStrategy(bt.Strategy):
       </main>
     </div>
   );
+}
+
+// Helper function to build Position View from transactions
+function buildPositionView(transactions: Transaction[]): Position[] {
+  // Group by trade_id
+  const grouped = transactions.reduce((acc, txn) => {
+    const tradeId = txn.trade_id || 'unlinked';
+    if (!acc[tradeId]) {
+      acc[tradeId] = [];
+    }
+    acc[tradeId].push(txn);
+    return acc;
+  }, {} as Record<string, Transaction[]>);
+
+  // Build position objects
+  const positions: Position[] = [];
+
+  Object.entries(grouped).forEach(([tradeId, txns]) => {
+    // Sort transactions by exit_date (or entry_date if exit_date is missing)
+    txns.sort((a, b) => {
+      const dateA = a.exit_date || a.entry_date || a.date || '';
+      const dateB = b.exit_date || b.entry_date || b.date || '';
+      return dateA.localeCompare(dateB);
+    });
+
+    const firstTxn = txns[0];
+    const totalQuantity = txns.reduce((sum, t) => sum + t.quantity, 0);
+    const totalPnl = txns.reduce((sum, t) => sum + (t.pnl || 0), 0);
+    const totalPnlComm = txns.reduce((sum, t) => sum + (t.pnl_comm || 0), 0);
+
+    positions.push({
+      trade_id: tradeId,
+      position_type: firstTxn.position_type || 'LONG',
+      entry_action: firstTxn.entry_action || firstTxn.type || 'BUY',
+      exit_action: firstTxn.exit_action || (firstTxn.type === 'BUY' ? 'SELL' : 'BUY'),
+      entry_date: firstTxn.entry_date || firstTxn.date || '',
+      entry_price: firstTxn.entry_price || 0,
+      total_quantity: totalQuantity,
+      total_pnl: totalPnl,
+      total_pnl_comm: totalPnlComm,
+      transactions: txns,
+      is_closed: true,
+      remaining_quantity: 0,
+      symbol: firstTxn.symbol,
+      exchange: firstTxn.exchange,
+    });
+  });
+
+  // Sort positions by entry_date (most recent first)
+  positions.sort((a, b) => {
+    return (b.entry_date || '').localeCompare(a.entry_date || '');
+  });
+
+  return positions;
+}
+
+// Helper function to build Transaction View (sorted by date)
+function buildTransactionView(transactions: Transaction[]): Transaction[] {
+  return [...transactions].sort((a, b) => {
+    // Primary sort: exit_date (when transaction was completed)
+    const dateA = a.exit_date || a.entry_date || a.date || '';
+    const dateB = b.exit_date || b.entry_date || b.date || '';
+
+    if (dateA !== dateB) {
+      return dateA.localeCompare(dateB);
+    }
+
+    // Secondary sort: entry_date (if exit dates are same)
+    const entryA = a.entry_date || '';
+    const entryB = b.entry_date || '';
+    return entryA.localeCompare(entryB);
+  });
+}
+
+// Position View Component
+function PositionView({ transactions }: { transactions: Transaction[] }) {
+  const positions = buildPositionView(transactions);
+
+  return (
+    <div className="space-y-4">
+      {positions.map((position) => {
+        // Calculate average exit price
+        const totalValue = position.transactions.reduce(
+          (sum, t) => sum + (t.exit_price || 0) * t.quantity,
+          0
+        );
+        const avgExitPrice = position.total_quantity > 0 
+          ? totalValue / position.total_quantity 
+          : 0;
+
+        // Calculate duration
+        const lastExit = position.transactions
+          .map(t => t.exit_date || t.entry_date || t.date || '')
+          .sort()
+          .pop() || '';
+        const duration = position.entry_date && lastExit
+          ? calculateDuration(position.entry_date, lastExit)
+          : null;
+
+        return (
+          <div 
+            key={position.trade_id} 
+            className={`bg-gray-800 rounded-lg p-4 border ${
+              position.position_type === 'SHORT' 
+                ? 'border-orange-500/30' 
+                : 'border-blue-500/30'
+            }`}
+          >
+            {/* Position Header */}
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-2">
+                <span className={`text-lg ${
+                  position.position_type === 'SHORT' ? 'text-orange-400' : 'text-blue-400'
+                }`}>
+                  {position.position_type === 'SHORT' ? '🔻' : '🔺'}
+                </span>
+                <span className="font-semibold text-white">
+                  {position.position_type} Position: {position.trade_id}
+                </span>
+                {position.symbol && (
+                  <span className="text-gray-400 text-sm">
+                    ({position.symbol}{position.exchange ? `, ${position.exchange}` : ''})
+                  </span>
+                )}
+              </div>
+              <div className={`text-lg font-bold ${
+                position.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'
+              }`}>
+                {position.total_pnl >= 0 ? '+' : ''}₹{position.total_pnl.toFixed(2)}
+              </div>
+            </div>
+
+            {/* Position Summary */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4 text-sm">
+              <div className="bg-gray-700/50 rounded p-2">
+                <div className="text-gray-400 text-xs mb-1">Entry</div>
+                <div className="text-white">
+                  {position.entry_action} {position.total_quantity} shares @ ₹{position.entry_price.toFixed(2)}
+                </div>
+                <div className="text-gray-400 text-xs mt-1">
+                  {position.entry_date ? new Date(position.entry_date).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                  }) : 'N/A'}
+                </div>
+              </div>
+              <div className="bg-gray-700/50 rounded p-2">
+                <div className="text-gray-400 text-xs mb-1">Exit Summary</div>
+                <div className="text-white">
+                  Avg Exit: ₹{avgExitPrice.toFixed(2)}
+                </div>
+                {duration && (
+                  <div className="text-gray-400 text-xs mt-1">
+                    Duration: {duration}
+                  </div>
+                )}
+                {position.total_pnl_comm !== position.total_pnl && (
+                  <div className="text-gray-400 text-xs mt-1">
+                    After Commission: ₹{position.total_pnl_comm.toFixed(2)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Closures Timeline */}
+            <div className="border-t border-gray-600 pt-3">
+              <h4 className="text-sm font-semibold text-gray-300 mb-2">
+                Closures ({position.transactions.length}):
+              </h4>
+              <div className="space-y-2">
+                {position.transactions.map((txn, idx) => (
+                  <div 
+                    key={idx} 
+                    className="flex items-center justify-between bg-gray-700/30 rounded p-2 text-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                      <div>
+                        <span className="text-white">
+                          {txn.exit_action || txn.type} {txn.quantity} shares @ ₹{txn.exit_price?.toFixed(2) || 'N/A'}
+                        </span>
+                        <div className="text-gray-400 text-xs mt-0.5">
+                          {txn.exit_date || txn.entry_date || txn.date 
+                            ? new Date(txn.exit_date || txn.entry_date || txn.date || '').toLocaleString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true,
+                              })
+                            : 'N/A'}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`font-semibold ${
+                      (txn.pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {txn.pnl !== null && txn.pnl !== undefined 
+                        ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
+                        : 'N/A'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Transaction View Component
+function TransactionView({ transactions }: { transactions: Transaction[] }) {
+  const sortedTransactions = buildTransactionView(transactions);
+
+  return (
+    <div className="overflow-x-auto">
+      <div 
+        className={`${
+          sortedTransactions.length > 10 
+            ? 'max-h-[500px] overflow-y-auto transaction-table-scroll' 
+            : ''
+        }`}
+        style={{
+          scrollbarWidth: sortedTransactions.length > 10 ? 'thin' : 'none',
+          scrollbarColor: sortedTransactions.length > 10 ? '#4B5563 #374151' : 'transparent transparent',
+        }}
+      >
+        <table className="w-full">
+          <thead className="sticky top-0 bg-gray-700 z-10">
+            <tr className="border-b border-gray-600">
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date/Time</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position Type</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Symbol</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Entry</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Exit</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L (After Comm)</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortedTransactions.map((txn, idx) => {
+              const dateStr = txn.exit_date || txn.entry_date || txn.date || '';
+              const date = dateStr ? new Date(dateStr).toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              }) : '-';
+
+              return (
+                <tr 
+                  key={idx}
+                  className={`border-b border-gray-600 hover:bg-gray-600/50 ${
+                    txn.pnl && txn.pnl > 0 ? 'bg-green-500/5' : txn.pnl && txn.pnl < 0 ? 'bg-red-500/5' : ''
+                  } ${txn.position_type === 'SHORT' ? 'bg-orange-500/5' : ''}`}
+                >
+                  <td className="py-3 px-4 text-white text-sm">{date}</td>
+                  <td className="py-3 px-4">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                      txn.type === 'BUY' 
+                        ? 'bg-blue-500/20 text-blue-300' 
+                        : 'bg-red-500/20 text-red-300'
+                    }`}>
+                      {txn.type}
+                    </span>
+                  </td>
+                  <td className="py-3 px-4 text-gray-400 text-sm">{txn.trade_id || '-'}</td>
+                  <td className="py-3 px-4">
+                    {txn.position_type ? (
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                        txn.position_type === 'SHORT' 
+                          ? 'bg-orange-500/20 text-orange-300' 
+                          : 'bg-blue-500/20 text-blue-300'
+                      }`}>
+                        {txn.position_type === 'SHORT' ? '🔻 SHORT' : '🔺 LONG'}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500 text-xs">-</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-white text-sm">
+                    {txn.symbol}
+                    {txn.exchange && (
+                      <span className="text-gray-400 text-xs ml-1">({txn.exchange})</span>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
+                  <td className="py-3 px-4 text-white text-sm text-right">
+                    {txn.entry_action || txn.type} @ ₹{txn.entry_price?.toFixed(2) || '-'}
+                    {txn.entry_date && (
+                      <div className="text-gray-500 text-xs mt-0.5">
+                        {new Date(txn.entry_date).toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-white text-sm text-right">
+                    {txn.exit_action || (txn.type === 'BUY' ? 'SELL' : 'BUY')} @ ₹{txn.exit_price?.toFixed(2) || '-'}
+                    {txn.exit_date && (
+                      <div className="text-gray-500 text-xs mt-0.5">
+                        {new Date(txn.exit_date).toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                      </div>
+                    )}
+                  </td>
+                  <td className={`py-3 px-4 text-sm font-semibold text-right ${
+                    txn.pnl !== null && txn.pnl !== undefined
+                      ? (txn.pnl >= 0 ? 'text-green-400' : 'text-red-400')
+                      : 'text-gray-400'
+                  }`}>
+                    {txn.pnl !== null && txn.pnl !== undefined 
+                      ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
+                      : 'N/A'}
+                  </td>
+                  <td className={`py-3 px-4 text-sm font-semibold text-right ${
+                    txn.pnl_comm !== null && txn.pnl_comm !== undefined
+                      ? (txn.pnl_comm >= 0 ? 'text-green-400' : 'text-red-400')
+                      : 'text-gray-400'
+                  }`}>
+                    {txn.pnl_comm !== null && txn.pnl_comm !== undefined 
+                      ? `${txn.pnl_comm >= 0 ? '+' : ''}₹${txn.pnl_comm.toFixed(2)}` 
+                      : 'N/A'}
+                  </td>
+                  <td className="py-3 px-4 text-gray-400 text-sm">{txn.status || 'N/A'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {sortedTransactions.length > 10 && (
+        <div className="mt-2 text-xs text-gray-500">
+          Showing all {sortedTransactions.length} transactions. Scroll to view more.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper function to calculate duration between two dates
+function calculateDuration(startDate: string, endDate: string): string {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffMs = end.getTime() - start.getTime();
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays > 0) {
+    return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+  } else if (diffHours > 0) {
+    return `${diffHours} hour${diffHours > 1 ? 's' : ''}`;
+  } else {
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    return `${diffMins} minute${diffMins > 1 ? 's' : ''}`;
+  }
 }
 
 // Register Chart.js components
