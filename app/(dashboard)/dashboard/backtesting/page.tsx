@@ -1422,6 +1422,11 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
 function TransactionView({ transactions }: { transactions: Transaction[] }) {
   const sortedTransactions = buildTransactionView(transactions);
 
+  // Calculate grand totals
+  const grandTotalPnl = sortedTransactions.reduce((sum, txn) => sum + (txn.pnl || 0), 0);
+  const grandTotalPnlComm = sortedTransactions.reduce((sum, txn) => sum + (txn.pnl_comm || 0), 0);
+  const grandTotalCommission = grandTotalPnl - grandTotalPnlComm;
+
   return (
     <div className="overflow-x-auto">
       <div 
@@ -1442,13 +1447,11 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position</th>
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position Type</th>
-              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Symbol</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Price</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Entry</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Exit</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L (After Comm)</th>
-              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Status</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Value</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Commission</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Net Value</th>
             </tr>
           </thead>
           <tbody>
@@ -1462,6 +1465,14 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
                 minute: '2-digit',
                 hour12: true,
               }) : '-';
+
+              // Calculate commission for this transaction
+              const commission = (txn.pnl || 0) - (txn.pnl_comm || 0);
+              
+              // Use exit price (closing price) or entry price if exit not available
+              const price = txn.exit_price || txn.entry_price || 0;
+              const value = price * txn.quantity;
+              const netValue = value - commission; // Net value after commission
 
               return (
                 <tr 
@@ -1494,60 +1505,55 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
                       <span className="text-gray-500 text-xs">-</span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-white text-sm">
-                    {txn.symbol}
-                    {txn.exchange && (
-                      <span className="text-gray-400 text-xs ml-1">({txn.exchange})</span>
-                    )}
+                  <td className="py-3 px-4 text-white text-sm text-right">
+                    <div>₹{price.toFixed(2)}</div>
+                    <div className="text-gray-500 text-xs mt-0.5">
+                      {txn.entry_action || txn.type} @ ₹{txn.entry_price?.toFixed(2) || '-'} → 
+                      {txn.exit_action || (txn.type === 'BUY' ? 'SELL' : 'BUY')} @ ₹{txn.exit_price?.toFixed(2) || '-'}
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
-                  <td className="py-3 px-4 text-white text-sm text-right">
-                    {txn.entry_action || txn.type} @ ₹{txn.entry_price?.toFixed(2) || '-'}
-                    {txn.entry_date && (
-                      <div className="text-gray-500 text-xs mt-0.5">
-                        {new Date(txn.entry_date).toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-white text-sm text-right">
-                    {txn.exit_action || (txn.type === 'BUY' ? 'SELL' : 'BUY')} @ ₹{txn.exit_price?.toFixed(2) || '-'}
-                    {txn.exit_date && (
-                      <div className="text-gray-500 text-xs mt-0.5">
-                        {new Date(txn.exit_date).toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
-                      </div>
-                    )}
-                  </td>
+                  <td className="py-3 px-4 text-white text-sm text-right">₹{value.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-gray-400 text-sm text-right">₹{commission.toFixed(2)}</td>
                   <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                    txn.pnl !== null && txn.pnl !== undefined
-                      ? (txn.pnl >= 0 ? 'text-green-400' : 'text-red-400')
-                      : 'text-gray-400'
+                    netValue >= 0 ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    {txn.pnl !== null && txn.pnl !== undefined 
-                      ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
-                      : 'N/A'}
+                    ₹{netValue.toFixed(2)}
                   </td>
-                  <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                    txn.pnl_comm !== null && txn.pnl_comm !== undefined
-                      ? (txn.pnl_comm >= 0 ? 'text-green-400' : 'text-red-400')
-                      : 'text-gray-400'
-                  }`}>
-                    {txn.pnl_comm !== null && txn.pnl_comm !== undefined 
-                      ? `${txn.pnl_comm >= 0 ? '+' : ''}₹${txn.pnl_comm.toFixed(2)}` 
-                      : 'N/A'}
-                  </td>
-                  <td className="py-3 px-4 text-gray-400 text-sm">{txn.status || 'N/A'}</td>
                 </tr>
               );
             })}
           </tbody>
+          <tfoot className="sticky bottom-0 bg-gray-800 border-t-2 border-gray-600 z-10">
+            <tr className="bg-gray-800">
+              <td colSpan={4} className="py-3 px-4 text-right">
+                <strong className="text-white">Grand Total</strong>
+              </td>
+              <td colSpan={1} className="py-3 px-4"></td>
+              <td colSpan={1} className="py-3 px-4 text-right text-gray-300 text-sm">
+                <strong>P&L (Before Comm):</strong>
+              </td>
+              <td className={`py-3 px-4 text-sm font-bold text-right ${
+                grandTotalPnl >= 0 ? 'text-green-400' : 'text-red-400'
+              }`}>
+                ₹{grandTotalPnl.toFixed(2)}
+              </td>
+              <td className="py-3 px-4 text-right text-gray-300 text-sm">
+                <strong>Total Commission:</strong>
+              </td>
+              <td className="py-3 px-4 text-gray-400 text-sm text-right">
+                ₹{grandTotalCommission.toFixed(2)}
+              </td>
+              <td className="py-3 px-4 text-right text-gray-300 text-sm">
+                <strong>P&L (After Comm):</strong>
+              </td>
+              <td className={`py-3 px-4 text-sm font-bold text-right ${
+                grandTotalPnlComm >= 0 ? 'text-green-400' : 'text-red-400'
+              }`}>
+                ₹{grandTotalPnlComm.toFixed(2)}
+              </td>
+            </tr>
+          </tfoot>
         </table>
       </div>
       {sortedTransactions.length > 10 && (
