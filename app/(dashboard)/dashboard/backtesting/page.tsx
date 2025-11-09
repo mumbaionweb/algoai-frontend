@@ -394,6 +394,33 @@ class MyStrategy(bt.Strategy):
         transactions_count: result.transactions?.length || 0,
         fullResult: result,
       });
+      
+      // 🔍 DEBUG: Detailed transaction logging
+      console.log('🔍 Transaction Details Debug:', {
+        has_transactions: !!result.transactions,
+        transactions_type: typeof result.transactions,
+        transactions_is_array: Array.isArray(result.transactions),
+        transactions_length: result.transactions?.length || 0,
+        transactions_value: result.transactions,
+        total_trades: result.total_trades,
+        mismatch: result.total_trades > 0 && (!result.transactions || result.transactions.length === 0) 
+          ? '⚠️ WARNING: total_trades > 0 but no transactions array!' 
+          : 'OK',
+      });
+      
+      if (result.transactions && result.transactions.length > 0) {
+        console.log('✅ Transactions found:', {
+          count: result.transactions.length,
+          first_transaction: result.transactions[0],
+          last_transaction: result.transactions[result.transactions.length - 1],
+        });
+      } else if (result.total_trades > 0) {
+        console.warn('⚠️ WARNING: Backend reports', result.total_trades, 'trades but transactions array is missing or empty!');
+        console.warn('This could mean:');
+        console.warn('1. Backend is not including transactions in the response');
+        console.warn('2. Transactions need to be fetched from a separate endpoint');
+        console.warn('3. Backend is not logging transactions in the strategy');
+      }
 
       // Check if results look suspicious (0 trades, 0 return, same as initial capital)
       if (result.total_trades === 0 && result.total_return_pct === 0 && result.final_value === result.initial_cash) {
