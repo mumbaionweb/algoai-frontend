@@ -183,12 +183,12 @@ export interface Transaction {
   date?: string;
   symbol: string;
   exchange: string;
-  type: 'BUY' | 'SELL';
+  type: 'BUY' | 'SELL';  // Entry action (BUY for longs, SELL for shorts)
   quantity: number;
   entry_price?: number;
   exit_price?: number;
-  pnl?: number;
-  pnl_comm?: number;
+  pnl?: number;  // Gross Profit/Loss (before fees)
+  pnl_comm?: number;  // Net Profit/Loss (after brokerage and platform fees)
   status: string;
   // Position and trade tracking fields
   trade_id?: string;
@@ -197,6 +197,12 @@ export interface Transaction {
   exit_action?: 'BUY' | 'SELL';
   entry_date?: string;
   exit_date?: string;
+  // Fee breakdown fields
+  transaction_amount?: number;  // Transaction value (exit_price × quantity)
+  brokerage?: number;  // Zerodha brokerage charges (always >= 0, per transaction)
+  platform_fees?: number;  // Platform fees (currently 0, always >= 0)
+  total_amount?: number;  // Total amount (transaction_amount + brokerage + platform_fees)
+  order_ref?: string;  // Original order reference (for debugging/tracking)
 }
 
 // Position interface for Position View (backtest positions)

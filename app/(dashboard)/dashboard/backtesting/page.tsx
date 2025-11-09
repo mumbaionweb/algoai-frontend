@@ -1425,7 +1425,10 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
   // Calculate grand totals
   const grandTotalPnl = sortedTransactions.reduce((sum, txn) => sum + (txn.pnl || 0), 0);
   const grandTotalPnlComm = sortedTransactions.reduce((sum, txn) => sum + (txn.pnl_comm || 0), 0);
-  const grandTotalCommission = grandTotalPnl - grandTotalPnlComm;
+  const grandTotalBrokerage = sortedTransactions.reduce((sum, txn) => sum + (txn.brokerage || 0), 0);
+  const grandTotalPlatformFees = sortedTransactions.reduce((sum, txn) => sum + (txn.platform_fees || 0), 0);
+  const grandTotalTransactionAmount = sortedTransactions.reduce((sum, txn) => sum + (txn.transaction_amount || 0), 0);
+  const grandTotalAmount = sortedTransactions.reduce((sum, txn) => sum + (txn.total_amount || 0), 0);
 
   return (
     <div className="overflow-x-auto">
@@ -1447,10 +1450,12 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position</th>
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Price</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Value</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Commission</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Net Value</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Transaction Amount</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Brokerage</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Platform Fees</th>
+              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Total Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -1465,14 +1470,14 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
                 hour12: true,
               }) : '-';
 
-              // Calculate commission for this transaction
-              const commission = (txn.pnl || 0) - (txn.pnl_comm || 0);
+              // Use transaction_amount from API (or calculate if missing)
+              const transactionAmount = txn.transaction_amount || (txn.exit_price || 0) * txn.quantity;
+              const brokerage = txn.brokerage || 0;
+              const platformFees = txn.platform_fees || 0;
+              const totalAmount = txn.total_amount || (transactionAmount + brokerage + platformFees);
               
-              // Use exit price (closing price) or entry price if exit not available
+              // Price for display (exit price)
               const price = txn.exit_price || txn.entry_price || 0;
-              // Value is negative for SELL transactions
-              const value = (txn.type === 'SELL' ? -1 : 1) * price * txn.quantity;
-              const netValue = value - commission; // Net value after commission
 
               return (
                 <tr 
@@ -1505,30 +1510,47 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
                       <span className="text-gray-500 text-xs">-</span>
                     )}
                   </td>
+                  <td className="py-3 px-4 text-white text-sm text-right">
+                    <div>₹{price.toFixed(2)}</div>
+                    <div className="text-gray-500 text-xs mt-0.5 font-normal">
+                      {txn.entry_action || txn.type} @ ₹{txn.entry_price?.toFixed(2) || '-'} → 
+                      {txn.exit_action || (txn.type === 'BUY' ? 'SELL' : 'BUY')} @ ₹{txn.exit_price?.toFixed(2) || '-'}
+                    </div>
+                  </td>
                   <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
-                  <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                    value >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {value >= 0 ? '+' : ''}₹{value.toFixed(2)}
-                  </td>
-                  <td className="py-3 px-4 text-gray-400 text-sm text-right">₹{commission.toFixed(2)}</td>
-                  <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                    netValue >= 0 ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    ₹{netValue.toFixed(2)}
-                  </td>
+                  <td className="py-3 px-4 text-white text-sm text-right">₹{transactionAmount.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-gray-400 text-sm text-right">₹{brokerage.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-gray-400 text-sm text-right">₹{platformFees.toFixed(2)}</td>
+                  <td className="py-3 px-4 text-white text-sm text-right">₹{totalAmount.toFixed(2)}</td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot className="sticky bottom-0 bg-gray-800 border-t-2 border-gray-600 z-10">
             <tr className="bg-gray-800">
-              <td colSpan={5} className="py-3 px-4 text-right">
-                <strong className="text-white">Grand Total</strong>
+              <td colSpan={6} className="py-3 px-4 text-right">
+                <strong className="text-white">Grand Totals:</strong>
               </td>
-              <td className="py-3 px-4 text-right">
+              <td className="py-3 px-4 text-white text-sm text-right font-semibold">
+                ₹{grandTotalTransactionAmount.toFixed(2)}
+              </td>
+              <td className="py-3 px-4 text-gray-400 text-sm text-right font-semibold">
+                ₹{grandTotalBrokerage.toFixed(2)}
+              </td>
+              <td className="py-3 px-4 text-gray-400 text-sm text-right font-semibold">
+                ₹{grandTotalPlatformFees.toFixed(2)}
+              </td>
+              <td className="py-3 px-4 text-white text-sm text-right font-semibold">
+                ₹{grandTotalAmount.toFixed(2)}
+              </td>
+            </tr>
+            <tr className="bg-gray-800 border-t border-gray-600">
+              <td colSpan={6} className="py-3 px-4 text-right">
+                <strong className="text-white">P&L Summary:</strong>
+              </td>
+              <td colSpan={2} className="py-3 px-4 text-right">
                 <div className="text-gray-300 text-xs mb-1 text-right">
-                  <strong>P&L:</strong>
+                  <strong>P&L (Before Fees):</strong>
                 </div>
                 <div className={`text-sm font-bold text-right ${
                   grandTotalPnl >= 0 ? 'text-green-400' : 'text-red-400'
@@ -1536,17 +1558,9 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
                   {grandTotalPnl >= 0 ? '+' : ''}₹{grandTotalPnl.toFixed(2)}
                 </div>
               </td>
-              <td className="py-3 px-4 text-right">
+              <td colSpan={2} className="py-3 px-4 text-right">
                 <div className="text-gray-300 text-xs mb-1 text-right">
-                  <strong>Brokerage:</strong>
-                </div>
-                <div className="text-gray-400 text-sm text-right">
-                  ₹{grandTotalCommission.toFixed(2)}
-                </div>
-              </td>
-              <td className="py-3 px-4 text-right">
-                <div className="text-gray-300 text-xs mb-1 text-right">
-                  <strong>Net P&L:</strong>
+                  <strong>P&L (After Fees):</strong>
                 </div>
                 <div className={`text-sm font-bold text-right ${
                   grandTotalPnlComm >= 0 ? 'text-green-400' : 'text-red-400'
