@@ -1273,7 +1273,8 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
           scrollbarColor: positions.length > 5 ? '#4B5563 #374151' : 'transparent transparent',
         }}
       >
-        <div className="space-y-4">
+        {/* Position View: No sticky header, so add padding for better spacing */}
+        <div className={`space-y-4 ${positions.length > 5 ? 'py-1' : ''}`}>
           {positions.map((position) => {
         // Calculate average exit price
         const totalValue = position.transactions.reduce(
