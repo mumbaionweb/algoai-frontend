@@ -1446,7 +1446,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date/Time</th>
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position</th>
-              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position Type</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Value</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Commission</th>
@@ -1528,7 +1528,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               </td>
               <td className="py-3 px-4 text-right">
                 <div className="text-gray-300 text-xs mb-1 text-right">
-                  <strong>P&L (Before Comm):</strong>
+                  <strong>P&L:</strong>
                 </div>
                 <div className={`text-sm font-bold text-right ${
                   grandTotalPnl >= 0 ? 'text-green-400' : 'text-red-400'
@@ -1538,7 +1538,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               </td>
               <td className="py-3 px-4 text-right">
                 <div className="text-gray-300 text-xs mb-1 text-right">
-                  <strong>Total Commission:</strong>
+                  <strong>Brokerage:</strong>
                 </div>
                 <div className="text-gray-400 text-sm text-right">
                   ₹{grandTotalCommission.toFixed(2)}
@@ -1546,7 +1546,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               </td>
               <td className="py-3 px-4 text-right">
                 <div className="text-gray-300 text-xs mb-1 text-right">
-                  <strong>P&L (After Comm):</strong>
+                  <strong>Net P&L:</strong>
                 </div>
                 <div className={`text-sm font-bold text-right ${
                   grandTotalPnlComm >= 0 ? 'text-green-400' : 'text-red-400'
