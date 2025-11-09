@@ -1029,8 +1029,8 @@ class MyStrategy(bt.Strategy):
                     <div className={`text-2xl font-bold ${results.average_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {results.average_return.toFixed(4)}
                     </div>
-                  </div>
-                )}
+              </div>
+            )}
 
                 {/* Transaction History with Position and Transaction Views */}
                 {results.transactions && results.transactions.length > 0 && (
@@ -1509,11 +1509,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
                   <td className={`py-3 px-4 text-sm font-semibold text-right ${
                     value >= 0 ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    <div>{value >= 0 ? '+' : ''}₹{value.toFixed(2)}</div>
-                    <div className="text-gray-500 text-xs mt-0.5 font-normal">
-                      {txn.entry_action || txn.type} @ ₹{txn.entry_price?.toFixed(2) || '-'} → 
-                      {txn.exit_action || (txn.type === 'BUY' ? 'SELL' : 'BUY')} @ ₹{txn.exit_price?.toFixed(2) || '-'}
-                    </div>
+                    {value >= 0 ? '+' : ''}₹{value.toFixed(2)}
                   </td>
                   <td className="py-3 px-4 text-gray-400 text-sm text-right">₹{commission.toFixed(2)}</td>
                   <td className={`py-3 px-4 text-sm font-semibold text-right ${
@@ -1530,27 +1526,33 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               <td colSpan={5} className="py-3 px-4 text-right">
                 <strong className="text-white">Grand Total</strong>
               </td>
-              <td className="py-3 px-4 text-right text-gray-300 text-sm">
-                <strong>P&L (Before Comm):</strong>
+              <td className="py-3 px-4 text-right">
+                <div className="text-gray-300 text-xs mb-1 text-right">
+                  <strong>P&L (Before Comm):</strong>
+                </div>
+                <div className={`text-sm font-bold text-right ${
+                  grandTotalPnl >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {grandTotalPnl >= 0 ? '+' : ''}₹{grandTotalPnl.toFixed(2)}
+                </div>
               </td>
-              <td className={`py-3 px-4 text-sm font-bold text-right ${
-                grandTotalPnl >= 0 ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {grandTotalPnl >= 0 ? '+' : ''}₹{grandTotalPnl.toFixed(2)}
+              <td className="py-3 px-4 text-right">
+                <div className="text-gray-300 text-xs mb-1 text-right">
+                  <strong>Total Commission:</strong>
+                </div>
+                <div className="text-gray-400 text-sm text-right">
+                  ₹{grandTotalCommission.toFixed(2)}
+                </div>
               </td>
-              <td className="py-3 px-4 text-right text-gray-300 text-sm">
-                <strong>Total Commission:</strong>
-              </td>
-              <td className="py-3 px-4 text-gray-400 text-sm text-right">
-                ₹{grandTotalCommission.toFixed(2)}
-              </td>
-              <td className="py-3 px-4 text-right text-gray-300 text-sm">
-                <strong>P&L (After Comm):</strong>
-              </td>
-              <td className={`py-3 px-4 text-sm font-bold text-right ${
-                grandTotalPnlComm >= 0 ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {grandTotalPnlComm >= 0 ? '+' : ''}₹{grandTotalPnlComm.toFixed(2)}
+              <td className="py-3 px-4 text-right">
+                <div className="text-gray-300 text-xs mb-1 text-right">
+                  <strong>P&L (After Comm):</strong>
+                </div>
+                <div className={`text-sm font-bold text-right ${
+                  grandTotalPnlComm >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  {grandTotalPnlComm >= 0 ? '+' : ''}₹{grandTotalPnlComm.toFixed(2)}
+                </div>
               </td>
             </tr>
           </tfoot>
