@@ -1032,17 +1032,21 @@ class MyStrategy(bt.Strategy):
                 {/* Transactions Table */}
                 {results.transactions && results.transactions.length > 0 && (
                   <div className="bg-gray-700 rounded-lg p-4 mt-4">
-                    <h3 className="text-lg font-semibold text-white mb-4">Transaction History</h3>
+                    <h3 className="text-lg font-semibold text-white mb-4">
+                      Transaction History ({results.transactions.length} transactions)
+                    </h3>
                     <div className="overflow-x-auto">
                       <table className="w-full">
                         <thead>
                           <tr className="border-b border-gray-600">
                             <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date</th>
                             <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
+                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Symbol</th>
                             <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
                             <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Entry Price</th>
                             <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Exit Price</th>
                             <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L</th>
+                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L (After Comm)</th>
                             <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Status</th>
                           </tr>
                         </thead>
@@ -1050,12 +1054,19 @@ class MyStrategy(bt.Strategy):
                           {results.transactions.map((txn, idx) => (
                             <tr 
                               key={idx} 
-                                className={`border-b border-gray-600 hover:bg-gray-600/50 ${
-                                  txn.pnl && txn.pnl > 0 ? 'bg-green-500/5' : txn.pnl && txn.pnl < 0 ? 'bg-red-500/5' : ''
-                                }`}
-                              >
+                              className={`border-b border-gray-600 hover:bg-gray-600/50 ${
+                                txn.pnl && txn.pnl > 0 ? 'bg-green-500/5' : txn.pnl && txn.pnl < 0 ? 'bg-red-500/5' : ''
+                              }`}
+                            >
                               <td className="py-3 px-4 text-white text-sm">
-                                {txn.date ? new Date(txn.date).toLocaleDateString() : 'N/A'}
+                                {txn.date ? new Date(txn.date).toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                }) : 'N/A'}
                               </td>
                               <td className="py-3 px-4">
                                 <span className={`px-2 py-1 text-xs font-semibold rounded ${
@@ -1066,59 +1077,81 @@ class MyStrategy(bt.Strategy):
                                   {txn.type}
                                 </span>
                               </td>
+                              <td className="py-3 px-4 text-white text-sm">
+                                {txn.symbol}
+                                {txn.exchange && (
+                                  <span className="text-gray-400 text-xs ml-1">({txn.exchange})</span>
+                                )}
+                              </td>
                               <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
                               <td className="py-3 px-4 text-white text-sm text-right">
-                                {txn.entry_price ? `₹${txn.entry_price.toFixed(2)}` : 'N/A'}
+                                {txn.entry_price !== null && txn.entry_price !== undefined 
+                                  ? `₹${txn.entry_price.toFixed(2)}` 
+                                  : 'N/A'}
                               </td>
                               <td className="py-3 px-4 text-white text-sm text-right">
-                                {txn.exit_price ? `₹${txn.exit_price.toFixed(2)}` : 'N/A'}
+                                {txn.exit_price !== null && txn.exit_price !== undefined 
+                                  ? `₹${txn.exit_price.toFixed(2)}` 
+                                  : 'N/A'}
                               </td>
                               <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                                txn.pnl && txn.pnl > 0 
-                                  ? 'text-green-400' 
-                                  : txn.pnl && txn.pnl < 0 
-                                  ? 'text-red-400' 
+                                txn.pnl !== null && txn.pnl !== undefined
+                                  ? (txn.pnl >= 0 ? 'text-green-400' : 'text-red-400')
                                   : 'text-gray-400'
                               }`}>
                                 {txn.pnl !== null && txn.pnl !== undefined 
-                                  ? `₹${txn.pnl.toFixed(2)}` 
+                                  ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
                                   : 'N/A'}
                               </td>
-                              <td className="py-3 px-4 text-gray-400 text-sm">{txn.status}</td>
+                              <td className={`py-3 px-4 text-sm font-semibold text-right ${
+                                txn.pnl_comm !== null && txn.pnl_comm !== undefined
+                                  ? (txn.pnl_comm >= 0 ? 'text-green-400' : 'text-red-400')
+                                  : 'text-gray-400'
+                              }`}>
+                                {txn.pnl_comm !== null && txn.pnl_comm !== undefined 
+                                  ? `${txn.pnl_comm >= 0 ? '+' : ''}₹${txn.pnl_comm.toFixed(2)}` 
+                                  : 'N/A'}
+                              </td>
+                              <td className="py-3 px-4 text-gray-400 text-sm">{txn.status || 'N/A'}</td>
                             </tr>
                           ))}
                         </tbody>
                       </table>
                     </div>
                     <div className="mt-4 text-sm text-gray-400">
-                      <p>Total Transactions: {results.transactions.length}</p>
+                      <p>Total Transactions: {results.transactions.length} of {results.total_trades} trades</p>
                     </div>
                   </div>
                 )}
 
-                {results.transactions && results.transactions.length === 0 && (
+                {(!results.transactions || results.transactions.length === 0) && (
                   <div className="bg-gray-700 rounded-lg p-4 mt-4">
                     <div className="text-center text-gray-400 text-sm">
                       <p className="font-semibold text-yellow-400 mb-2">⚠️ No Transaction Details Available</p>
-                      <p className="mb-2">
-                        The backtest executed <span className="font-bold text-white">{results.total_trades} trades</span>, but transaction details are not available.
-                      </p>
-                      {results.total_trades > 0 && (
-                        <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500 rounded text-xs text-yellow-400">
-                          <p className="font-semibold mb-1">🔍 Backend Issue Detected:</p>
+                      {results.total_trades > 0 ? (
+                        <>
                           <p className="mb-2">
-                            The backend reports <span className="font-bold">{results.total_trades} trades</span> were executed, 
-                            but the <code className="bg-gray-800 px-1 rounded">transactions</code> array is empty.
+                            The backtest executed <span className="font-bold text-white">{results.total_trades} trades</span>, but transaction details are not available.
                           </p>
-                          <p className="mb-2">This indicates the backend is not populating transaction details during backtest execution.</p>
-                          <p className="text-gray-400 mt-2">
-                            <strong>Action Required:</strong> The backend team needs to ensure that when trades are executed, 
-                            each trade is logged as a transaction object in the <code className="bg-gray-800 px-1 rounded">transactions</code> array 
-                            with fields: <code className="bg-gray-800 px-1 rounded">date</code>, <code className="bg-gray-800 px-1 rounded">type</code> (BUY/SELL), 
-                            <code className="bg-gray-800 px-1 rounded">quantity</code>, <code className="bg-gray-800 px-1 rounded">entry_price</code>, 
-                            <code className="bg-gray-800 px-1 rounded">exit_price</code>, <code className="bg-gray-800 px-1 rounded">pnl</code>, and <code className="bg-gray-800 px-1 rounded">status</code>.
-                          </p>
-                        </div>
+                          <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500 rounded text-xs text-yellow-400">
+                            <p className="font-semibold mb-1">🔍 Possible Reasons:</p>
+                            <ul className="list-disc list-inside space-y-1 text-left mt-2">
+                              <li>TradeTracker observer may not be capturing trades correctly</li>
+                              <li>Trades were executed but not properly closed</li>
+                              <li>Backtrader's broker trades may not be accessible</li>
+                              <li>Strategy may be using buy/sell methods incorrectly</li>
+                            </ul>
+                            <p className="text-gray-400 mt-3">
+                              <strong>Note:</strong> Check backend logs for transaction extraction messages. 
+                              Look for: <code className="bg-gray-800 px-1 rounded">"Successfully extracted N transactions"</code> or 
+                              <code className="bg-gray-800 px-1 rounded">"No transactions extracted"</code>
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="mb-2">
+                          No trades were executed during this backtest. The strategy did not generate any buy/sell signals.
+                        </p>
                       )}
                     </div>
                   </div>
