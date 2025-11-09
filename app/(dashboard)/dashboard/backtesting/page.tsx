@@ -1230,29 +1230,30 @@ function buildPositionView(transactions: Transaction[]): BacktestPosition[] {
     });
   });
 
-  // Sort positions by entry_date (most recent first)
+  // Sort positions by entry_date (oldest first - ascending order)
   positions.sort((a, b) => {
-    return (b.entry_date || '').localeCompare(a.entry_date || '');
+    return (a.entry_date || '').localeCompare(b.entry_date || '');
   });
 
   return positions;
 }
 
-// Helper function to build Transaction View (sorted by date)
+// Helper function to build Transaction View (sorted by date - oldest first)
 function buildTransactionView(transactions: Transaction[]): Transaction[] {
+  // IMPORTANT: Always sort oldest first (ascending order)
   return [...transactions].sort((a, b) => {
-    // Primary sort: exit_date (when transaction was completed)
+    // Primary sort: exit_date (when transaction was completed) - oldest first
     const dateA = a.exit_date || a.entry_date || a.date || '';
     const dateB = b.exit_date || b.entry_date || b.date || '';
 
     if (dateA !== dateB) {
-      return dateA.localeCompare(dateB);
+      return dateA.localeCompare(dateB);  // Ascending: oldest first
     }
 
-    // Secondary sort: entry_date (if exit dates are same)
+    // Secondary sort: entry_date (if exit dates are same) - oldest first
     const entryA = a.entry_date || '';
     const entryB = b.entry_date || '';
-    return entryA.localeCompare(entryB);
+    return entryA.localeCompare(entryB);  // Ascending: oldest first
   });
 }
 
@@ -1447,10 +1448,9 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
           <thead className="sticky top-0 bg-gray-700 z-10">
             <tr className="border-b border-gray-600">
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date/Time</th>
-              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Trx Type</th>
               <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position</th>
-              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
-              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Price</th>
+              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Position Type</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Transaction Amount</th>
               <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Brokerage</th>
@@ -1471,13 +1471,21 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               }) : '-';
 
               // Use transaction_amount from API (or calculate if missing)
-              const transactionAmount = txn.transaction_amount || (txn.exit_price || 0) * txn.quantity;
+              // Transaction amount logic:
+              // - If type is BUY → entry_price × quantity
+              // - If type is SELL → exit_price × quantity
+              let transactionAmount = txn.transaction_amount;
+              if (!transactionAmount) {
+                if (txn.type === 'BUY') {
+                  transactionAmount = (txn.entry_price || 0) * txn.quantity;
+                } else {
+                  transactionAmount = (txn.exit_price || 0) * txn.quantity;
+                }
+              }
+              
               const brokerage = txn.brokerage || 0;
               const platformFees = txn.platform_fees || 0;
               const totalAmount = txn.total_amount || (transactionAmount + brokerage + platformFees);
-              
-              // Price for display (exit price)
-              const price = txn.exit_price || txn.entry_price || 0;
 
               return (
                 <tr 
@@ -1510,13 +1518,6 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
                       <span className="text-gray-500 text-xs">-</span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-white text-sm text-right">
-                    <div>₹{price.toFixed(2)}</div>
-                    <div className="text-gray-500 text-xs mt-0.5 font-normal">
-                      {txn.entry_action || txn.type} @ ₹{txn.entry_price?.toFixed(2) || '-'} → 
-                      {txn.exit_action || (txn.type === 'BUY' ? 'SELL' : 'BUY')} @ ₹{txn.exit_price?.toFixed(2) || '-'}
-                    </div>
-                  </td>
                   <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
                   <td className="py-3 px-4 text-white text-sm text-right">₹{transactionAmount.toFixed(2)}</td>
                   <td className="py-3 px-4 text-gray-400 text-sm text-right">₹{brokerage.toFixed(2)}</td>
@@ -1528,7 +1529,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
           </tbody>
           <tfoot className="sticky bottom-0 bg-gray-800 border-t-2 border-gray-600 z-10">
             <tr className="bg-gray-800">
-              <td colSpan={6} className="py-3 px-4 text-right">
+              <td colSpan={5} className="py-3 px-4 text-right">
                 <strong className="text-white">Grand Totals:</strong>
               </td>
               <td className="py-3 px-4 text-white text-sm text-right font-semibold">
@@ -1545,7 +1546,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               </td>
             </tr>
             <tr className="bg-gray-800 border-t border-gray-600">
-              <td colSpan={6} className="py-3 px-4 text-right">
+              <td colSpan={5} className="py-3 px-4 text-right">
                 <strong className="text-white">P&L Summary:</strong>
               </td>
               <td colSpan={2} className="py-3 px-4 text-right">
