@@ -407,6 +407,27 @@ The frontend automatically includes these headers in all requests.
 2. **Medium Priority:**
    - Add `interval` field to backtest response
    - Add `interval` field to backtest history
+   - **🔴 CRITICAL: Populate transactions array in backtest response**
+     - **Issue:** Backend reports `total_trades: 62` but returns `transactions: []` (empty array)
+     - **Expected:** When trades are executed, each trade must be logged as a transaction object in the `transactions` array
+     - **Transaction Object Format:**
+       ```json
+       {
+         "date": "2025-10-15T00:00:00Z",
+         "symbol": "LTF",
+         "exchange": "NSE",
+         "type": "BUY" | "SELL",
+         "quantity": 10,
+         "entry_price": 1000.0,
+         "exit_price": 1006.0,
+         "pnl": 60.0,
+         "pnl_comm": 59.4,
+         "status": "EXECUTED"
+       }
+       ```
+     - **Action Required:** Backend must track and log all buy/sell orders during backtest execution and include them in the response
+     - **Current Behavior:** Backend calculates metrics (win_rate, winning_trades, losing_trades, total_pnl) correctly but does not populate transactions array
+     - **Impact:** Frontend cannot display transaction history to users, even though trades were executed
 
 3. **Low Priority:**
    - Standardize error response format

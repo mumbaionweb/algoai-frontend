@@ -1097,11 +1097,30 @@ class MyStrategy(bt.Strategy):
                 )}
 
                 {results.transactions && results.transactions.length === 0 && (
-                  <div className="bg-gray-700 rounded-lg p-4 mt-4 text-center text-gray-400 text-sm">
-                    <p>No transaction details available.</p>
-                    <p className="mt-2 text-xs">
-                      Note: Transaction details may not be available if the strategy doesn't log trades.
-                    </p>
+                  <div className="bg-gray-700 rounded-lg p-4 mt-4">
+                    <div className="text-center text-gray-400 text-sm">
+                      <p className="font-semibold text-yellow-400 mb-2">⚠️ No Transaction Details Available</p>
+                      <p className="mb-2">
+                        The backtest executed <span className="font-bold text-white">{results.total_trades} trades</span>, but transaction details are not available.
+                      </p>
+                      {results.total_trades > 0 && (
+                        <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500 rounded text-xs text-yellow-400">
+                          <p className="font-semibold mb-1">🔍 Backend Issue Detected:</p>
+                          <p className="mb-2">
+                            The backend reports <span className="font-bold">{results.total_trades} trades</span> were executed, 
+                            but the <code className="bg-gray-800 px-1 rounded">transactions</code> array is empty.
+                          </p>
+                          <p className="mb-2">This indicates the backend is not populating transaction details during backtest execution.</p>
+                          <p className="text-gray-400 mt-2">
+                            <strong>Action Required:</strong> The backend team needs to ensure that when trades are executed, 
+                            each trade is logged as a transaction object in the <code className="bg-gray-800 px-1 rounded">transactions</code> array 
+                            with fields: <code className="bg-gray-800 px-1 rounded">date</code>, <code className="bg-gray-800 px-1 rounded">type</code> (BUY/SELL), 
+                            <code className="bg-gray-800 px-1 rounded">quantity</code>, <code className="bg-gray-800 px-1 rounded">entry_price</code>, 
+                            <code className="bg-gray-800 px-1 rounded">exit_price</code>, <code className="bg-gray-800 px-1 rounded">pnl</code>, and <code className="bg-gray-800 px-1 rounded">status</code>.
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
