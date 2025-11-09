@@ -188,7 +188,31 @@ function BrokerPageContent() {
                 has_credentials: status.has_credentials,
                 user_id: status.user_id,
               });
-              return { credId: cred.id, isConnected: status.is_connected };
+              
+              // Validate that tokens are actually usable by trying to fetch profile
+              // This catches cases where tokens exist but are expired/invalid
+              let isTokenValid = status.is_connected && status.has_tokens;
+              if (isTokenValid) {
+                try {
+                  // Try to fetch profile to validate token is actually usable
+                  await getZerodhaUserProfile(cred.id);
+                  console.log(`✅ Token validation successful for credential ${cred.id}`);
+                } catch (profileErr: any) {
+                  const errorDetail = profileErr.response?.data?.detail || '';
+                  // If we get "Access token not found" or similar, token is not usable
+                  if (errorDetail.includes('Access token not found') || 
+                      errorDetail.includes('OAuth') ||
+                      errorDetail.includes('token')) {
+                    console.warn(`⚠️ Token exists but is not usable for credential ${cred.id}:`, errorDetail);
+                    isTokenValid = false;
+                  } else {
+                    // Other errors (like 500) might be temporary, so keep the status
+                    console.warn(`⚠️ Token validation failed for credential ${cred.id}, but keeping status:`, errorDetail);
+                  }
+                }
+              }
+              
+              return { credId: cred.id, isConnected: isTokenValid };
             } catch (err: any) {
               console.warn(`⚠️ Failed to check OAuth status for credential ${cred.id}:`, {
                 error: err,
@@ -528,34 +552,17 @@ function BrokerPageContent() {
   };
 
   const handleRefreshToken = async (credentialsId?: string) => {
-    try {
-      setError('');
-      setSuccess('');
-      await refreshZerodhaToken();
-      setSuccess('Zerodha token refreshed successfully');
-      // Reload data to check actual token status from backend
-      await loadData();
-    } catch (err: any) {
-      console.error('Failed to refresh token:', err);
-      // Mark OAuth as not connected if refresh fails
-      if (err.response?.status === 404) {
-        setError('No tokens found. Please complete OAuth first.');
-        // Mark as not connected
-        setOauthConnectionStatus((prev) => {
-          const updated = { ...prev };
-          if (credentialsId) {
-            updated[credentialsId] = false;
-          } else {
-            credentials
-              .filter((cred) => cred.broker_type === 'zerodha')
-              .forEach((cred) => {
-                updated[cred.id] = false;
-              });
-          }
-          return updated;
-        });
+    // Use the same OAuth flow as Connect button
+    // This will re-authenticate and get fresh tokens
+    if (credentialsId) {
+      await handleZerodhaOAuth(credentialsId);
+    } else {
+      // If no credentials ID provided, find the first Zerodha credential
+      const zerodhaCred = credentials.find(c => c.broker_type === 'zerodha');
+      if (zerodhaCred) {
+        await handleZerodhaOAuth(zerodhaCred.id);
       } else {
-        setError(err.response?.data?.detail || 'Failed to refresh token');
+        setError('No Zerodha credentials found. Please add credentials first.');
       }
     }
   };
