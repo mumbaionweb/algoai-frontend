@@ -1200,33 +1200,53 @@ function buildPositionView(transactions: Transaction[]): BacktestPosition[] {
   const positions: BacktestPosition[] = [];
 
   Object.entries(grouped).forEach(([tradeId, txns]) => {
-    // Sort transactions by exit_date (or entry_date if exit_date is missing)
+    // Sort transactions by exit_date (or entry_date if exit_date is missing) - oldest first
     txns.sort((a, b) => {
-      const dateA = a.exit_date || a.entry_date || a.date || '';
-      const dateB = b.exit_date || b.entry_date || b.date || '';
+      const dateA = a.exit_date || a.entry_date || '';
+      const dateB = b.exit_date || b.entry_date || '';
       return dateA.localeCompare(dateB);
     });
 
-    const firstTxn = txns[0];
-    const totalQuantity = txns.reduce((sum, t) => sum + t.quantity, 0);
+    // Find entry transaction (status: "OPENED" or type matches entry_action)
+    const entryTxn = txns.find(t => t.status === 'OPENED' || (t.type === t.entry_action && t.status !== 'CLOSED'));
+    // Find all exit transactions (status: "CLOSED" or type matches exit_action)
+    const exitTxns = txns.filter(t => t.status === 'CLOSED' || (t.type === t.exit_action && t.status !== 'OPENED'));
+
+    // Entry quantity should be from the entry transaction ONLY (not sum of all transactions)
+    const entryQuantity = entryTxn ? entryTxn.quantity : 0;
+
+    // Calculate totals from ALL transactions (entry + exits)
     const totalPnl = txns.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const totalPnlComm = txns.reduce((sum, t) => sum + (t.pnl_comm || 0), 0);
+    const totalBrokerage = txns.reduce((sum, t) => sum + (t.brokerage || 0), 0);
+    const totalPlatformFees = txns.reduce((sum, t) => sum + (t.platform_fees || 0), 0);
+    const totalTransactionAmount = txns.reduce((sum, t) => sum + (t.transaction_amount || 0), 0);
+    const totalAmount = txns.reduce((sum, t) => sum + (t.total_amount || 0), 0);
+
+    // Calculate total closed quantity from exit transactions
+    const totalClosedQuantity = exitTxns.reduce((sum, t) => sum + t.quantity, 0);
+
+    const firstTxn = txns[0];
 
     positions.push({
       trade_id: tradeId,
-      position_type: firstTxn.position_type || 'LONG',
-      entry_action: firstTxn.entry_action || firstTxn.type || 'BUY',
-      exit_action: firstTxn.exit_action || (firstTxn.type === 'BUY' ? 'SELL' : 'BUY'),
-      entry_date: firstTxn.entry_date || firstTxn.date || '',
-      entry_price: firstTxn.entry_price || 0,
-      total_quantity: totalQuantity,
+      position_type: entryTxn?.position_type || firstTxn?.position_type || 'LONG',
+      entry_action: entryTxn?.entry_action || firstTxn?.entry_action || 'BUY',
+      exit_action: entryTxn?.exit_action || firstTxn?.exit_action || 'SELL',
+      entry_date: entryTxn?.entry_date || firstTxn?.entry_date || '',
+      entry_price: entryTxn?.entry_price || firstTxn?.entry_price || 0,
+      total_quantity: entryQuantity,  // Use entry transaction quantity, NOT sum of all transactions
       total_pnl: totalPnl,
       total_pnl_comm: totalPnlComm,
+      total_brokerage: totalBrokerage,
+      total_platform_fees: totalPlatformFees,
+      total_transaction_amount: totalTransactionAmount,
+      total_amount: totalAmount,
       transactions: txns,
-      is_closed: true,
-      remaining_quantity: 0,
-      symbol: firstTxn.symbol,
-      exchange: firstTxn.exchange,
+      is_closed: entryQuantity === totalClosedQuantity,  // All quantity closed if entry = sum of exits
+      remaining_quantity: Math.max(0, entryQuantity - totalClosedQuantity),  // Remaining = entry - sum of exits
+      symbol: firstTxn?.symbol,
+      exchange: firstTxn?.exchange,
     });
   });
 
@@ -1358,18 +1378,26 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
                 </div>
               </div>
               <div className="bg-gray-700/50 rounded p-2">
-                <div className="text-gray-400 text-xs mb-1">Exit Summary</div>
-                <div className="text-white">
-                  Avg Exit: ₹{avgExitPrice.toFixed(2)}
+                <div className="text-gray-400 text-xs mb-1">P&L Summary</div>
+                <div className={`text-white font-semibold ${
+                  position.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'
+                }`}>
+                  Total P&L: {position.total_pnl >= 0 ? '+' : ''}₹{position.total_pnl.toFixed(2)}
+                </div>
+                {position.total_pnl_comm !== position.total_pnl && (
+                  <div className="text-gray-400 text-xs mt-1">
+                    After Fees: ₹{position.total_pnl_comm.toFixed(2)}
+                  </div>
+                )}
+                <div className="text-gray-400 text-xs mt-1">
+                  Total Brokerage: ₹{position.total_brokerage.toFixed(2)}
+                  {position.total_platform_fees > 0 && (
+                    <span> | Platform Fees: ₹{position.total_platform_fees.toFixed(2)}</span>
+                  )}
                 </div>
                 {duration && (
                   <div className="text-gray-400 text-xs mt-1">
                     Duration: {duration}
-                  </div>
-                )}
-                {position.total_pnl_comm !== position.total_pnl && (
-                  <div className="text-gray-400 text-xs mt-1">
-                    After Commission: ₹{position.total_pnl_comm.toFixed(2)}
                   </div>
                 )}
               </div>
@@ -1377,44 +1405,66 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
 
             {/* Closures Timeline */}
             <div className="border-t border-gray-600 pt-3">
-              <h4 className="text-sm font-semibold text-gray-300 mb-2">
-                Closures ({position.transactions.length}):
-              </h4>
-              <div className="space-y-2">
-                {position.transactions.map((txn, idx) => (
-                  <div 
-                    key={idx} 
-                    className="flex items-center justify-between bg-gray-700/30 rounded p-2 text-sm"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-blue-400"></div>
-                      <div>
-                        <span className="text-white">
-                          {txn.exit_action || txn.type} {txn.quantity} shares @ ₹{txn.exit_price?.toFixed(2) || 'N/A'}
-                        </span>
-                        <div className="text-gray-400 text-xs mt-0.5">
-                          {txn.exit_date || txn.entry_date || txn.date 
-                            ? new Date(txn.exit_date || txn.entry_date || txn.date || '').toLocaleString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true,
-                              })
-                            : 'N/A'}
+              {/* Filter to only show exit transactions (status: "CLOSED" or type matches exit_action) */}
+              {(() => {
+                const exitTxns = position.transactions.filter(t => 
+                  t.status === 'CLOSED' || (t.type === t.exit_action && t.status !== 'OPENED')
+                );
+                // Sort exit transactions by exit_date (oldest first)
+                exitTxns.sort((a, b) => {
+                  const dateA = a.exit_date || a.entry_date || '';
+                  const dateB = b.exit_date || b.entry_date || '';
+                  return dateA.localeCompare(dateB);
+                });
+
+                return (
+                  <>
+                    <h4 className="text-sm font-semibold text-gray-300 mb-2">
+                      Closures ({exitTxns.length}):
+                    </h4>
+                    <div className="space-y-2">
+                      {exitTxns.map((txn, idx) => (
+                        <div 
+                          key={idx} 
+                          className="flex items-center justify-between bg-gray-700/30 rounded p-2 text-sm"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-blue-400"></div>
+                            <div>
+                              <span className="text-white">
+                                {txn.exit_action || txn.type} {txn.quantity} shares @ ₹{txn.exit_price?.toFixed(2) || 'N/A'}
+                              </span>
+                              <div className="text-gray-400 text-xs mt-0.5">
+                                {txn.exit_date || txn.entry_date || txn.date 
+                                  ? new Date(txn.exit_date || txn.entry_date || txn.date || '').toLocaleString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                    })
+                                  : 'N/A'}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className={`font-semibold ${
+                              (txn.pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'
+                            }`}>
+                              {txn.pnl !== null && txn.pnl !== undefined 
+                                ? `P&L: ${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
+                                : 'N/A'}
+                            </div>
+                            <div className="text-gray-400 text-xs">
+                              Brokerage: ₹{(txn.brokerage || 0).toFixed(2)}
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                    <div className={`font-semibold ${
-                      (txn.pnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'
-                    }`}>
-                      {txn.pnl !== null && txn.pnl !== undefined 
-                        ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
-                        : 'N/A'}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  </>
+                );
+              })()}
             </div>
           </div>
         );

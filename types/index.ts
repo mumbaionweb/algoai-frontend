@@ -213,12 +213,16 @@ export interface BacktestPosition {
   exit_action: string;
   entry_date: string;
   entry_price: number;
-  total_quantity: number;
+  total_quantity: number;  // Entry quantity from entry transaction ONLY (not sum of all transactions)
   total_pnl: number;
   total_pnl_comm: number;
+  total_brokerage: number;
+  total_platform_fees: number;
+  total_transaction_amount: number;
+  total_amount: number;
   transactions: Transaction[];
-  is_closed: boolean;
-  remaining_quantity?: number;
+  is_closed: boolean;  // All quantity closed? (entryQuantity === totalClosedQuantity)
+  remaining_quantity?: number;  // Remaining = entryQuantity - sum of exits
   symbol?: string;
   exchange?: string;
 }
