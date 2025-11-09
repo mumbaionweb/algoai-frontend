@@ -199,8 +199,8 @@ export interface Transaction {
   exit_date?: string;
 }
 
-// Position interface for Position View
-export interface Position {
+// Position interface for Position View (backtest positions)
+export interface BacktestPosition {
   trade_id: string;
   position_type: 'LONG' | 'SHORT';
   entry_action: string;

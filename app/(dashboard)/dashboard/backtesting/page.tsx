@@ -7,7 +7,7 @@ import Link from 'next/link';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type HistoricalDataPoint } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
-import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, Position } from '@/types';
+import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, BacktestPosition } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
 import {
   Chart as ChartJS,
@@ -1029,8 +1029,8 @@ class MyStrategy(bt.Strategy):
                     <div className={`text-2xl font-bold ${results.average_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {results.average_return.toFixed(4)}
                     </div>
-              </div>
-            )}
+                  </div>
+                )}
 
                 {/* Transaction History with Position and Transaction Views */}
                 {results.transactions && results.transactions.length > 0 && (
@@ -1098,8 +1098,8 @@ class MyStrategy(bt.Strategy):
                               <strong>Note:</strong> Check backend logs for transaction extraction messages. 
                               Look for: <code className="bg-gray-800 px-1 rounded">"Successfully extracted N transactions"</code> or 
                               <code className="bg-gray-800 px-1 rounded">"No transactions extracted"</code>
-                            </p>
-                          </div>
+                    </p>
+                  </div>
                         </>
                       ) : (
                         <p className="mb-2">
@@ -1185,7 +1185,7 @@ class MyStrategy(bt.Strategy):
 }
 
 // Helper function to build Position View from transactions
-function buildPositionView(transactions: Transaction[]): Position[] {
+function buildPositionView(transactions: Transaction[]): BacktestPosition[] {
   // Group by trade_id
   const grouped = transactions.reduce((acc, txn) => {
     const tradeId = txn.trade_id || 'unlinked';
@@ -1197,7 +1197,7 @@ function buildPositionView(transactions: Transaction[]): Position[] {
   }, {} as Record<string, Transaction[]>);
 
   // Build position objects
-  const positions: Position[] = [];
+  const positions: BacktestPosition[] = [];
 
   Object.entries(grouped).forEach(([tradeId, txns]) => {
     // Sort transactions by exit_date (or entry_date if exit_date is missing)
@@ -1801,9 +1801,9 @@ function DataBarsChart({
               }}
             />
           </div>
-          <div className="text-xs text-gray-500 mt-1">
+      <div className="text-xs text-gray-500 mt-1">
             Historical data: {historicalData?.length || 0} of {dataBarsCount} bars
-          </div>
+      </div>
         </>
       )}
       
