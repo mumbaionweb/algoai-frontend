@@ -1241,16 +1241,27 @@ function buildPositionView(transactions: Transaction[]): BacktestPosition[] {
 // Helper function to build Transaction View (sorted by date - oldest first)
 function buildTransactionView(transactions: Transaction[]): Transaction[] {
   // IMPORTANT: Always sort oldest first (ascending order)
+  // Sort by date based on transaction type:
+  // - BUY transactions: sorted by entry_date
+  // - SELL transactions: sorted by exit_date
   return [...transactions].sort((a, b) => {
-    // Primary sort: exit_date (when transaction was completed) - oldest first
-    const dateA = a.exit_date || a.entry_date || a.date || '';
-    const dateB = b.exit_date || b.entry_date || b.date || '';
+    // Get date for sorting: entry_date for BUY, exit_date for SELL
+    const getSortDate = (txn: Transaction): string => {
+      if (txn.type === 'BUY') {
+        return txn.entry_date || txn.exit_date || txn.date || '';
+      } else {
+        return txn.exit_date || txn.entry_date || txn.date || '';
+      }
+    };
+
+    const dateA = getSortDate(a);
+    const dateB = getSortDate(b);
 
     if (dateA !== dateB) {
       return dateA.localeCompare(dateB);  // Ascending: oldest first
     }
 
-    // Secondary sort: entry_date (if exit dates are same) - oldest first
+    // Secondary sort: entry_date (if primary dates are same) - oldest first
     const entryA = a.entry_date || '';
     const entryB = b.entry_date || '';
     return entryA.localeCompare(entryB);  // Ascending: oldest first
@@ -1460,7 +1471,13 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
           </thead>
           <tbody>
             {sortedTransactions.map((txn, idx) => {
-              const dateStr = txn.exit_date || txn.entry_date || txn.date || '';
+              // Date/Time: entry_date for BUY, exit_date for SELL
+              let dateStr = '';
+              if (txn.type === 'BUY') {
+                dateStr = txn.entry_date || txn.exit_date || txn.date || '';
+              } else {
+                dateStr = txn.exit_date || txn.entry_date || txn.date || '';
+              }
               const date = dateStr ? new Date(dateStr).toLocaleString('en-US', {
                 month: 'short',
                 day: 'numeric',
