@@ -1036,90 +1036,109 @@ class MyStrategy(bt.Strategy):
                       Transaction History ({results.transactions.length} transactions)
                     </h3>
                     <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-gray-600">
-                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date</th>
-                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
-                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Symbol</th>
-                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
-                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Entry Price</th>
-                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Exit Price</th>
-                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L</th>
-                            <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L (After Comm)</th>
-                            <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {results.transactions.map((txn, idx) => (
-                            <tr 
-                              key={idx} 
-                              className={`border-b border-gray-600 hover:bg-gray-600/50 ${
-                                txn.pnl && txn.pnl > 0 ? 'bg-green-500/5' : txn.pnl && txn.pnl < 0 ? 'bg-red-500/5' : ''
-                              }`}
-                            >
-                              <td className="py-3 px-4 text-white text-sm">
-                                {txn.date ? new Date(txn.date).toLocaleString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                }) : 'N/A'}
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className={`px-2 py-1 text-xs font-semibold rounded ${
-                                  txn.type === 'BUY' 
-                                    ? 'bg-blue-500/20 text-blue-300' 
-                                    : 'bg-red-500/20 text-red-300'
-                                }`}>
-                                  {txn.type}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-white text-sm">
-                                {txn.symbol}
-                                {txn.exchange && (
-                                  <span className="text-gray-400 text-xs ml-1">({txn.exchange})</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
-                              <td className="py-3 px-4 text-white text-sm text-right">
-                                {txn.entry_price !== null && txn.entry_price !== undefined 
-                                  ? `₹${txn.entry_price.toFixed(2)}` 
-                                  : 'N/A'}
-                              </td>
-                              <td className="py-3 px-4 text-white text-sm text-right">
-                                {txn.exit_price !== null && txn.exit_price !== undefined 
-                                  ? `₹${txn.exit_price.toFixed(2)}` 
-                                  : 'N/A'}
-                              </td>
-                              <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                                txn.pnl !== null && txn.pnl !== undefined
-                                  ? (txn.pnl >= 0 ? 'text-green-400' : 'text-red-400')
-                                  : 'text-gray-400'
-                              }`}>
-                                {txn.pnl !== null && txn.pnl !== undefined 
-                                  ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
-                                  : 'N/A'}
-                              </td>
-                              <td className={`py-3 px-4 text-sm font-semibold text-right ${
-                                txn.pnl_comm !== null && txn.pnl_comm !== undefined
-                                  ? (txn.pnl_comm >= 0 ? 'text-green-400' : 'text-red-400')
-                                  : 'text-gray-400'
-                              }`}>
-                                {txn.pnl_comm !== null && txn.pnl_comm !== undefined 
-                                  ? `${txn.pnl_comm >= 0 ? '+' : ''}₹${txn.pnl_comm.toFixed(2)}` 
-                                  : 'N/A'}
-                              </td>
-                              <td className="py-3 px-4 text-gray-400 text-sm">{txn.status || 'N/A'}</td>
+                      {/* Table wrapper with conditional max-height and scrollbar */}
+                      <div 
+                        className={`${
+                          results.transactions.length > 10 
+                            ? 'max-h-[500px] overflow-y-auto transaction-table-scroll' 
+                            : ''
+                        }`}
+                        style={{
+                          // Custom scrollbar styling for Firefox
+                          scrollbarWidth: results.transactions.length > 10 ? 'thin' : 'none',
+                          scrollbarColor: results.transactions.length > 10 ? '#4B5563 #374151' : 'transparent transparent',
+                        }}
+                      >
+                        <table className="w-full">
+                          <thead className="sticky top-0 bg-gray-700 z-10">
+                            <tr className="border-b border-gray-600">
+                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Date</th>
+                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Type</th>
+                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Symbol</th>
+                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Quantity</th>
+                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Entry Price</th>
+                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Exit Price</th>
+                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L</th>
+                              <th className="text-right py-3 px-4 text-gray-300 font-semibold text-xs uppercase">P&L (After Comm)</th>
+                              <th className="text-left py-3 px-4 text-gray-300 font-semibold text-xs uppercase">Status</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {results.transactions.map((txn, idx) => (
+                              <tr 
+                                key={idx} 
+                                className={`border-b border-gray-600 hover:bg-gray-600/50 ${
+                                  txn.pnl && txn.pnl > 0 ? 'bg-green-500/5' : txn.pnl && txn.pnl < 0 ? 'bg-red-500/5' : ''
+                                }`}
+                              >
+                                <td className="py-3 px-4 text-white text-sm">
+                                  {txn.date ? new Date(txn.date).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                  }) : 'N/A'}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                                    txn.type === 'BUY' 
+                                      ? 'bg-blue-500/20 text-blue-300' 
+                                      : 'bg-red-500/20 text-red-300'
+                                  }`}>
+                                    {txn.type}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-white text-sm">
+                                  {txn.symbol}
+                                  {txn.exchange && (
+                                    <span className="text-gray-400 text-xs ml-1">({txn.exchange})</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-white text-sm text-right">{txn.quantity}</td>
+                                <td className="py-3 px-4 text-white text-sm text-right">
+                                  {txn.entry_price !== null && txn.entry_price !== undefined 
+                                    ? `₹${txn.entry_price.toFixed(2)}` 
+                                    : 'N/A'}
+                                </td>
+                                <td className="py-3 px-4 text-white text-sm text-right">
+                                  {txn.exit_price !== null && txn.exit_price !== undefined 
+                                    ? `₹${txn.exit_price.toFixed(2)}` 
+                                    : 'N/A'}
+                                </td>
+                                <td className={`py-3 px-4 text-sm font-semibold text-right ${
+                                  txn.pnl !== null && txn.pnl !== undefined
+                                    ? (txn.pnl >= 0 ? 'text-green-400' : 'text-red-400')
+                                    : 'text-gray-400'
+                                }`}>
+                                  {txn.pnl !== null && txn.pnl !== undefined 
+                                    ? `${txn.pnl >= 0 ? '+' : ''}₹${txn.pnl.toFixed(2)}` 
+                                    : 'N/A'}
+                                </td>
+                                <td className={`py-3 px-4 text-sm font-semibold text-right ${
+                                  txn.pnl_comm !== null && txn.pnl_comm !== undefined
+                                    ? (txn.pnl_comm >= 0 ? 'text-green-400' : 'text-red-400')
+                                    : 'text-gray-400'
+                                }`}>
+                                  {txn.pnl_comm !== null && txn.pnl_comm !== undefined 
+                                    ? `${txn.pnl_comm >= 0 ? '+' : ''}₹${txn.pnl_comm.toFixed(2)}` 
+                                    : 'N/A'}
+                                </td>
+                                <td className="py-3 px-4 text-gray-400 text-sm">{txn.status || 'N/A'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                     <div className="mt-4 text-sm text-gray-400">
                       <p>Total Transactions: {results.transactions.length} of {results.total_trades} trades</p>
+                      {results.transactions.length > 10 && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Showing first 10 transactions. Scroll to view all {results.transactions.length} transactions.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )}
