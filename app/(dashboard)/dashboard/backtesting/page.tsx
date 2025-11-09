@@ -1261,8 +1261,20 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
   const positions = buildPositionView(transactions);
 
   return (
-    <div className="space-y-4">
-      {positions.map((position) => {
+    <div className="overflow-x-auto">
+      <div 
+        className={`${
+          positions.length > 5 
+            ? 'max-h-[500px] overflow-y-auto transaction-table-scroll' 
+            : ''
+        }`}
+        style={{
+          scrollbarWidth: positions.length > 5 ? 'thin' : 'none',
+          scrollbarColor: positions.length > 5 ? '#4B5563 #374151' : 'transparent transparent',
+        }}
+      >
+        <div className="space-y-4">
+          {positions.map((position) => {
         // Calculate average exit price
         const totalValue = position.transactions.reduce(
           (sum, t) => sum + (t.exit_price || 0) * t.quantity,
@@ -1393,7 +1405,14 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
             </div>
           </div>
         );
-      })}
+        })}
+        </div>
+      </div>
+      {positions.length > 5 && (
+        <div className="mt-2 text-xs text-gray-500">
+          Showing all {positions.length} positions. Scroll to view more.
+        </div>
+      )}
     </div>
   );
 }
