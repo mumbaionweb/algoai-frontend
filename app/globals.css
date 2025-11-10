@@ -43,3 +43,22 @@ body {
 .transaction-table-scroll::-webkit-scrollbar-thumb:hover {
   background: #6B7280;
 }
+
+/* Custom scrollbar styles for horizontal chart scrolling */
+.chart-horizontal-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.chart-horizontal-scroll::-webkit-scrollbar-track {
+  background: #374151;
+  border-radius: 4px;
+}
+
+.chart-horizontal-scroll::-webkit-scrollbar-thumb {
+  background: #4B5563;
+  border-radius: 4px;
+}
+
+.chart-horizontal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}

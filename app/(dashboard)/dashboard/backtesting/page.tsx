@@ -1837,83 +1837,112 @@ function DataBarsChart({
       
       {!loading && !error && chartData && (
         <>
-          <div className="w-full" style={{ height: '75px' }}>
-            <Line
-              data={chartData}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                  legend: {
-                    display: false,
+          {/* Horizontal scrollable container for chart */}
+          <div className="w-full overflow-x-auto chart-horizontal-scroll" style={{
+            scrollbarWidth: 'thin',
+            scrollbarColor: '#4B5563 #374151',
+          }}>
+            <div 
+              style={{ 
+                height: '75px',
+                // Calculate width: minimum 2px per data point for readability
+                // This ensures each data point has enough space to be visible
+                // For 5000 data points, this would be 10000px wide (scrollable)
+                // Minimum width is 100% to fill container when data is small
+                minWidth: historicalData && historicalData.length > 0
+                  ? `${Math.max(100, historicalData.length * 2)}%`
+                  : '100%',
+                width: historicalData && historicalData.length > 0
+                  ? `${Math.max(100, historicalData.length * 2)}%`
+                  : '100%',
+              }}
+            >
+              <Line
+                data={chartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  // Disable animation for better performance with large datasets
+                  animation: {
+                    duration: 0,
                   },
-                  tooltip: {
-                    enabled: true,
-                    mode: 'index',
-                    intersect: false,
-                    backgroundColor: '#1F2937', // gray-800
-                    titleColor: '#9CA3AF', // gray-400
-                    bodyColor: '#F3F4F6', // gray-100
-                    borderColor: '#4B5563', // gray-600
-                    borderWidth: 1,
-                    callbacks: {
-                      title: (tooltipItems) => {
-                        if (tooltipItems.length > 0) {
-                          const dataIndex = tooltipItems[0].dataIndex;
-                          if (historicalData && historicalData[dataIndex]) {
-                            const date = new Date(historicalData[dataIndex].time);
-                            if (!isNaN(date.getTime())) {
-                              // Format: "MMM DD, YYYY HH:mm AM/PM"
-                              return date.toLocaleString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true,
-                              });
+                  plugins: {
+                    legend: {
+                      display: false,
+                    },
+                    tooltip: {
+                      enabled: true,
+                      mode: 'index',
+                      intersect: false,
+                      backgroundColor: '#1F2937', // gray-800
+                      titleColor: '#9CA3AF', // gray-400
+                      bodyColor: '#F3F4F6', // gray-100
+                      borderColor: '#4B5563', // gray-600
+                      borderWidth: 1,
+                      callbacks: {
+                        title: (tooltipItems) => {
+                          if (tooltipItems.length > 0) {
+                            const dataIndex = tooltipItems[0].dataIndex;
+                            if (historicalData && historicalData[dataIndex]) {
+                              const date = new Date(historicalData[dataIndex].time);
+                              if (!isNaN(date.getTime())) {
+                                // Format: "MMM DD, YYYY HH:mm AM/PM"
+                                return date.toLocaleString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true,
+                                });
+                              }
                             }
                           }
-                        }
-                        return '';
-                      },
-                      label: (context) => {
-                        return `Close Price: ₹${context.parsed.y?.toFixed(2) || 'N/A'}`;
-                      },
-                    },
-                  },
-                },
-                scales: {
-                  x: {
-                    display: false, // Hide x-axis labels
-                    grid: {
-                      display: false, // Hide grid lines on x-axis
-                    },
-                  },
-                  y: {
-                    display: true,
-                    grid: {
-                      color: '#4B5563', // gray-600
-                    },
-                    ticks: {
-                      color: '#9CA3AF', // gray-400
-                      font: {
-                        size: 10,
+                          return '';
+                        },
+                        label: (context) => {
+                          return `Close Price: ₹${context.parsed.y?.toFixed(2) || 'N/A'}`;
+                        },
                       },
                     },
                   },
-                },
-                elements: {
-                  line: {
-                    borderJoinStyle: 'round' as const,
+                  scales: {
+                    x: {
+                      display: false, // Hide x-axis labels
+                      grid: {
+                        display: false, // Hide grid lines on x-axis
+                      },
+                    },
+                    y: {
+                      display: true,
+                      grid: {
+                        color: '#4B5563', // gray-600
+                      },
+                      ticks: {
+                        color: '#9CA3AF', // gray-400
+                        font: {
+                          size: 10,
+                        },
+                      },
+                    },
                   },
-                },
-              }}
-            />
+                  elements: {
+                    line: {
+                      borderJoinStyle: 'round' as const,
+                    },
+                  },
+                }}
+              />
+            </div>
           </div>
-      <div className="text-xs text-gray-500 mt-1">
+          <div className="text-xs text-gray-500 mt-1">
             Historical data: {historicalData?.length || 0} of {dataBarsCount} bars
-      </div>
+            {historicalData && historicalData.length > 50 && (
+              <span className="ml-2 text-gray-400">
+                (Scroll horizontally to view all data)
+              </span>
+            )}
+          </div>
         </>
       )}
       
