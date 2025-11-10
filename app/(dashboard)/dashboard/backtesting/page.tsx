@@ -1696,6 +1696,7 @@ function DataBarsChart({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[] | null>(null);
+  const [dataInfo, setDataInfo] = useState<{ total_points: number; returned_points: number } | null>(null);
 
   // Fetch historical data from backend
   useEffect(() => {
@@ -1711,9 +1712,12 @@ function DataBarsChart({
         setError(null);
         
         console.log('📊 Fetching historical data for backtest:', backtestId);
+        console.log('📊 Total data bars available:', dataBarsCount);
         
-        // Fetch all available data points (up to 5000 max as per API limit)
-        const limit = Math.min(dataBarsCount, 5000);
+        // Try to fetch all available data points
+        // If backend enforces a limit, it will return what it can
+        // We'll handle pagination if needed for very large datasets
+        const limit = dataBarsCount || 10000; // Request all data, backend will limit if needed
         const data = await getBacktestHistoricalData(backtestId, limit, 'json');
         
         console.log('✅ Historical data fetched:', {
@@ -1724,6 +1728,18 @@ function DataBarsChart({
           total_points: data.total_points,
           returned_points: data.returned_points,
           data_points_count: data.data_points.length,
+          requested_limit: limit,
+        });
+
+        // Check if we got all the data or if backend limited the response
+        if (data.total_points > data.returned_points) {
+          console.warn(`⚠️ Backend returned only ${data.returned_points} of ${data.total_points} total data points. Some data may not be visible in the chart.`);
+        }
+
+        // Store data info for display
+        setDataInfo({
+          total_points: data.total_points,
+          returned_points: data.returned_points,
         });
 
         if (data.data_points.length === 0) {
@@ -1845,15 +1861,15 @@ function DataBarsChart({
             <div 
               style={{ 
                 height: '75px',
-                // Calculate width: 0.1% per data point for readability
+                // Calculate width: 0.01% per data point for readability
                 // This ensures each data point has enough space to be visible
-                // For 5000 data points, this would be 500% wide (scrollable)
+                // For 5000 data points, this would be 50% wide (scrollable)
                 // Minimum width is 100% to fill container when data is small
                 minWidth: historicalData && historicalData.length > 0
-                  ? `${Math.max(100, historicalData.length * 0.1)}%`
+                  ? `${Math.max(100, historicalData.length * 0.01)}%`
                   : '100%',
                 width: historicalData && historicalData.length > 0
-                  ? `${Math.max(100, historicalData.length * 0.1)}%`
+                  ? `${Math.max(100, historicalData.length * 0.01)}%`
                   : '100%',
               }}
             >
@@ -1937,6 +1953,11 @@ function DataBarsChart({
           </div>
           <div className="text-xs text-gray-500 mt-1">
             Historical data: {historicalData?.length || 0} of {dataBarsCount} bars
+            {dataInfo && dataInfo.total_points > dataInfo.returned_points && (
+              <span className="ml-2 text-yellow-400">
+                ⚠️ Showing {dataInfo.returned_points} of {dataInfo.total_points} total data points
+              </span>
+            )}
             {historicalData && historicalData.length > 50 && (
               <span className="ml-2 text-gray-400">
                 (Scroll horizontally to view all data)
