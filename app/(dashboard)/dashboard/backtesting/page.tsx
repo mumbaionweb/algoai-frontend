@@ -1845,15 +1845,15 @@ function DataBarsChart({
             <div 
               style={{ 
                 height: '75px',
-                // Calculate width: 1% per data point for readability
+                // Calculate width: 0.1% per data point for readability
                 // This ensures each data point has enough space to be visible
-                // For 5000 data points, this would be 5000% wide (scrollable)
+                // For 5000 data points, this would be 500% wide (scrollable)
                 // Minimum width is 100% to fill container when data is small
                 minWidth: historicalData && historicalData.length > 0
-                  ? `${Math.max(100, historicalData.length * 1)}%`
+                  ? `${Math.max(100, historicalData.length * 0.1)}%`
                   : '100%',
                 width: historicalData && historicalData.length > 0
-                  ? `${Math.max(100, historicalData.length * 1)}%`
+                  ? `${Math.max(100, historicalData.length * 0.1)}%`
                   : '100%',
               }}
             >
