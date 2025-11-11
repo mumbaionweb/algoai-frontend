@@ -127,6 +127,7 @@ class MyStrategy(bt.Strategy):
   const [commission, setCommission] = useState(() => 
     loadFromStorage('commission', 0.001)
   );
+  // Single interval (for backward compatibility)
   const [interval, setInterval] = useState<IntervalType>(() => {
     const stored = loadFromStorage('interval', 'day');
     // Validate stored interval
@@ -134,6 +135,15 @@ class MyStrategy(bt.Strategy):
       return stored as IntervalType;
     }
     return 'day';
+  });
+
+  // Multi-timeframe support
+  const [isMultiTimeframe, setIsMultiTimeframe] = useState(() => 
+    loadFromStorage('is_multi_timeframe', false)
+  );
+  const [intervals, setIntervals] = useState<string[]>(() => {
+    const stored = loadFromStorage('intervals', null);
+    return stored && Array.isArray(stored) ? stored : ['day'];
   });
 
   // Save to localStorage when values change
@@ -176,6 +186,16 @@ class MyStrategy(bt.Strategy):
     saveToStorage('interval', interval);
     console.log('💾 Saved interval to localStorage:', interval);
   }, [interval]);
+
+  useEffect(() => {
+    saveToStorage('is_multi_timeframe', isMultiTimeframe);
+    console.log('💾 Saved isMultiTimeframe to localStorage:', isMultiTimeframe);
+  }, [isMultiTimeframe]);
+
+  useEffect(() => {
+    saveToStorage('intervals', intervals);
+    console.log('💾 Saved intervals to localStorage:', intervals);
+  }, [intervals]);
   
   // Symbol validation state
   const [symbolError, setSymbolError] = useState('');
@@ -318,6 +338,14 @@ class MyStrategy(bt.Strategy):
       return;
     }
 
+    // Validate intervals if multi-timeframe is enabled
+    if (isMultiTimeframe && (!intervals || intervals.length === 0)) {
+      console.error('❌ Multi-timeframe enabled but no intervals selected');
+      setError('Please select at least one interval for multi-timeframe strategy.');
+      setLoading(false);
+      return;
+    }
+
     try {
       // Check OAuth status before running backtest
       if (!oauthStatus?.is_connected) {
@@ -347,7 +375,7 @@ class MyStrategy(bt.Strategy):
       console.log('  - Initial Cash:', initialCash);
       console.log('  - Commission:', commission);
 
-      const request = {
+      const request: any = {
         strategy_code: strategyCode,
         symbol: currentSymbol,
         exchange: exchange.toUpperCase(),
@@ -355,8 +383,16 @@ class MyStrategy(bt.Strategy):
         to_date: toDate,
         initial_cash: initialCash,
         commission: commission,
-        interval: interval, // Include interval
       };
+
+      // Include intervals array if multi-timeframe, otherwise use single interval
+      if (isMultiTimeframe && intervals.length > 0) {
+        request.intervals = intervals;
+        console.log('  - Intervals:', intervals);
+      } else {
+        request.interval = interval;
+        console.log('  - Interval:', interval);
+      }
 
       // Log the exact symbol being sent
       console.log('🔍 FINAL SYMBOL CHECK - Symbol being sent to backend:', currentSymbol);
@@ -706,51 +742,161 @@ class MyStrategy(bt.Strategy):
                 </div>
               </div>
 
-              {/* Data Interval Selector */}
+              {/* Data Interval Selector - Multi-Timeframe Support */}
               <div>
-                <label htmlFor="interval" className="block text-sm font-medium text-gray-300 mb-2">
-                  Data Interval
-                  <span className="ml-2 text-gray-400 text-xs" title="Select the time granularity for historical data">
-                    (ℹ️ affects data granularity)
-                  </span>
-                </label>
-                <select
-                  id="interval"
-                  value={interval}
-                  onChange={(e) => {
-                    const newInterval = e.target.value as IntervalType;
-                    console.log('📝 Interval changed:', newInterval);
-                    setInterval(newInterval);
-                  }}
-                  className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {INTERVAL_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label} - {option.description}
-                    </option>
-                  ))}
-                </select>
+                <div className="mb-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isMultiTimeframe}
+                      onChange={(e) => {
+                        const enabled = e.target.checked;
+                        setIsMultiTimeframe(enabled);
+                        if (enabled && intervals.length === 0) {
+                          setIntervals([interval]);
+                        } else if (!enabled && intervals.length > 0) {
+                          setInterval(intervals[0] as IntervalType);
+                        }
+                      }}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="font-semibold text-gray-300">Multi-Timeframe Strategy</span>
+                  </label>
+                  <p className="text-xs text-gray-400 ml-6 mt-1">
+                    Enable to select multiple intervals for advanced strategies (e.g., minute + daily)
+                  </p>
+                </div>
+
+                {isMultiTimeframe ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Select Intervals (at least one required)
+                    </label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                      {INTERVAL_OPTIONS.map((option) => {
+                        const isSelected = intervals.includes(option.value);
+                        return (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => {
+                              if (isSelected) {
+                                // Remove if already selected (but keep at least one)
+                                if (intervals.length > 1) {
+                                  setIntervals(intervals.filter(i => i !== option.value));
+                                }
+                              } else {
+                                // Add to selection
+                                setIntervals([...intervals, option.value]);
+                              }
+                            }}
+                            className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                              isSelected
+                                ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                                : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                            }`}
+                          >
+                            <div className="font-medium">{option.label}</div>
+                            <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {intervals.length > 0 && (
+                      <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                        <p className="text-sm font-medium text-blue-300 mb-2">
+                          Selected Intervals ({intervals.length}):
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {intervals.map((intervalValue, idx) => (
+                            <span
+                              key={intervalValue}
+                              className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium"
+                            >
+                              {idx + 1}. {INTERVAL_OPTIONS.find(o => o.value === intervalValue)?.label || intervalValue}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-xs text-blue-400 mt-2">
+                          💡 In your strategy code: <code className="bg-gray-800 px-1 rounded">self.datas[0]</code> = {intervals[0]}, {intervals[1] ? `<code className="bg-gray-800 px-1 rounded">self.datas[1]</code> = ${intervals[1]}` : ''}, etc.
+                        </p>
+                        {intervals.length > 1 && (
+                          <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
+                            ⚠️ <strong>Multi-timeframe backtest:</strong> This will fetch data for {intervals.length} intervals. Estimated processing time may be longer.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="interval" className="block text-sm font-medium text-gray-300 mb-2">
+                      Data Interval
+                      <span className="ml-2 text-gray-400 text-xs" title="Select the time granularity for historical data">
+                        (ℹ️ affects data granularity)
+                      </span>
+                    </label>
+                    <select
+                      id="interval"
+                      value={interval}
+                      onChange={(e) => {
+                        const newInterval = e.target.value as IntervalType;
+                        console.log('📝 Interval changed:', newInterval);
+                        setInterval(newInterval);
+                      }}
+                      className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {INTERVAL_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label} - {option.description}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {fromDate && toDate && (() => {
                   // Estimate data bars
                   const start = new Date(fromDate);
                   const end = new Date(toDate);
                   const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                   const tradingDays = Math.floor(daysDiff * 5 / 7); // Approximate trading days
-                  const selectedInterval = INTERVAL_OPTIONS.find(opt => opt.value === interval);
-                  const estimatedBars = selectedInterval ? Math.floor(tradingDays * selectedInterval.barsPerDay) : 0;
                   
-                  return (
-                    <div className="mt-2">
-                      <p className="text-xs text-gray-400">
-                        Estimated data bars: <span className="text-white font-medium">{estimatedBars.toLocaleString()}</span>
-                        {interval !== 'day' && estimatedBars > 10000 && (
-                          <span className="ml-2 text-yellow-400">
-                            ⚠️ Large dataset - may take longer to process
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  );
+                  if (isMultiTimeframe) {
+                    const totalBars = intervals.reduce((sum, intervalValue) => {
+                      const option = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue);
+                      return sum + (option ? Math.floor(tradingDays * option.barsPerDay) : 0);
+                    }, 0);
+                    
+                    return (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-400">
+                          Estimated total data bars: <span className="text-white font-medium">{totalBars.toLocaleString()}</span>
+                          {intervals.some(i => i !== 'day') && totalBars > 10000 && (
+                            <span className="ml-2 text-yellow-400">
+                              ⚠️ Large dataset - may take longer to process
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    );
+                  } else {
+                    const selectedInterval = INTERVAL_OPTIONS.find(opt => opt.value === interval);
+                    const estimatedBars = selectedInterval ? Math.floor(tradingDays * selectedInterval.barsPerDay) : 0;
+                    
+                    return (
+                      <div className="mt-2">
+                        <p className="text-xs text-gray-400">
+                          Estimated data bars: <span className="text-white font-medium">{estimatedBars.toLocaleString()}</span>
+                          {interval !== 'day' && estimatedBars > 10000 && (
+                            <span className="ml-2 text-yellow-400">
+                              ⚠️ Large dataset - may take longer to process
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    );
+                  }
                 })()}
               </div>
 
@@ -821,7 +967,7 @@ class MyStrategy(bt.Strategy):
 
               <button
                 type="submit"
-                disabled={loading || !oauthStatus?.is_connected || !!symbolError}
+                disabled={loading || !oauthStatus?.is_connected || !!symbolError || (isMultiTimeframe && (!intervals || intervals.length === 0))}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 {loading ? 'Running Backtest...' : 'Run Backtest'}
@@ -829,6 +975,11 @@ class MyStrategy(bt.Strategy):
               {symbolError && (
                 <p className="text-xs text-red-400 text-center mt-2">
                   Please fix the symbol error before running the backtest
+                </p>
+              )}
+              {isMultiTimeframe && (!intervals || intervals.length === 0) && (
+                <p className="text-xs text-red-400 text-center mt-2">
+                  Please select at least one interval for multi-timeframe strategy
                 </p>
               )}
             </form>
@@ -872,6 +1023,23 @@ class MyStrategy(bt.Strategy):
                 {(results.data_bars_count !== undefined || results.transactions !== undefined) && (
                   <div className="bg-gray-700 rounded-lg p-4 mb-4">
                     <h3 className="text-sm font-semibold text-gray-300 mb-3">Data Verification</h3>
+                    {results.intervals && results.intervals.length > 1 && (
+                      <div className="mb-3 p-2 bg-purple-500/10 border border-purple-500/30 rounded-lg">
+                        <p className="text-sm font-medium text-purple-300 mb-1">
+                          Multi-Timeframe Strategy:
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {results.intervals.map((intervalValue, idx) => (
+                            <span
+                              key={intervalValue}
+                              className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs"
+                            >
+                              datas[{idx}]: {INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="flex flex-col lg:flex-row gap-4">
                       {/* Left side - Data info */}
                       <div className="flex-1 min-w-0">
@@ -900,7 +1068,7 @@ class MyStrategy(bt.Strategy):
                         )}
                       </div>
                       
-                      {/* Right side - Timeseries Chart */}
+                      {/* Right side - Timeseries Charts (one per interval for multi-timeframe) */}
                       {(results.data_bars_count || 0) > 0 && (
                         <div className="flex-1 min-w-0 lg:min-w-[300px]">
                           <DataBarsChart 
@@ -909,6 +1077,8 @@ class MyStrategy(bt.Strategy):
                             fromDate={results.from_date}
                             toDate={results.to_date}
                             symbol={results.symbol}
+                            intervals={results.intervals}
+                            primaryInterval={results.interval}
                           />
                         </div>
                       )}
@@ -935,7 +1105,17 @@ class MyStrategy(bt.Strategy):
                     <div>
                       <span className="text-gray-400">Data Interval:</span>
                       <span className="text-white ml-2">
-                        {INTERVAL_OPTIONS.find(opt => opt.value === interval)?.label || interval || 'Daily'}
+                        {results.intervals && results.intervals.length > 1 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {results.intervals.map((intervalValue, idx) => (
+                              <span key={intervalValue} className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">
+                                datas[{idx}]: {INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          INTERVAL_OPTIONS.find(opt => opt.value === (results.interval || interval))?.label || results.interval || interval || 'Daily'
+                        )}
                       </span>
                     </div>
                     <div>
@@ -1679,299 +1859,614 @@ ChartJS.register(
   Filler
 );
 
-// Timeseries Chart Component for Data Verification
+// Timeseries Chart Component for Data Verification (supports multi-timeframe)
 function DataBarsChart({ 
   backtestId,
   dataBarsCount, 
   fromDate, 
   toDate, 
-  symbol 
+  symbol,
+  intervals,
+  primaryInterval
 }: { 
   backtestId: string;
   dataBarsCount: number; 
   fromDate: string; 
   toDate: string; 
   symbol: string;
+  intervals?: string[];
+  primaryInterval?: string;
 }) {
+  // For multi-timeframe: track data for each interval
+  const [chartsData, setChartsData] = useState<Map<string, {
+    loading: boolean;
+    error: string | null;
+    historicalData: HistoricalDataPoint[] | null;
+    dataInfo: { total_points: number; returned_points: number } | null;
+  }>>(new Map());
+  
+  // For single interval (backward compatibility)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[] | null>(null);
   const [dataInfo, setDataInfo] = useState<{ total_points: number; returned_points: number } | null>(null);
+  
+  // Determine if this is a multi-timeframe backtest
+  const isMultiTimeframe = intervals && intervals.length > 1;
 
   // Fetch historical data from backend
   useEffect(() => {
     const fetchHistoricalData = async () => {
       if (!backtestId) {
-        setError('Backtest ID is missing');
-        setLoading(false);
+        if (isMultiTimeframe) {
+          // Initialize all intervals with error state
+          const newChartsData = new Map<string, {
+            loading: boolean;
+            error: string | null;
+            historicalData: HistoricalDataPoint[] | null;
+            dataInfo: { total_points: number; returned_points: number } | null;
+          }>();
+          intervals.forEach(interval => {
+            newChartsData.set(interval, {
+              loading: false,
+              error: 'Backtest ID is missing',
+              historicalData: null,
+              dataInfo: null,
+            });
+          });
+          setChartsData(newChartsData);
+        } else {
+          setError('Backtest ID is missing');
+          setLoading(false);
+        }
         return;
       }
 
-      try {
-        setLoading(true);
-        setError(null);
+      if (isMultiTimeframe && intervals) {
+        // Multi-timeframe: fetch data for each interval
+        console.log('📊 Fetching historical data for multi-timeframe backtest:', backtestId);
+        console.log('📊 Intervals:', intervals);
         
-        console.log('📊 Fetching historical data for backtest:', backtestId);
-        console.log('📊 Total data bars available:', dataBarsCount);
+        const newChartsData = new Map<string, {
+          loading: boolean;
+          error: string | null;
+          historicalData: HistoricalDataPoint[] | null;
+          dataInfo: { total_points: number; returned_points: number } | null;
+        }>();
         
-        // Try to fetch all available data points
-        // If backend enforces a limit, it will return what it can
-        // We'll handle pagination if needed for very large datasets
-        const limit = dataBarsCount || 10000; // Request all data, backend will limit if needed
-        const data = await getBacktestHistoricalData(backtestId, limit, 'json');
-        
-        console.log('✅ Historical data fetched:', {
-          backtest_id: data.backtest_id,
-          symbol: data.symbol,
-          exchange: data.exchange,
-          interval: data.interval,
-          total_points: data.total_points,
-          returned_points: data.returned_points,
-          data_points_count: data.data_points.length,
-          requested_limit: limit,
+        // Initialize all intervals with loading state
+        intervals.forEach(interval => {
+          newChartsData.set(interval, {
+            loading: true,
+            error: null,
+            historicalData: null,
+            dataInfo: null,
+          });
         });
-
-        // Check if we got all the data or if backend limited the response
-        if (data.total_points > data.returned_points) {
-          console.warn(`⚠️ Backend returned only ${data.returned_points} of ${data.total_points} total data points. Some data may not be visible in the chart.`);
-        }
-
-        // Store data info for display
-        setDataInfo({
-          total_points: data.total_points,
-          returned_points: data.returned_points,
+        setChartsData(newChartsData);
+        
+        // Fetch data for each interval in parallel
+        const fetchPromises = intervals.map(async (interval) => {
+          try {
+            const limit = dataBarsCount || 10000;
+            const data = await getBacktestHistoricalData(backtestId, limit, 'json', interval);
+            
+            console.log(`✅ Historical data fetched for ${interval}:`, {
+              interval: data.interval,
+              total_points: data.total_points,
+              returned_points: data.returned_points,
+              data_points_count: data.data_points.length,
+            });
+            
+            return {
+              interval,
+              data,
+              error: null,
+            };
+          } catch (err: any) {
+            console.error(`❌ Failed to fetch historical data for ${interval}:`, err);
+            const errorDetail = err.response?.data?.detail || '';
+            const errorMessage = err.message || '';
+            
+            return {
+              interval,
+              data: null,
+              error: errorDetail || errorMessage || 'Failed to load historical data',
+            };
+          }
         });
+        
+        const results = await Promise.all(fetchPromises);
+        
+        // Update charts data with results
+        const updatedChartsData = new Map(newChartsData);
+        results.forEach(({ interval, data, error: fetchError }) => {
+          if (data) {
+            updatedChartsData.set(interval, {
+              loading: false,
+              error: null,
+              historicalData: data.data_points.length > 0 ? data.data_points : null,
+              dataInfo: {
+                total_points: data.total_points,
+                returned_points: data.returned_points,
+              },
+            });
+          } else {
+            updatedChartsData.set(interval, {
+              loading: false,
+              error: fetchError || 'Failed to load historical data',
+              historicalData: null,
+              dataInfo: null,
+            });
+          }
+        });
+        
+        setChartsData(updatedChartsData);
+      } else {
+        // Single interval (backward compatibility)
+        try {
+          setLoading(true);
+          setError(null);
+          
+          console.log('📊 Fetching historical data for backtest:', backtestId);
+          console.log('📊 Total data bars available:', dataBarsCount);
+          
+          const limit = dataBarsCount || 10000;
+          const data = await getBacktestHistoricalData(backtestId, limit, 'json', primaryInterval);
+          
+          console.log('✅ Historical data fetched:', {
+            backtest_id: data.backtest_id,
+            symbol: data.symbol,
+            exchange: data.exchange,
+            interval: data.interval,
+            total_points: data.total_points,
+            returned_points: data.returned_points,
+            data_points_count: data.data_points.length,
+            requested_limit: limit,
+          });
 
-        if (data.data_points.length === 0) {
-          setError('No historical data points returned from API');
+          if (data.total_points > data.returned_points) {
+            console.warn(`⚠️ Backend returned only ${data.returned_points} of ${data.total_points} total data points.`);
+          }
+
+          setDataInfo({
+            total_points: data.total_points,
+            returned_points: data.returned_points,
+          });
+
+          if (data.data_points.length === 0) {
+            setError('No historical data points returned from API');
+            setHistoricalData(null);
+          } else {
+            setHistoricalData(data.data_points);
+          }
+        } catch (err: any) {
+          console.error('❌ Failed to fetch historical data:', err);
+          const errorDetail = err.response?.data?.detail || '';
+          const errorMessage = err.message || '';
+          const status = err.response?.status;
+          
+          console.error('🔴 Historical Data API Error Details:', {
+            backtest_id: backtestId,
+            status: status,
+            errorDetail: errorDetail,
+            errorMessage: errorMessage,
+          });
+          
+          if (status === 404) {
+            setError(`Backtest not found (404). Backtest ID: ${backtestId}`);
+          } else if (status === 401) {
+            setError('Authentication failed. Please refresh and try again.');
+          } else if (status === 403) {
+            setError('Access denied. You may not have permission to view this backtest data.');
+          } else if (status === 500) {
+            setError(`Server error (500): ${errorDetail || 'Internal server error. Please check backend logs.'}`);
+          } else if (errorDetail) {
+            setError(errorDetail);
+          } else if (errorMessage) {
+            setError(errorMessage);
+          } else {
+            setError('Failed to load historical data. Please check console for details.');
+          }
+          
           setHistoricalData(null);
-        } else {
-          setHistoricalData(data.data_points);
+        } finally {
+          setLoading(false);
         }
-      } catch (err: any) {
-        console.error('❌ Failed to fetch historical data:', err);
-        const errorDetail = err.response?.data?.detail || '';
-        const errorMessage = err.message || '';
-        const status = err.response?.status;
-        
-        // Detailed error logging for troubleshooting
-        console.error('🔴 Historical Data API Error Details:', {
-          backtest_id: backtestId,
-          status: status,
-          statusText: err.response?.statusText,
-          errorDetail: errorDetail,
-          errorMessage: errorMessage,
-          responseData: err.response?.data,
-          requestUrl: err.config?.url,
-          requestMethod: err.config?.method,
-          fullError: err,
-        });
-        
-        // Set detailed error message for user
-        if (status === 404) {
-          setError(`Backtest not found (404). Backtest ID: ${backtestId}`);
-        } else if (status === 401) {
-          setError('Authentication failed. Please refresh and try again.');
-        } else if (status === 403) {
-          setError('Access denied. You may not have permission to view this backtest data.');
-        } else if (status === 500) {
-          setError(`Server error (500): ${errorDetail || 'Internal server error. Please check backend logs.'}`);
-        } else if (errorDetail) {
-          setError(errorDetail);
-        } else if (errorMessage) {
-          setError(errorMessage);
-        } else {
-          setError('Failed to load historical data. Please check console for details.');
-        }
-        
-        setHistoricalData(null);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchHistoricalData();
-  }, [backtestId, dataBarsCount]);
+  }, [backtestId, dataBarsCount, intervals, primaryInterval, isMultiTimeframe]);
 
-  // Prepare chart data with time information for tooltips
-  const chartData = historicalData
-    ? {
-        labels: historicalData.map(() => ''), // Empty labels to hide x-axis
-        datasets: [
-          {
-            label: 'Close Price',
-            data: historicalData.map((point) => {
-              if (point.close === null || point.close === undefined || isNaN(point.close)) {
-                return null;
-              }
-              return point.close;
-            }),
-            borderColor: '#10B981', // green-500
-            backgroundColor: 'rgba(16, 185, 129, 0.1)', // green-500 with opacity
-            borderWidth: 2,
-            fill: true,
-            tension: 0.1,
-            pointRadius: 0, // Hide points for cleaner look
-            pointHoverRadius: 4,
-          },
-        ],
-      }
-    : null;
+  // Helper function to render a single chart
+  const renderSingleChart = (
+    intervalValue: string,
+    intervalData: HistoricalDataPoint[] | null,
+    intervalDataInfo: { total_points: number; returned_points: number } | null,
+    isLoading: boolean,
+    hasError: string | null
+  ) => {
+    const chartData = intervalData
+      ? {
+          labels: intervalData.map(() => ''),
+          datasets: [
+            {
+              label: 'Close Price',
+              data: intervalData.map((point) => {
+                if (point.close === null || point.close === undefined || isNaN(point.close)) {
+                  return null;
+                }
+                return point.close;
+              }),
+              borderColor: '#10B981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.1,
+              pointRadius: 0,
+              pointHoverRadius: 4,
+            },
+          ],
+        }
+      : null;
+
+    const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue;
+
+    return (
+      <div key={intervalValue} className="mb-4 last:mb-0">
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs text-gray-400 font-medium">
+            {intervalValue === intervals?.[0] ? `datas[0]: ${intervalLabel}` : 
+             intervalValue === intervals?.[1] ? `datas[1]: ${intervalLabel}` :
+             intervalValue === intervals?.[2] ? `datas[2]: ${intervalLabel}` :
+             intervalLabel} ({symbol})
+          </div>
+          {isLoading && (
+            <div className="text-xs text-gray-500">Loading...</div>
+          )}
+        </div>
+        
+        {isLoading && (
+          <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
+            <div className="text-center">
+              <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
+              <p className="text-xs text-gray-400">Loading historical data...</p>
+            </div>
+          </div>
+        )}
+        
+        {hasError && (
+          <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '75px' }}>
+            <p className="font-semibold mb-2">⚠️ Failed to load historical data</p>
+            <p className="mb-2">{hasError}</p>
+          </div>
+        )}
+        
+        {!isLoading && !hasError && chartData && (
+          <>
+            <div className="w-full overflow-x-auto chart-horizontal-scroll" style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#4B5563 #374151',
+            }}>
+              <div 
+                style={{ 
+                  height: '75px',
+                  minWidth: intervalData && intervalData.length > 0
+                    ? `${Math.max(100, intervalData.length * 0.005)}%`
+                    : '100%',
+                  width: intervalData && intervalData.length > 0
+                    ? `${Math.max(100, intervalData.length * 0.005)}%`
+                    : '100%',
+                }}
+              >
+                <Line
+                  data={chartData}
+                  options={{
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                      duration: 0,
+                    },
+                    plugins: {
+                      legend: {
+                        display: false,
+                      },
+                      tooltip: {
+                        enabled: true,
+                        mode: 'index',
+                        intersect: false,
+                        backgroundColor: '#1F2937',
+                        titleColor: '#9CA3AF',
+                        bodyColor: '#F3F4F6',
+                        borderColor: '#4B5563',
+                        borderWidth: 1,
+                        callbacks: {
+                          title: (tooltipItems) => {
+                            if (tooltipItems.length > 0) {
+                              const dataIndex = tooltipItems[0].dataIndex;
+                              if (intervalData && intervalData[dataIndex]) {
+                                const date = new Date(intervalData[dataIndex].time);
+                                if (!isNaN(date.getTime())) {
+                                  return date.toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true,
+                                  });
+                                }
+                              }
+                            }
+                            return '';
+                          },
+                          label: (context) => {
+                            return `Close Price: ₹${context.parsed.y?.toFixed(2) || 'N/A'}`;
+                          },
+                        },
+                      },
+                    },
+                    scales: {
+                      x: {
+                        display: false,
+                        grid: {
+                          display: false,
+                        },
+                      },
+                      y: {
+                        display: true,
+                        grid: {
+                          color: '#4B5563',
+                        },
+                        ticks: {
+                          color: '#9CA3AF',
+                          font: {
+                            size: 10,
+                          },
+                        },
+                      },
+                    },
+                    elements: {
+                      line: {
+                        borderJoinStyle: 'round' as const,
+                      },
+                    },
+                  }}
+                />
+              </div>
+            </div>
+            <div className="text-xs text-gray-500 mt-1">
+              Historical data: {intervalData?.length || 0} bars
+              {intervalDataInfo && intervalDataInfo.total_points > intervalDataInfo.returned_points && (
+                <span className="ml-2 text-yellow-400">
+                  ⚠️ Showing {intervalDataInfo.returned_points} of {intervalDataInfo.total_points} total data points
+                </span>
+              )}
+              {intervalData && intervalData.length > 50 && (
+                <span className="ml-2 text-gray-400">
+                  (Scroll horizontally to view all data)
+                </span>
+              )}
+            </div>
+          </>
+        )}
+        
+        {!isLoading && !hasError && !intervalData && (
+          <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '75px' }}>
+            <p className="font-semibold mb-2">⚠️ No data available</p>
+            <p>Historical data was not returned from the API.</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-xs text-gray-400">Price Trend ({symbol})</div>
-        {loading && (
-          <div className="text-xs text-gray-500">Loading...</div>
-        )}
-      </div>
-      
-      {loading && (
-        <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
-            <p className="text-xs text-gray-400">Loading historical data...</p>
-          </div>
+      {isMultiTimeframe && intervals ? (
+        // Multi-timeframe: render one chart per interval
+        <div className="space-y-4">
+          {intervals.map((intervalValue, idx) => {
+            const chartState = chartsData.get(intervalValue);
+            if (!chartState) {
+              return (
+                <div key={intervalValue} className="mb-4">
+                  <div className="text-xs text-gray-400 mb-2">
+                    {idx === 0 ? `datas[0]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
+                     idx === 1 ? `datas[1]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
+                     idx === 2 ? `datas[2]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
+                     INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}
+                  </div>
+                  <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
+                    <div className="text-center">
+                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
+                      <p className="text-xs text-gray-400">Loading...</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            
+            return renderSingleChart(
+              intervalValue,
+              chartState.historicalData,
+              chartState.dataInfo,
+              chartState.loading,
+              chartState.error
+            );
+          })}
         </div>
-      )}
-      
-      {error && (
-        <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '75px' }}>
-          <p className="font-semibold mb-2">⚠️ Failed to load historical data</p>
-          <p className="mb-2">{error}</p>
-          <p className="text-gray-500 mt-3">Troubleshooting:</p>
-          <ul className="list-disc list-inside mt-1 space-y-1 text-gray-400">
-            <li>Check browser console for detailed error logs</li>
-            <li>Verify the backtest ID is correct: {backtestId}</li>
-            <li>Check network tab for API request/response details</li>
-            <li>Ensure backend endpoint is accessible: GET /api/backtesting/{backtestId}/data</li>
-            <li>Verify authentication token is valid</li>
-          </ul>
-        </div>
-      )}
-      
-      {!loading && !error && chartData && (
+      ) : (
+        // Single interval (backward compatibility)
         <>
-          {/* Horizontal scrollable container for chart */}
-          <div className="w-full overflow-x-auto chart-horizontal-scroll" style={{
-            scrollbarWidth: 'thin',
-            scrollbarColor: '#4B5563 #374151',
-          }}>
-            <div 
-              style={{ 
-                height: '75px',
-                // Calculate width: 0.01% per data point for readability
-                // This ensures each data point has enough space to be visible
-                // For 5000 data points, this would be 50% wide (scrollable)
-                // Minimum width is 100% to fill container when data is small
-                minWidth: historicalData && historicalData.length > 0
-                  ? `${Math.max(100, historicalData.length * 0.01)}%`
-                  : '100%',
-                width: historicalData && historicalData.length > 0
-                  ? `${Math.max(100, historicalData.length * 0.01)}%`
-                  : '100%',
-              }}
-            >
-              <Line
-                data={chartData}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  // Disable animation for better performance with large datasets
-                  animation: {
-                    duration: 0,
-                  },
-                  plugins: {
-                    legend: {
-                      display: false,
-                    },
-                    tooltip: {
-                      enabled: true,
-                      mode: 'index',
-                      intersect: false,
-                      backgroundColor: '#1F2937', // gray-800
-                      titleColor: '#9CA3AF', // gray-400
-                      bodyColor: '#F3F4F6', // gray-100
-                      borderColor: '#4B5563', // gray-600
-                      borderWidth: 1,
-                      callbacks: {
-                        title: (tooltipItems) => {
-                          if (tooltipItems.length > 0) {
-                            const dataIndex = tooltipItems[0].dataIndex;
-                            if (historicalData && historicalData[dataIndex]) {
-                              const date = new Date(historicalData[dataIndex].time);
-                              if (!isNaN(date.getTime())) {
-                                // Format: "MMM DD, YYYY HH:mm AM/PM"
-                                return date.toLocaleString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true,
-                                });
-                              }
-                            }
-                          }
-                          return '';
-                        },
-                        label: (context) => {
-                          return `Close Price: ₹${context.parsed.y?.toFixed(2) || 'N/A'}`;
-                        },
-                      },
-                    },
-                  },
-                  scales: {
-                    x: {
-                      display: false, // Hide x-axis labels
-                      grid: {
-                        display: false, // Hide grid lines on x-axis
-                      },
-                    },
-                    y: {
-                      display: true,
-                      grid: {
-                        color: '#4B5563', // gray-600
-                      },
-                      ticks: {
-                        color: '#9CA3AF', // gray-400
-                        font: {
-                          size: 10,
-                        },
-                      },
-                    },
-                  },
-                  elements: {
-                    line: {
-                      borderJoinStyle: 'round' as const,
-                    },
-                  },
-                }}
-              />
+          <div className="flex items-center justify-between mb-2">
+            <div className="text-xs text-gray-400">Price Trend ({symbol})</div>
+            {loading && (
+              <div className="text-xs text-gray-500">Loading...</div>
+            )}
+          </div>
+          
+          {loading && (
+            <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
+                <p className="text-xs text-gray-400">Loading historical data...</p>
+              </div>
             </div>
-          </div>
-          <div className="text-xs text-gray-500 mt-1">
-            Historical data: {historicalData?.length || 0} of {dataBarsCount} bars
-            {dataInfo && dataInfo.total_points > dataInfo.returned_points && (
-              <span className="ml-2 text-yellow-400">
-                ⚠️ Showing {dataInfo.returned_points} of {dataInfo.total_points} total data points
-              </span>
-            )}
-            {historicalData && historicalData.length > 50 && (
-              <span className="ml-2 text-gray-400">
-                (Scroll horizontally to view all data)
-              </span>
-            )}
-          </div>
+          )}
+          
+          {error && (
+            <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '75px' }}>
+              <p className="font-semibold mb-2">⚠️ Failed to load historical data</p>
+              <p className="mb-2">{error}</p>
+              <p className="text-gray-500 mt-3">Troubleshooting:</p>
+              <ul className="list-disc list-inside mt-1 space-y-1 text-gray-400">
+                <li>Check browser console for detailed error logs</li>
+                <li>Verify the backtest ID is correct: {backtestId}</li>
+                <li>Check network tab for API request/response details</li>
+                <li>Ensure backend endpoint is accessible: GET /api/backtesting/{backtestId}/data</li>
+                <li>Verify authentication token is valid</li>
+              </ul>
+            </div>
+          )}
+          
+          {!loading && !error && historicalData && (
+            <>
+              <div className="w-full overflow-x-auto chart-horizontal-scroll" style={{
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#4B5563 #374151',
+              }}>
+                <div 
+                  style={{ 
+                    height: '75px',
+                    minWidth: historicalData.length > 0
+                      ? `${Math.max(100, historicalData.length * 0.005)}%`
+                      : '100%',
+                    width: historicalData.length > 0
+                      ? `${Math.max(100, historicalData.length * 0.005)}%`
+                      : '100%',
+                  }}
+                >
+                  <Line
+                    data={{
+                      labels: historicalData.map(() => ''),
+                      datasets: [
+                        {
+                          label: 'Close Price',
+                          data: historicalData.map((point) => {
+                            if (point.close === null || point.close === undefined || isNaN(point.close)) {
+                              return null;
+                            }
+                            return point.close;
+                          }),
+                          borderColor: '#10B981',
+                          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                          borderWidth: 2,
+                          fill: true,
+                          tension: 0.1,
+                          pointRadius: 0,
+                          pointHoverRadius: 4,
+                        },
+                      ],
+                    }}
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      animation: {
+                        duration: 0,
+                      },
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                        tooltip: {
+                          enabled: true,
+                          mode: 'index',
+                          intersect: false,
+                          backgroundColor: '#1F2937',
+                          titleColor: '#9CA3AF',
+                          bodyColor: '#F3F4F6',
+                          borderColor: '#4B5563',
+                          borderWidth: 1,
+                          callbacks: {
+                            title: (tooltipItems) => {
+                              if (tooltipItems.length > 0) {
+                                const dataIndex = tooltipItems[0].dataIndex;
+                                if (historicalData && historicalData[dataIndex]) {
+                                  const date = new Date(historicalData[dataIndex].time);
+                                  if (!isNaN(date.getTime())) {
+                                    return date.toLocaleString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                    });
+                                  }
+                                }
+                              }
+                              return '';
+                            },
+                            label: (context) => {
+                              return `Close Price: ₹${context.parsed.y?.toFixed(2) || 'N/A'}`;
+                            },
+                          },
+                        },
+                      },
+                      scales: {
+                        x: {
+                          display: false,
+                          grid: {
+                            display: false,
+                          },
+                        },
+                        y: {
+                          display: true,
+                          grid: {
+                            color: '#4B5563',
+                          },
+                          ticks: {
+                            color: '#9CA3AF',
+                            font: {
+                              size: 10,
+                            },
+                          },
+                        },
+                      },
+                      elements: {
+                        line: {
+                          borderJoinStyle: 'round' as const,
+                        },
+                      },
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="text-xs text-gray-500 mt-1">
+                Historical data: {historicalData.length} bars
+                {dataInfo && dataInfo.total_points > dataInfo.returned_points && (
+                  <span className="ml-2 text-yellow-400">
+                    ⚠️ Showing {dataInfo.returned_points} of {dataInfo.total_points} total data points
+                  </span>
+                )}
+                {historicalData.length > 50 && (
+                  <span className="ml-2 text-gray-400">
+                    (Scroll horizontally to view all data)
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+          
+          {!loading && !error && !historicalData && (
+            <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '75px' }}>
+              <p className="font-semibold mb-2">⚠️ No data available</p>
+              <p>Historical data was not returned from the API.</p>
+            </div>
+          )}
         </>
-      )}
-      
-      {!loading && !error && !historicalData && (
-        <div className="w-full p-4 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs" style={{ minHeight: '75px' }}>
-          <p className="font-semibold mb-2">⚠️ No data available</p>
-          <p>Historical data was not returned from the API.</p>
-        </div>
       )}
     </div>
   );

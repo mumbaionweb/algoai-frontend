@@ -159,18 +159,21 @@ export interface HistoricalDataResponse {
  * @param backtestId Backtest ID
  * @param limit Maximum number of data points (default: 1000, max: 5000)
  * @param format Response format: "json" or "csv" (default: "json")
+ * @param interval Optional: Specific interval to fetch data for (for multi-timeframe backtests)
  * @returns Historical data response
  */
 export async function getBacktestHistoricalData(
   backtestId: string,
   limit: number = 1000,
-  format: 'json' | 'csv' = 'json'
+  format: 'json' | 'csv' = 'json',
+  interval?: string
 ): Promise<HistoricalDataResponse> {
   try {
     logApiCall('Fetching historical data', { 
       backtest_id: backtestId,
       limit,
-      format 
+      format,
+      interval: interval || 'default'
     });
 
     const params = new URLSearchParams();
@@ -180,6 +183,9 @@ export async function getBacktestHistoricalData(
     if (format) {
       params.append('format', format);
     }
+    if (interval) {
+      params.append('interval', interval);
+    }
 
     const url = `/api/backtesting/${backtestId}/data${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await apiClient.get<HistoricalDataResponse>(url);
@@ -188,6 +194,7 @@ export async function getBacktestHistoricalData(
       total_points: response.data.total_points,
       returned_points: response.data.returned_points,
       data_points_count: response.data.data_points.length,
+      interval: response.data.interval,
     });
 
     return response.data;

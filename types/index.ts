@@ -173,7 +173,8 @@ export interface BacktestRequest {
   to_date: string; // Format: "YYYY-MM-DD"
   initial_cash?: number; // Default: 100000.0
   commission?: number; // Default: 0.001
-  interval?: string;  // NEW: Data interval (default: "day")
+  interval?: string;  // Optional: Single interval (for backward compatibility)
+  intervals?: string[];  // NEW: Multiple intervals for multi-timeframe strategies (takes precedence over interval)
   strategy_params?: Record<string, any>;
   broker_type?: string; // Default: "zerodha"
 }
@@ -249,6 +250,8 @@ export interface BacktestResponse {
   average_return: number | null;
   annual_return: number | null;
   // NEW FIELDS
+  interval?: string;  // Primary interval (backward compatibility)
+  intervals?: string[];  // NEW: All intervals used in multi-timeframe strategy
   data_bars_count?: number;  // Number of historical data bars fetched
   transactions?: Transaction[];  // Individual trade transactions
 }
