@@ -1921,39 +1921,30 @@ function DataBarsChart({
         setChartsData(newChartsData);
         
         // Fetch data for each interval in parallel
-        const fetchPromises = intervals.map(async (intervalValue) => {
+        const fetchPromises = intervals.map(async (interval) => {
           try {
             const limit = dataBarsCount || 10000;
-            console.log(`📊 Fetching historical data for interval: ${intervalValue}`, {
-              backtestId,
-              limit,
-              interval: intervalValue,
-            });
+            const data = await getBacktestHistoricalData(backtestId, limit, 'json', interval);
             
-            const data = await getBacktestHistoricalData(backtestId, limit, 'json', intervalValue);
-            
-            console.log(`✅ Historical data fetched for ${intervalValue}:`, {
-              requested_interval: intervalValue,
-              returned_interval: data.interval,
+            console.log(`✅ Historical data fetched for ${interval}:`, {
+              interval: data.interval,
               total_points: data.total_points,
               returned_points: data.returned_points,
               data_points_count: data.data_points.length,
-              first_point: data.data_points[0] || null,
-              last_point: data.data_points[data.data_points.length - 1] || null,
             });
             
             return {
-              interval: intervalValue,
+              interval,
               data,
               error: null,
             };
           } catch (err: any) {
-            console.error(`❌ Failed to fetch historical data for ${intervalValue}:`, err);
+            console.error(`❌ Failed to fetch historical data for ${interval}:`, err);
             const errorDetail = err.response?.data?.detail || '';
             const errorMessage = err.message || '';
             
             return {
-              interval: intervalValue,
+              interval,
               data: null,
               error: errorDetail || errorMessage || 'Failed to load historical data',
             };
@@ -1962,7 +1953,7 @@ function DataBarsChart({
         
         const results = await Promise.all(fetchPromises);
         
-        // Update charts data with results
+        // Update charts data with results - create a fresh Map to ensure data isolation
         const updatedChartsData = new Map<string, {
           loading: boolean;
           error: string | null;
@@ -1970,29 +1961,13 @@ function DataBarsChart({
           dataInfo: { total_points: number; returned_points: number } | null;
         }>();
         
-        // First, initialize all intervals with loading state
-        intervals.forEach(intervalValue => {
-          updatedChartsData.set(intervalValue, {
-            loading: false,
-            error: null,
-            historicalData: null,
-            dataInfo: null,
-          });
-        });
-        
-        // Then update with actual results
         results.forEach(({ interval, data, error: fetchError }) => {
-          console.log(`📊 Updating chart data for interval: ${interval}`, {
-            hasData: !!data,
-            dataPointsCount: data?.data_points?.length || 0,
-            error: fetchError || null,
-          });
-          
-          if (data) {
+          if (data && data.data_points && data.data_points.length > 0) {
+            // Create a deep copy of the data points to ensure each chart has its own data
             updatedChartsData.set(interval, {
               loading: false,
               error: null,
-              historicalData: data.data_points.length > 0 ? data.data_points : null,
+              historicalData: data.data_points.map(point => ({ ...point })),
               dataInfo: {
                 total_points: data.total_points,
                 returned_points: data.returned_points,
@@ -2006,18 +1981,6 @@ function DataBarsChart({
               dataInfo: null,
             });
           }
-        });
-        
-        console.log('📊 Final chartsData Map:', {
-          size: updatedChartsData.size,
-          keys: Array.from(updatedChartsData.keys()),
-          entries: Array.from(updatedChartsData.entries()).map(([key, value]) => ({
-            interval: key,
-            hasData: !!value.historicalData,
-            dataCount: value.historicalData?.length || 0,
-            loading: value.loading,
-            error: value.error,
-          })),
         });
         
         setChartsData(updatedChartsData);
@@ -2172,10 +2135,10 @@ function DataBarsChart({
                 style={{ 
                   height: '75px',
                   minWidth: intervalData && intervalData.length > 0
-                    ? `${Math.max(100, intervalData.length * 2)}px`
+                    ? `${Math.max(400, intervalData.length * 3)}px`
                     : '100%',
                   width: intervalData && intervalData.length > 0
-                    ? `${Math.max(100, intervalData.length * 2)}px`
+                    ? `${Math.max(400, intervalData.length * 3)}px`
                     : '100%',
                 }}
               >
@@ -2288,18 +2251,9 @@ function DataBarsChart({
         <div className="space-y-4">
           {intervals.map((intervalValue, idx) => {
             const chartState = chartsData.get(intervalValue);
-            
-            console.log(`📊 Rendering chart for interval: ${intervalValue} (idx: ${idx})`, {
-              hasChartState: !!chartState,
-              hasData: !!chartState?.historicalData,
-              dataCount: chartState?.historicalData?.length || 0,
-              loading: chartState?.loading,
-              error: chartState?.error,
-            });
-            
             if (!chartState) {
               return (
-                <div key={`${intervalValue}-${idx}`} className="mb-4">
+                <div key={intervalValue} className="mb-4">
                   <div className="text-xs text-gray-400 mb-2">
                     {idx === 0 ? `datas[0]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
                      idx === 1 ? `datas[1]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
@@ -2369,10 +2323,10 @@ function DataBarsChart({
                   style={{ 
                     height: '75px',
                     minWidth: historicalData.length > 0
-                      ? `${Math.max(100, historicalData.length * 2)}px`
+                      ? `${Math.max(400, historicalData.length * 3)}px`
                       : '100%',
                     width: historicalData.length > 0
-                      ? `${Math.max(100, historicalData.length * 2)}px`
+                      ? `${Math.max(400, historicalData.length * 3)}px`
                       : '100%',
                   }}
                 >
