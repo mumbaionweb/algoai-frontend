@@ -1924,13 +1924,26 @@ function DataBarsChart({
         const fetchPromises = intervals.map(async (interval) => {
           try {
             const limit = dataBarsCount || 10000;
+            console.log(`📊 Requesting historical data for interval: "${interval}"`);
             const data = await getBacktestHistoricalData(backtestId, limit, 'json', interval);
             
+            // Verify backend returned the correct interval
+            if (data.interval !== interval) {
+              console.warn(`⚠️ Interval mismatch! Requested: "${interval}", Backend returned: "${data.interval}"`);
+            }
+            
+            // Log first and last data points to verify data is different
+            const firstPoint = data.data_points.length > 0 ? data.data_points[0] : null;
+            const lastPoint = data.data_points.length > 0 ? data.data_points[data.data_points.length - 1] : null;
+            
             console.log(`✅ Historical data fetched for ${interval}:`, {
-              interval: data.interval,
+              requested_interval: interval,
+              returned_interval: data.interval,
               total_points: data.total_points,
               returned_points: data.returned_points,
               data_points_count: data.data_points.length,
+              first_point: firstPoint ? { time: firstPoint.time, close: firstPoint.close } : null,
+              last_point: lastPoint ? { time: lastPoint.time, close: lastPoint.close } : null,
             });
             
             return {
@@ -1961,13 +1974,24 @@ function DataBarsChart({
           dataInfo: { total_points: number; returned_points: number } | null;
         }>();
         
+        console.log(`📊 Processing ${results.length} interval results for charts`);
+        
         results.forEach(({ interval, data, error: fetchError }) => {
           if (data && data.data_points && data.data_points.length > 0) {
             // Create a deep copy of the data points to ensure each chart has its own data
+            const dataCopy = data.data_points.map(point => ({ ...point }));
+            
+            console.log(`💾 Storing data for interval "${interval}" in Map:`, {
+              interval,
+              data_points_count: dataCopy.length,
+              first_point_time: dataCopy[0]?.time,
+              first_point_close: dataCopy[0]?.close,
+            });
+            
             updatedChartsData.set(interval, {
               loading: false,
               error: null,
-              historicalData: data.data_points.map(point => ({ ...point })),
+              historicalData: dataCopy,
               dataInfo: {
                 total_points: data.total_points,
                 returned_points: data.returned_points,
@@ -1981,6 +2005,17 @@ function DataBarsChart({
               dataInfo: null,
             });
           }
+        });
+        
+        console.log(`📊 Charts data Map after processing:`, {
+          map_size: updatedChartsData.size,
+          map_keys: Array.from(updatedChartsData.keys()),
+          map_entries: Array.from(updatedChartsData.entries()).map(([key, value]) => ({
+            interval: key,
+            has_data: !!value.historicalData,
+            data_count: value.historicalData?.length || 0,
+            first_point: value.historicalData?.[0] ? { time: value.historicalData[0].time, close: value.historicalData[0].close } : null,
+          })),
         });
         
         setChartsData(updatedChartsData);
@@ -2250,8 +2285,11 @@ function DataBarsChart({
         // Multi-timeframe: render one chart per interval
         <div className="space-y-4">
           {intervals.map((intervalValue, idx) => {
+            console.log(`🎨 Rendering chart for interval "${intervalValue}" (index ${idx})`);
             const chartState = chartsData.get(intervalValue);
+            
             if (!chartState) {
+              console.warn(`⚠️ No chart state found for interval "${intervalValue}" in Map. Available keys:`, Array.from(chartsData.keys()));
               return (
                 <div key={intervalValue} className="mb-4">
                   <div className="text-xs text-gray-400 mb-2">
@@ -2269,6 +2307,15 @@ function DataBarsChart({
                 </div>
               );
             }
+            
+            console.log(`📊 Chart state for interval "${intervalValue}":`, {
+              interval: intervalValue,
+              has_data: !!chartState.historicalData,
+              data_count: chartState.historicalData?.length || 0,
+              first_point: chartState.historicalData?.[0] ? { time: chartState.historicalData[0].time, close: chartState.historicalData[0].close } : null,
+              loading: chartState.loading,
+              error: chartState.error,
+            });
             
             return renderSingleChart(
               intervalValue,
