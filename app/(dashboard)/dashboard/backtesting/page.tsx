@@ -1976,13 +1976,24 @@ function DataBarsChart({
         
         console.log(`📊 Processing ${results.length} interval results for charts`);
         
+        // Track interval mismatches for UI warnings
+        const intervalMismatches: Array<{ requested: string; returned: string }> = [];
+        
         results.forEach(({ interval, data, error: fetchError }) => {
           if (data && data.data_points && data.data_points.length > 0) {
+            // Check for interval mismatch
+            const hasMismatch = data.interval !== interval;
+            if (hasMismatch) {
+              intervalMismatches.push({ requested: interval, returned: data.interval });
+            }
+            
             // Create a deep copy of the data points to ensure each chart has its own data
             const dataCopy = data.data_points.map(point => ({ ...point }));
             
             console.log(`💾 Storing data for interval "${interval}" in Map:`, {
               interval,
+              returned_interval: data.interval,
+              has_mismatch: hasMismatch,
               data_points_count: dataCopy.length,
               first_point_time: dataCopy[0]?.time,
               first_point_close: dataCopy[0]?.close,
@@ -1990,7 +2001,7 @@ function DataBarsChart({
             
             updatedChartsData.set(interval, {
               loading: false,
-              error: null,
+              error: hasMismatch ? `⚠️ Backend returned "${data.interval}" data instead of "${interval}"` : null,
               historicalData: dataCopy,
               dataInfo: {
                 total_points: data.total_points,
@@ -2006,6 +2017,11 @@ function DataBarsChart({
             });
           }
         });
+        
+        // Log interval mismatches summary
+        if (intervalMismatches.length > 0) {
+          console.error(`🔴 Interval Mismatches Detected:`, intervalMismatches);
+        }
         
         console.log(`📊 Charts data Map after processing:`, {
           map_size: updatedChartsData.size,
@@ -2154,9 +2170,14 @@ function DataBarsChart({
         )}
         
         {hasError && (
-          <div className="w-full p-4 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs" style={{ minHeight: '75px' }}>
-            <p className="font-semibold mb-2">⚠️ Failed to load historical data</p>
+          <div className={`w-full p-4 border rounded text-xs ${hasError.includes('Backend returned') ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400' : 'bg-red-500/10 border-red-500 text-red-400'}`} style={{ minHeight: '75px' }}>
+            <p className="font-semibold mb-2">{hasError.includes('Backend returned') ? '⚠️ Interval Mismatch' : '⚠️ Failed to load historical data'}</p>
             <p className="mb-2">{hasError}</p>
+            {hasError.includes('Backend returned') && (
+              <p className="text-gray-400 mt-2 text-xs">
+                This is a backend issue. The historical data endpoint is not respecting the interval parameter for multi-timeframe backtests.
+              </p>
+            )}
           </div>
         )}
         

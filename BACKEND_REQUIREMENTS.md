@@ -407,6 +407,19 @@ The frontend automatically includes these headers in all requests.
 2. **Medium Priority:**
    - Add `interval` field to backtest response
    - Add `interval` field to backtest history
+   - **🔴 CRITICAL: Fix Historical Data Endpoint Interval Parameter for Multi-Timeframe Backtests**
+     - **Issue:** `GET /api/backtesting/{backtest_id}/data?interval={interval}` is not respecting the `interval` query parameter
+     - **Expected Behavior:** When requesting data for a specific interval (e.g., `interval=minute`), the endpoint should return data for that specific interval
+     - **Current Behavior:** 
+       - Requesting `interval=day` returns daily data ✅
+       - Requesting `interval=minute` returns daily data ❌ (should return minute data)
+       - The `interval` field in the response always shows `"day"` regardless of the requested interval
+     - **Impact:** Multi-timeframe backtests show the same data (daily) for all intervals, making it impossible to verify different timeframe data
+     - **Example:**
+       - Request: `GET /api/backtesting/bt_123/data?interval=minute`
+       - Expected Response: `{ "interval": "minute", "data_points": [...] }` (minute-level OHLCV data)
+       - Actual Response: `{ "interval": "day", "data_points": [...] }` (daily OHLCV data)
+     - **Action Required:** Backend must filter/query historical data by the requested interval parameter
    - **🔴 CRITICAL: Populate transactions array in backtest response**
      - **Issue:** Backend reports `total_trades: 62` but returns `transactions: []` (empty array)
      - **Expected:** When trades are executed, each trade must be logged as a transaction object in the `transactions` array
