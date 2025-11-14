@@ -1086,7 +1086,7 @@ class MyStrategy(bt.Strategy):
                           </div>
                         ) : (
                           results.intervals && results.intervals.length === 1 ? (
-                            INTERVAL_OPTIONS.find(opt => opt.value === results.intervals[0])?.label || results.intervals[0] || 'Daily'
+                            INTERVAL_OPTIONS.find(opt => opt.value === results.intervals?.[0])?.label || results.intervals?.[0] || 'Daily'
                           ) : (
                             INTERVAL_OPTIONS.find(opt => opt.value === results.interval)?.label || results.interval || 'Daily'
                           )
