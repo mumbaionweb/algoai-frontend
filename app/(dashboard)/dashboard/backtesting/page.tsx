@@ -127,23 +127,10 @@ class MyStrategy(bt.Strategy):
   const [commission, setCommission] = useState(() => 
     loadFromStorage('commission', 0.001)
   );
-  // Single interval (for backward compatibility)
-  const [interval, setInterval] = useState<IntervalType>(() => {
-    const stored = loadFromStorage('interval', 'day');
-    // Validate stored interval
-    if (INTERVAL_OPTIONS.some(opt => opt.value === stored)) {
-      return stored as IntervalType;
-    }
-    return 'day';
-  });
-
-  // Multi-timeframe support
-  const [isMultiTimeframe, setIsMultiTimeframe] = useState(() => 
-    loadFromStorage('is_multi_timeframe', false)
-  );
+  // Interval selection (always multi-select UI, but can select single or multiple)
   const [intervals, setIntervals] = useState<string[]>(() => {
     const stored = loadFromStorage('intervals', null);
-    return stored && Array.isArray(stored) ? stored : ['day'];
+    return stored && Array.isArray(stored) && stored.length > 0 ? stored : ['day'];
   });
 
   // Save to localStorage when values change
@@ -181,16 +168,6 @@ class MyStrategy(bt.Strategy):
     saveToStorage('commission', commission);
     console.log('💾 Saved commission to localStorage:', commission);
   }, [commission]);
-
-  useEffect(() => {
-    saveToStorage('interval', interval);
-    console.log('💾 Saved interval to localStorage:', interval);
-  }, [interval]);
-
-  useEffect(() => {
-    saveToStorage('is_multi_timeframe', isMultiTimeframe);
-    console.log('💾 Saved isMultiTimeframe to localStorage:', isMultiTimeframe);
-  }, [isMultiTimeframe]);
 
   useEffect(() => {
     saveToStorage('intervals', intervals);
@@ -338,12 +315,28 @@ class MyStrategy(bt.Strategy):
       return;
     }
 
-    // Validate intervals if multi-timeframe is enabled
-    if (isMultiTimeframe && (!intervals || intervals.length === 0)) {
-      console.error('❌ Multi-timeframe enabled but no intervals selected');
-      setError('Please select at least one interval for multi-timeframe strategy.');
+    // Analyze strategy code to determine if multi-timeframe is required
+    const strategyAnalysis = analyzeStrategyCode(strategyCode);
+    console.log('📊 Strategy code analysis:', strategyAnalysis);
+
+    // Validate intervals based on strategy code requirements
+    if (!intervals || intervals.length === 0) {
+      console.error('❌ No intervals selected');
+      setError('Please select at least one interval.');
       setLoading(false);
       return;
+    }
+
+    if (strategyAnalysis.isMultiTimeframe) {
+      if (intervals.length < strategyAnalysis.requiredIntervals) {
+        console.error(`❌ Strategy requires ${strategyAnalysis.requiredIntervals} intervals but only ${intervals.length} selected`);
+        setError(`Your strategy code uses multi-timeframe (detected usage of datas[${strategyAnalysis.requiredIntervals - 1}]). Please select at least ${strategyAnalysis.requiredIntervals} intervals.`);
+        setLoading(false);
+        return;
+      }
+      console.log(`✅ Multi-timeframe strategy detected: ${intervals.length} intervals selected (required: ${strategyAnalysis.requiredIntervals})`);
+    } else {
+      console.log('✅ Single timeframe strategy detected');
     }
 
     try {
@@ -370,7 +363,7 @@ class MyStrategy(bt.Strategy):
       console.log('  - Exchange:', exchange.toUpperCase());
       console.log('  - From Date:', fromDate);
       console.log('  - To Date:', toDate);
-      console.log('  - Interval:', interval);
+      console.log('  - Intervals:', intervals);
       console.log('  - Strategy Code Length:', strategyCode.length);
       console.log('  - Initial Cash:', initialCash);
       console.log('  - Commission:', commission);
@@ -385,13 +378,17 @@ class MyStrategy(bt.Strategy):
         commission: commission,
       };
 
-      // Include intervals array if multi-timeframe, otherwise use single interval
-      if (isMultiTimeframe && intervals.length > 0) {
+      // Always send intervals array (backend handles both single and multi-timeframe)
+      if (intervals.length === 1) {
+        // Single interval: send as both interval (backward compatibility) and intervals array
+        request.interval = intervals[0];
         request.intervals = intervals;
+        console.log('  - Interval:', intervals[0]);
         console.log('  - Intervals:', intervals);
       } else {
-        request.interval = interval;
-        console.log('  - Interval:', interval);
+        // Multiple intervals: send as intervals array
+        request.intervals = intervals;
+        console.log('  - Intervals:', intervals);
       }
 
       // Log the exact symbol being sent
@@ -742,118 +739,79 @@ class MyStrategy(bt.Strategy):
                 </div>
               </div>
 
-              {/* Data Interval Selector - Multi-Timeframe Support */}
+              {/* Data Interval Selector - Always Multi-Select UI */}
               <div>
-                <div className="mb-4">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isMultiTimeframe}
-                      onChange={(e) => {
-                        const enabled = e.target.checked;
-                        setIsMultiTimeframe(enabled);
-                        if (enabled && intervals.length === 0) {
-                          setIntervals([interval]);
-                        } else if (!enabled && intervals.length > 0) {
-                          setInterval(intervals[0] as IntervalType);
-                        }
-                      }}
-                      className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="font-semibold text-gray-300">Multi-Timeframe Strategy</span>
-                  </label>
-                  <p className="text-xs text-gray-400 ml-6 mt-1">
-                    Enable to select multiple intervals for advanced strategies (e.g., minute + daily)
-                  </p>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Data Intervals
+                  <span className="ml-2 text-gray-400 text-xs" title="Select one or more intervals based on your strategy code">
+                    (ℹ️ Select intervals based on your strategy code)
+                  </span>
+                </label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {INTERVAL_OPTIONS.map((option) => {
+                    const isSelected = intervals.includes(option.value);
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            // Remove if already selected (but keep at least one)
+                            if (intervals.length > 1) {
+                              setIntervals(intervals.filter(i => i !== option.value));
+                            }
+                          } else {
+                            // Add to selection
+                            setIntervals([...intervals, option.value]);
+                          }
+                        }}
+                        className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                            : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                        }`}
+                      >
+                        <div className="font-medium">{option.label}</div>
+                        <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                      </button>
+                    );
+                  })}
                 </div>
-
-                {isMultiTimeframe ? (
-                  <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
-                      Select Intervals (at least one required)
-                    </label>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {INTERVAL_OPTIONS.map((option) => {
-                        const isSelected = intervals.includes(option.value);
-                        return (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => {
-                              if (isSelected) {
-                                // Remove if already selected (but keep at least one)
-                                if (intervals.length > 1) {
-                                  setIntervals(intervals.filter(i => i !== option.value));
-                                }
-                              } else {
-                                // Add to selection
-                                setIntervals([...intervals, option.value]);
-                              }
-                            }}
-                            className={`p-2 rounded-lg border-2 transition-all text-sm ${
-                              isSelected
-                                ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-                                : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
-                            }`}
+                {intervals.length > 0 && (() => {
+                  // Analyze strategy code to show appropriate messages
+                  const strategyAnalysis = analyzeStrategyCode(strategyCode);
+                  
+                  return (
+                    <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                      <p className="text-sm font-medium text-blue-300 mb-2">
+                        Selected Intervals ({intervals.length}):
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {intervals.map((intervalValue, idx) => (
+                          <span
+                            key={intervalValue}
+                            className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium"
                           >
-                            <div className="font-medium">{option.label}</div>
-                            <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {intervals.length > 0 && (
-                      <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                        <p className="text-sm font-medium text-blue-300 mb-2">
-                          Selected Intervals ({intervals.length}):
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {intervals.map((intervalValue, idx) => (
-                            <span
-                              key={intervalValue}
-                              className="px-2 py-1 bg-blue-500/20 text-blue-300 rounded text-xs font-medium"
-                            >
-                              {idx + 1}. {INTERVAL_OPTIONS.find(o => o.value === intervalValue)?.label || intervalValue}
-                            </span>
-                          ))}
-                        </div>
-                        <p className="text-xs text-blue-400 mt-2">
-                          💡 In your strategy code: <code className="bg-gray-800 px-1 rounded">self.datas[0]</code> = {intervals[0]}, {intervals[1] ? `<code className="bg-gray-800 px-1 rounded">self.datas[1]</code> = ${intervals[1]}` : ''}, etc.
-                        </p>
-                        {intervals.length > 1 && (
-                          <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
-                            ⚠️ <strong>Multi-timeframe backtest:</strong> This will fetch data for {intervals.length} intervals. Estimated processing time may be longer.
-                          </div>
-                        )}
+                            datas[{idx}]: {INTERVAL_OPTIONS.find(o => o.value === intervalValue)?.label || intervalValue}
+                          </span>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div>
-                    <label htmlFor="interval" className="block text-sm font-medium text-gray-300 mb-2">
-                      Data Interval
-                      <span className="ml-2 text-gray-400 text-xs" title="Select the time granularity for historical data">
-                        (ℹ️ affects data granularity)
-                      </span>
-                    </label>
-                    <select
-                      id="interval"
-                      value={interval}
-                      onChange={(e) => {
-                        const newInterval = e.target.value as IntervalType;
-                        console.log('📝 Interval changed:', newInterval);
-                        setInterval(newInterval);
-                      }}
-                      className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      {INTERVAL_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label} - {option.description}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                      <p className="text-xs text-blue-400 mt-2">
+                        💡 In your strategy code: <code className="bg-gray-800 px-1 rounded">self.datas[0]</code> = {intervals[0]}, {intervals[1] ? `<code className="bg-gray-800 px-1 rounded">self.datas[1]</code> = ${intervals[1]}` : ''}, etc.
+                      </p>
+                      {strategyAnalysis.isMultiTimeframe && intervals.length < strategyAnalysis.requiredIntervals && (
+                        <div className="mt-2 p-2 bg-red-500/10 border border-red-500/30 rounded text-xs text-red-400">
+                          ⚠️ <strong>Strategy requires {strategyAnalysis.requiredIntervals} intervals:</strong> Your strategy code uses <code className="bg-gray-800 px-1 rounded">datas[{strategyAnalysis.requiredIntervals - 1}]</code>, but you've only selected {intervals.length} interval{intervals.length !== 1 ? 's' : ''}. Please select at least {strategyAnalysis.requiredIntervals} intervals.
+                        </div>
+                      )}
+                      {strategyAnalysis.isMultiTimeframe && intervals.length >= strategyAnalysis.requiredIntervals && intervals.length > 1 && (
+                        <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
+                          ⚠️ <strong>Multi-timeframe backtest:</strong> This will fetch data for {intervals.length} intervals. Estimated processing time may be longer.
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {fromDate && toDate && (() => {
                   // Estimate data bars
@@ -862,41 +820,23 @@ class MyStrategy(bt.Strategy):
                   const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
                   const tradingDays = Math.floor(daysDiff * 5 / 7); // Approximate trading days
                   
-                  if (isMultiTimeframe) {
-                    const totalBars = intervals.reduce((sum, intervalValue) => {
-                      const option = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue);
-                      return sum + (option ? Math.floor(tradingDays * option.barsPerDay) : 0);
-                    }, 0);
-                    
-                    return (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-400">
-                          Estimated total data bars: <span className="text-white font-medium">{totalBars.toLocaleString()}</span>
-                          {intervals.some(i => i !== 'day') && totalBars > 10000 && (
-                            <span className="ml-2 text-yellow-400">
-                              ⚠️ Large dataset - may take longer to process
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    );
-                  } else {
-                    const selectedInterval = INTERVAL_OPTIONS.find(opt => opt.value === interval);
-                    const estimatedBars = selectedInterval ? Math.floor(tradingDays * selectedInterval.barsPerDay) : 0;
-                    
-                    return (
-                      <div className="mt-2">
-                        <p className="text-xs text-gray-400">
-                          Estimated data bars: <span className="text-white font-medium">{estimatedBars.toLocaleString()}</span>
-                          {interval !== 'day' && estimatedBars > 10000 && (
-                            <span className="ml-2 text-yellow-400">
-                              ⚠️ Large dataset - may take longer to process
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    );
-                  }
+                  const totalBars = intervals.reduce((sum, intervalValue) => {
+                    const option = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue);
+                    return sum + (option ? Math.floor(tradingDays * option.barsPerDay) : 0);
+                  }, 0);
+                  
+                  return (
+                    <div className="mt-2">
+                      <p className="text-xs text-gray-400">
+                        Estimated total data bars: <span className="text-white font-medium">{totalBars.toLocaleString()}</span>
+                        {intervals.some(i => i !== 'day') && totalBars > 10000 && (
+                          <span className="ml-2 text-yellow-400">
+                            ⚠️ Large dataset - may take longer to process
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  );
                 })()}
               </div>
 
@@ -967,7 +907,7 @@ class MyStrategy(bt.Strategy):
 
               <button
                 type="submit"
-                disabled={loading || !oauthStatus?.is_connected || !!symbolError || (isMultiTimeframe && (!intervals || intervals.length === 0))}
+                disabled={loading || !oauthStatus?.is_connected || !!symbolError || !intervals || intervals.length === 0}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
                 {loading ? 'Running Backtest...' : 'Run Backtest'}
@@ -977,11 +917,22 @@ class MyStrategy(bt.Strategy):
                   Please fix the symbol error before running the backtest
                 </p>
               )}
-              {isMultiTimeframe && (!intervals || intervals.length === 0) && (
+              {(!intervals || intervals.length === 0) && (
                 <p className="text-xs text-red-400 text-center mt-2">
-                  Please select at least one interval for multi-timeframe strategy
+                  Please select at least one interval
                 </p>
               )}
+              {(() => {
+                const strategyAnalysis = analyzeStrategyCode(strategyCode);
+                if (strategyAnalysis.isMultiTimeframe && intervals && intervals.length < strategyAnalysis.requiredIntervals) {
+                  return (
+                    <p className="text-xs text-red-400 text-center mt-2">
+                      Your strategy requires {strategyAnalysis.requiredIntervals} intervals but you've selected {intervals.length}. Please select more intervals.
+                    </p>
+                  );
+                }
+                return null;
+              })()}
             </form>
             )}
           </div>
@@ -1114,7 +1065,11 @@ class MyStrategy(bt.Strategy):
                             ))}
                           </div>
                         ) : (
-                          INTERVAL_OPTIONS.find(opt => opt.value === (results.interval || interval))?.label || results.interval || interval || 'Daily'
+                          results.intervals && results.intervals.length === 1 ? (
+                            INTERVAL_OPTIONS.find(opt => opt.value === results.intervals[0])?.label || results.intervals[0] || 'Daily'
+                          ) : (
+                            INTERVAL_OPTIONS.find(opt => opt.value === results.interval)?.label || results.interval || 'Daily'
+                          )
                         )}
                       </span>
                     </div>
