@@ -22,6 +22,26 @@ import {
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 
+// Helper function to analyze strategy code for multi-timeframe usage
+function analyzeStrategyCode(code: string): { isMultiTimeframe: boolean; requiredIntervals: number } {
+  // Check for multi-timeframe patterns: datas[1], datas[2], etc.
+  const multiTimeframePattern = /datas\[(\d+)\]/g;
+  const matches = Array.from(code.matchAll(multiTimeframePattern));
+  
+  if (matches.length === 0) {
+    return { isMultiTimeframe: false, requiredIntervals: 1 };
+  }
+  
+  // Find the highest index used (e.g., datas[2] means we need at least 3 intervals: 0, 1, 2)
+  const maxIndex = Math.max(...matches.map(m => parseInt(m[1], 10)));
+  const requiredIntervals = maxIndex + 1; // +1 because indices are 0-based
+  
+  return {
+    isMultiTimeframe: true,
+    requiredIntervals,
+  };
+}
+
 export default function BacktestingPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
   const router = useRouter();
@@ -1164,8 +1184,8 @@ class MyStrategy(bt.Strategy):
                     <div className={`text-2xl font-bold ${results.average_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                       {results.average_return.toFixed(4)}
                     </div>
-              </div>
-            )}
+                  </div>
+                )}
 
                 {/* Transaction History with Position and Transaction Views */}
                 {results.transactions && results.transactions.length > 0 && (
@@ -2399,7 +2419,7 @@ function DataBarsChart({
                   />
                 </div>
               </div>
-              <div className="text-xs text-gray-500 mt-1">
+      <div className="text-xs text-gray-500 mt-1">
                 Historical data: {historicalData.length} bars
                 {dataInfo && dataInfo.total_points > dataInfo.returned_points && (
                   <span className="ml-2 text-yellow-400">
@@ -2411,7 +2431,7 @@ function DataBarsChart({
                     (Scroll horizontally to view all data)
                   </span>
                 )}
-              </div>
+      </div>
             </>
           )}
           
