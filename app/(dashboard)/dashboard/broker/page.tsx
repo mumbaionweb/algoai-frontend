@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import Link from 'next/link';
+import { formatDate } from '@/utils/dateUtils';
 import {
   getAvailableBrokers,
   getBrokerCredentials,
@@ -946,7 +947,7 @@ function BrokerPageContent() {
                           </div>
                         )}
                         <p className="text-xs text-gray-500">
-                          Created: {new Date(cred.created_at).toLocaleDateString()}
+                          Created: {formatDate(cred.created_at)}
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 lg:flex-nowrap">
@@ -1338,7 +1339,7 @@ function BrokerPageContent() {
 
                   {/* Timestamp */}
                   <div className="text-xs text-gray-500 text-center pt-4 border-t border-gray-700">
-                    Checked at: {new Date(health.timestamp).toLocaleString()}
+                    Checked at: {formatDate(health.timestamp)}
                   </div>
                 </div>
               ) : null}

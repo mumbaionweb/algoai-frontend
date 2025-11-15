@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import DashboardHeader from '@/components/layout/DashboardHeader';
 import Link from 'next/link';
+import { formatDate } from '@/utils/dateUtils';
 
 export default function ProfilePage() {
   const { user, isAuthenticated, isInitialized } = useAuthStore();
@@ -130,11 +131,7 @@ export default function ProfilePage() {
                     Member Since
                   </label>
                   <div className="px-4 py-3 bg-gray-700 rounded-lg text-white">
-                    {new Date(user.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
+                    {formatDate(user.created_at)}
                   </div>
                 </div>
               )}
@@ -145,11 +142,7 @@ export default function ProfilePage() {
                     Last Updated
                   </label>
                   <div className="px-4 py-3 bg-gray-700 rounded-lg text-white">
-                    {new Date(user.updated_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
+                    {formatDate(user.updated_at)}
                   </div>
                 </div>
               )}
