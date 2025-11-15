@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { BacktestRequest, BacktestResponse, BacktestHistoryResponse, BacktestHistoryItem } from '@/types';
+import type { BacktestRequest, BacktestResponse, BacktestHistoryResponse, BacktestHistoryItem, BacktestJob, BacktestJobStatus } from '@/types';
 
 /**
  * Enhanced logging wrapper for backtest API calls
@@ -254,5 +254,193 @@ export async function quickBacktest(
     to_date: toDate,
   });
   return response.data;
+}
+
+/**
+ * Create async backtest job
+ * @param request Backtest request parameters
+ * @param brokerType Broker type (default: "zerodha")
+ * @param credentialsId Optional credentials ID to use
+ * @returns Created backtest job
+ */
+export async function createBacktestJob(
+  request: BacktestRequest,
+  brokerType: string = 'zerodha',
+  credentialsId?: string
+): Promise<BacktestJob> {
+  try {
+    logApiCall('Creating backtest job', {
+      symbol: request.symbol,
+      exchange: request.exchange,
+      from_date: request.from_date,
+      to_date: request.to_date,
+      intervals: request.intervals || [request.interval || 'day'],
+      broker_type: brokerType,
+      credentials_id: credentialsId || 'none',
+    });
+
+    const params = new URLSearchParams();
+    params.append('broker_type', brokerType);
+    if (credentialsId) {
+      params.append('credentials_id', credentialsId);
+    }
+
+    const url = `/api/backtesting/jobs?${params.toString()}`;
+    const response = await apiClient.post<BacktestJob>(url, request);
+
+    logApiCall('Backtest job created', undefined, {
+      job_id: response.data.job_id,
+      status: response.data.status,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    logError('Failed to create backtest job', error);
+    throw error;
+  }
+}
+
+/**
+ * Get backtest job status
+ * @param jobId Job ID
+ * @returns Backtest job with current status
+ */
+export async function getBacktestJob(jobId: string): Promise<BacktestJob> {
+  try {
+    logApiCall('Fetching backtest job', { job_id: jobId });
+
+    const response = await apiClient.get<BacktestJob>(
+      `/api/backtesting/jobs/${jobId}`
+    );
+
+    logApiCall('Backtest job fetched', undefined, {
+      job_id: response.data.job_id,
+      status: response.data.status,
+      progress: response.data.progress,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    logError('Failed to fetch backtest job', error);
+    throw error;
+  }
+}
+
+/**
+ * List backtest jobs
+ * @param statusFilter Optional status filter
+ * @param limit Maximum number of jobs to return (default: 50)
+ * @returns List of backtest jobs
+ */
+export async function listBacktestJobs(
+  statusFilter?: BacktestJobStatus,
+  limit: number = 50
+): Promise<BacktestJob[]> {
+  try {
+    logApiCall('Listing backtest jobs', { status_filter: statusFilter, limit });
+
+    const params = new URLSearchParams();
+    if (statusFilter) {
+      params.append('status_filter', statusFilter);
+    }
+    params.append('limit', limit.toString());
+
+    const url = `/api/backtesting/jobs?${params.toString()}`;
+    const response = await apiClient.get<BacktestJob[]>(url);
+
+    logApiCall('Backtest jobs listed', undefined, {
+      count: response.data.length,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    logError('Failed to list backtest jobs', error);
+    throw error;
+  }
+}
+
+/**
+ * Cancel backtest job
+ * @param jobId Job ID
+ * @returns Updated backtest job
+ */
+export async function cancelBacktestJob(jobId: string): Promise<BacktestJob> {
+  try {
+    logApiCall('Cancelling backtest job', { job_id: jobId });
+
+    const response = await apiClient.post<BacktestJob>(
+      `/api/backtesting/jobs/${jobId}/cancel`,
+      {}
+    );
+
+    logApiCall('Backtest job cancelled', undefined, {
+      job_id: response.data.job_id,
+      status: response.data.status,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    logError('Failed to cancel backtest job', error);
+    throw error;
+  }
+}
+
+/**
+ * Pause backtest job
+ * @param jobId Job ID
+ * @param reason Optional pause reason
+ * @returns Updated backtest job
+ */
+export async function pauseBacktestJob(
+  jobId: string,
+  reason?: string
+): Promise<BacktestJob> {
+  try {
+    logApiCall('Pausing backtest job', { job_id: jobId, reason });
+
+    const params = new URLSearchParams();
+    if (reason) {
+      params.append('reason', reason);
+    }
+
+    const url = `/api/backtesting/jobs/${jobId}/pause${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await apiClient.post<BacktestJob>(url, {});
+
+    logApiCall('Backtest job paused', undefined, {
+      job_id: response.data.job_id,
+      status: response.data.status,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    logError('Failed to pause backtest job', error);
+    throw error;
+  }
+}
+
+/**
+ * Resume backtest job
+ * @param jobId Job ID
+ * @returns Updated backtest job
+ */
+export async function resumeBacktestJob(jobId: string): Promise<BacktestJob> {
+  try {
+    logApiCall('Resuming backtest job', { job_id: jobId });
+
+    const response = await apiClient.post<BacktestJob>(
+      `/api/backtesting/jobs/${jobId}/resume`,
+      {}
+    );
+
+    logApiCall('Backtest job resumed', undefined, {
+      job_id: response.data.job_id,
+      status: response.data.status,
+    });
+
+    return response.data;
+  } catch (error: any) {
+    logError('Failed to resume backtest job', error);
+    throw error;
+  }
 }
 

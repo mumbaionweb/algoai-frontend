@@ -5,10 +5,12 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import DashboardHeader from '@/components/layout/DashboardHeader';
-import { runBacktest, getBacktestHistory, getBacktestHistoricalData, type HistoricalDataPoint } from '@/lib/api/backtesting';
+import { runBacktest, getBacktestHistory, getBacktestHistoricalData, createBacktestJob, listBacktestJobs, type HistoricalDataPoint } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
-import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, BacktestPosition } from '@/types';
+import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, BacktestPosition, BacktestJob } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
+import { useBacktestProgress } from '@/hooks/useBacktestProgress';
+import { BacktestJobCard } from '@/components/backtesting/BacktestJobCard';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -50,6 +52,33 @@ export default function BacktestingPage() {
   const [results, setResults] = useState<BacktestResponse | null>(null);
   const [history, setHistory] = useState<BacktestHistoryItem[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  
+  // Async job management
+  const [useAsyncMode, setUseAsyncMode] = useState(true); // Default to async mode
+  const [activeJobId, setActiveJobId] = useState<string | null>(null);
+  const [jobs, setJobs] = useState<BacktestJob[]>([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  
+  // Get Firebase token for WebSocket
+  const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
+  
+  // Use progress hook for active job
+  const { job: activeJob, progress, status, completed, result: jobResult } = useBacktestProgress({
+    jobId: activeJobId,
+    token,
+    useWebSocket: true,
+  });
+  
+  // Update results when job completes
+  useEffect(() => {
+    if (completed && jobResult) {
+      setResults(jobResult);
+      setLoading(false);
+      loadHistory(); // Refresh history
+      loadJobs(); // Refresh jobs list
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [completed, jobResult]);
   
   // Transaction view mode: 'position' (default) or 'transaction'
   const [viewMode, setViewMode] = useState<'position' | 'transaction'>('position');
@@ -230,9 +259,23 @@ class MyStrategy(bt.Strategy):
       // The actual localStorage values are loaded in useState initializers above
       checkOAuthAndLoadCredentials();
       loadHistory();
+      loadJobs(); // Load async jobs
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, isAuthenticated, router]);
+
+  const loadJobs = async () => {
+    try {
+      setLoadingJobs(true);
+      const jobList = await listBacktestJobs(undefined, 20); // Get last 20 jobs
+      setJobs(jobList);
+      console.log('📋 Loaded backtest jobs:', jobList.length, 'jobs');
+    } catch (err: any) {
+      console.error('Failed to load jobs:', err);
+    } finally {
+      setLoadingJobs(false);
+    }
+  };
 
   const loadHistory = async () => {
     try {
@@ -423,8 +466,54 @@ class MyStrategy(bt.Strategy):
       console.log('🔧 Request config:', {
         brokerType: 'zerodha',
         credentialsId: selectedCredentialsId || 'none',
+        useAsyncMode,
       });
 
+      // Use async mode if enabled
+      if (useAsyncMode) {
+        try {
+          console.log('🚀 Creating async backtest job...');
+          const newJob = await createBacktestJob(
+            request,
+            'zerodha',
+            selectedCredentialsId || undefined
+          );
+          console.log('✅ Backtest job created:', {
+            job_id: newJob.job_id,
+            status: newJob.status,
+          });
+          setActiveJobId(newJob.job_id);
+          setLoading(false); // Don't keep loading state, let progress hook handle it
+          await loadJobs(); // Refresh job list
+          setError(''); // Clear any previous errors
+          return; // Exit early, progress will be handled by WebSocket
+        } catch (jobErr: any) {
+          console.error('❌ Failed to create backtest job:', jobErr);
+          const errorDetail = jobErr.response?.data?.detail || '';
+          const errorMessage = jobErr.message || '';
+          
+          // Handle specific errors
+          if (jobErr.response?.status === 400) {
+            if (errorDetail.includes('credentials not found') || errorDetail.includes('Broker credentials not found')) {
+              setError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
+            } else if (errorDetail.includes('Access token not found') || errorDetail.includes('OAuth')) {
+              setError('Please complete OAuth flow to connect your Zerodha account.');
+            } else if (errorDetail.includes('Instrument not found')) {
+              setError(`Invalid symbol: ${currentSymbol}. Please check the symbol and try again.`);
+            } else {
+              setError(errorDetail || 'Failed to create backtest job. Please check your parameters.');
+            }
+          } else if (jobErr.response?.status === 500) {
+            setError('Server error. Please try again later.');
+          } else {
+            setError(errorDetail || errorMessage || 'Failed to create backtest job. Please try again.');
+          }
+          setLoading(false);
+          return; // Exit early on error
+        }
+      }
+
+      // Synchronous mode (backward compatibility)
       const startTime = Date.now();
       const result = await runBacktest(
         request,
@@ -598,7 +687,21 @@ class MyStrategy(bt.Strategy):
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Form Section */}
           <div className="bg-gray-800 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-white mb-4">Backtest Configuration</h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold text-white">Backtest Configuration</h2>
+              {/* Async Mode Toggle */}
+              <div className="flex items-center gap-2">
+                <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={useAsyncMode}
+                    onChange={(e) => setUseAsyncMode(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500"
+                  />
+                  <span>Async Mode (Real-time Progress)</span>
+                </label>
+              </div>
+            </div>
             
             {checkingOAuth ? (
               <div className="text-center py-8">
@@ -1075,7 +1178,9 @@ class MyStrategy(bt.Strategy):
                 disabled={loading || !oauthStatus?.is_connected || !!symbolError || !intervals || intervals.length === 0}
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-medium disabled:opacity-50 disabled:cursor-not-allowed transition"
               >
-                {loading ? 'Running Backtest...' : 'Run Backtest'}
+                {loading 
+                  ? (useAsyncMode ? 'Creating Job...' : 'Running Backtest...') 
+                  : (useAsyncMode ? 'Create Backtest Job' : 'Run Backtest')}
               </button>
               {symbolError && (
                 <p className="text-xs text-red-400 text-center mt-2">
@@ -1106,13 +1211,21 @@ class MyStrategy(bt.Strategy):
           <div className="bg-gray-800 rounded-lg p-6">
             <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
             
-            {!results && !loading && (
+            {/* Active Job Progress (Async Mode) */}
+            {useAsyncMode && activeJobId && activeJob && (
+              <div className="mb-6 bg-gray-700 rounded-lg p-4 border border-gray-600">
+                <h3 className="text-lg font-semibold text-white mb-4">Current Backtest Job</h3>
+                <BacktestJobCard job={activeJob} onUpdate={loadJobs} />
+              </div>
+            )}
+            
+            {!results && !loading && !activeJob && (
               <div className="text-gray-400 text-center py-12">
-                <p>No results yet. Run a backtest to see results here.</p>
+                <p>No results yet. {useAsyncMode ? 'Create a backtest job' : 'Run a backtest'} to see results here.</p>
               </div>
             )}
 
-            {loading && (
+            {loading && !useAsyncMode && (
               <div className="text-gray-400 text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
                 <p>Running backtest...</p>
@@ -1425,6 +1538,44 @@ class MyStrategy(bt.Strategy):
               </div>
             )}
           </div>
+
+          {/* Async Jobs Section (if async mode is enabled) */}
+          {useAsyncMode && (
+            <div className="bg-gray-800 rounded-lg p-6 mt-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-white">Backtest Jobs</h2>
+                <button
+                  onClick={loadJobs}
+                  disabled={loadingJobs}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
+                >
+                  {loadingJobs ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              
+              {loadingJobs ? (
+                <div className="text-gray-400 text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
+                  <p>Loading jobs...</p>
+                </div>
+              ) : jobs.length === 0 ? (
+                <div className="text-gray-400 text-center py-8">
+                  <p>No backtest jobs yet.</p>
+                  <p className="text-sm mt-2">Create a backtest job to see it here.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {jobs.map((job) => (
+                    <BacktestJobCard
+                      key={job.job_id}
+                      job={job}
+                      onUpdate={loadJobs}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* History Section */}
           <div className="bg-gray-800 rounded-lg p-6 mt-6">

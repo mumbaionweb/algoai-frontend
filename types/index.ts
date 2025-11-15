@@ -309,6 +309,49 @@ export interface BacktestResult {
   sqn: number;
 }
 
+// Async Backtesting Types
+export type BacktestJobStatus = 
+  | "pending" 
+  | "queued" 
+  | "running" 
+  | "paused" 
+  | "resuming" 
+  | "completed" 
+  | "failed" 
+  | "cancelled";
+
+export interface BacktestJob {
+  job_id: string;
+  user_id: string;
+  strategy_code: string;
+  symbol: string;
+  exchange: string;
+  from_date: string;
+  to_date: string;
+  intervals: string[];
+  initial_cash: number;
+  commission: number;
+  strategy_params?: Record<string, any>;
+  broker_type: string;
+  credentials_id?: string;
+  status: BacktestJobStatus;
+  progress: number; // 0-100
+  current_bar?: number;
+  total_bars?: number;
+  error_message?: string;
+  result?: BacktestResponse; // Reuse BacktestResponse for result
+  created_at: string;
+  updated_at: string;
+  started_at?: string;
+  completed_at?: string;
+  paused_at?: string;
+  pause_reason?: string;
+  resume_from_bar?: number;
+  can_resume: boolean;
+  can_pause: boolean;
+  can_cancel: boolean;
+}
+
 // Broker Types
 export type BrokerType = 'zerodha' | string;
 
