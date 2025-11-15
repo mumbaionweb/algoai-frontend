@@ -342,6 +342,47 @@ export interface OAuthStatus {
   has_credentials: boolean;
   has_tokens: boolean;
   user_id: string;
+  token_details?: {
+    access_token_present: boolean;
+    access_token_length: number;
+    refresh_token_present: boolean;
+    refresh_token_length: number;
+  };
+}
+
+// Token Health Check Types
+export interface TokenHealthResponse {
+  user_id: string;
+  timestamp: string;
+  checks: {
+    credentials: {
+      exists: boolean;
+      status: string;
+    };
+    tokens_storage: {
+      exists: boolean;
+      access_token_present: boolean;
+      access_token_length: number;
+      refresh_token_present: boolean;
+      refresh_token_length: number;
+      status: string;
+    };
+    token_validation?: {
+      valid: boolean;
+      status: string;
+      user_name?: string;
+      user_id?: string;
+      error?: string;
+      is_expired?: boolean;
+    };
+    token_refresh?: {
+      success: boolean;
+      status: string;
+      error?: string;
+    };
+  };
+  overall_status: string;
+  recommendation?: string;
 }
 
 // Zerodha User Profile Types

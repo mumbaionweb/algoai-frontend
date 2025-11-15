@@ -7,6 +7,7 @@ import type {
   BrokerType,
   OAuthStatus,
   ZerodhaUserProfile,
+  TokenHealthResponse,
 } from '@/types';
 
 /**
@@ -196,6 +197,25 @@ export async function getZerodhaUserProfile(credentialsId?: string): Promise<Zer
   const url = `/api/zerodha/user/profile${queryString ? `?${queryString}` : ''}`;
   
   const response = await apiClient.get<ZerodhaUserProfile>(url);
+  return response.data;
+}
+
+/**
+ * Get comprehensive token health diagnostics
+ * Returns detailed information about token status, validation, and recommendations
+ * 
+ * @param credentialsId Optional credentials ID to check health for
+ * @returns Token health response with detailed diagnostics
+ */
+export async function getTokenHealth(credentialsId?: string): Promise<TokenHealthResponse> {
+  const params = new URLSearchParams();
+  if (credentialsId) {
+    params.append('credentials_id', credentialsId);
+  }
+  const queryString = params.toString();
+  const url = `/api/zerodha/oauth/health${queryString ? `?${queryString}` : ''}`;
+  
+  const response = await apiClient.get<TokenHealthResponse>(url);
   return response.data;
 }
 

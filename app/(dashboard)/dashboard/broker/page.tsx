@@ -15,6 +15,7 @@ import {
   refreshZerodhaToken,
   getOAuthStatus,
   getZerodhaUserProfile,
+  getTokenHealth,
 } from '@/lib/api/broker';
 import type {
   BrokerInfo,
@@ -23,6 +24,8 @@ import type {
   BrokerCredentialsUpdate,
   BrokerType,
   ZerodhaUserProfile,
+  TokenHealthResponse,
+  OAuthStatus,
 } from '@/types';
 
 function BrokerPageContent() {
@@ -47,6 +50,16 @@ function BrokerPageContent() {
   const [profileError, setProfileError] = useState('');
   const [profile, setProfile] = useState<ZerodhaUserProfile | null>(null);
   const [profileCredentialsId, setProfileCredentialsId] = useState<string | null>(null);
+
+  // Token health modal state
+  const [showHealthModal, setShowHealthModal] = useState(false);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthError, setHealthError] = useState('');
+  const [health, setHealth] = useState<TokenHealthResponse | null>(null);
+  const [healthCredentialsId, setHealthCredentialsId] = useState<string | null>(null);
+
+  // OAuth status with token details
+  const [oauthStatuses, setOauthStatuses] = useState<Record<string, OAuthStatus>>({});
 
   // Form state
   const [showAddForm, setShowAddForm] = useState(false);
@@ -181,12 +194,21 @@ function BrokerPageContent() {
         const tokenStatusChecks = await Promise.allSettled(
           zerodhaCreds.map(async (cred) => {
             try {
+              // Get OAuth status (now includes optional token_details)
               const status = await getOAuthStatus(cred.id);
+              
+              // Store full OAuth status for display (includes token_details if available)
+              setOauthStatuses((prev) => ({
+                ...prev,
+                [cred.id]: status,
+              }));
+              
               console.log(`✅ OAuth status for credential ${cred.id}:`, {
                 is_connected: status.is_connected,
                 has_tokens: status.has_tokens,
                 has_credentials: status.has_credentials,
                 user_id: status.user_id,
+                token_details: status.token_details || 'Not available',
               });
               
               // Validate that tokens are actually usable by trying to fetch profile
@@ -600,6 +622,37 @@ function BrokerPageContent() {
     }
   };
 
+  const handleCheckTokenHealth = async (credentialsId: string) => {
+    try {
+      setHealthLoading(true);
+      setHealthError('');
+      setHealth(null);
+      setHealthCredentialsId(credentialsId);
+      setShowHealthModal(true);
+
+      const healthData = await getTokenHealth(credentialsId);
+      setHealth(healthData);
+    } catch (err: any) {
+      console.error('Failed to check token health:', err);
+      const errorDetail = err.response?.data?.detail || '';
+      
+      // Handle specific errors
+      if (err.response?.status === 400) {
+        if (errorDetail.includes('credentials not found') || errorDetail.includes('Zerodha credentials not found')) {
+          setHealthError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
+        } else {
+          setHealthError(errorDetail || 'Failed to check token health. Please check your Zerodha connection.');
+        }
+      } else if (err.response?.status === 500) {
+        setHealthError('Server error. Please try again later.');
+      } else {
+        setHealthError(errorDetail || 'Failed to check token health. Please try again.');
+      }
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
   const cancelForm = () => {
     setShowAddForm(false);
     setEditingId(null);
@@ -873,6 +926,25 @@ function BrokerPageContent() {
                             Zerodha User ID: <span className="text-white font-medium">{cred.zerodha_user_id}</span>
                           </p>
                         )}
+                        {/* Display token details if available from OAuth status */}
+                        {cred.broker_type === 'zerodha' && oauthStatuses[cred.id]?.token_details && (
+                          <div className="text-xs text-gray-500 mb-2 space-y-1">
+                            <div>
+                              Access Token: {oauthStatuses[cred.id].token_details!.access_token_present ? (
+                                <span className="text-green-400">✓ Present ({oauthStatuses[cred.id].token_details!.access_token_length} chars)</span>
+                              ) : (
+                                <span className="text-red-400">✗ Missing</span>
+                              )}
+                            </div>
+                            <div>
+                              Refresh Token: {oauthStatuses[cred.id].token_details!.refresh_token_present ? (
+                                <span className="text-green-400">✓ Present ({oauthStatuses[cred.id].token_details!.refresh_token_length} chars)</span>
+                              ) : (
+                                <span className="text-red-400">✗ Missing</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <p className="text-xs text-gray-500">
                           Created: {new Date(cred.created_at).toLocaleDateString()}
                         </p>
@@ -909,6 +981,14 @@ function BrokerPageContent() {
                                   title="View Zerodha user profile"
                                 >
                                   Profile
+                                </button>
+                                <button
+                                  onClick={() => handleCheckTokenHealth(cred.id)}
+                                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                                  disabled={loading}
+                                  title="Check token health and diagnostics"
+                                >
+                                  Health
                                 </button>
                               </>
                             )}
@@ -1088,6 +1168,178 @@ function BrokerPageContent() {
                       </div>
                     </div>
                   )}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Token Health Modal */}
+      {showHealthModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
+              <h2 className="text-xl font-semibold text-white">Token Health Diagnostics</h2>
+              <button
+                onClick={() => {
+                  setShowHealthModal(false);
+                  setHealth(null);
+                  setHealthError('');
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {healthLoading ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                  <p className="mt-4 text-gray-400">Checking token health...</p>
+                </div>
+              ) : healthError ? (
+                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
+                  {healthError}
+                </div>
+              ) : health ? (
+                <div className="space-y-6">
+                  {/* Overall Status */}
+                  <div className={`p-4 rounded-lg border-2 ${
+                    health.overall_status.includes('✅') 
+                      ? 'bg-green-500/10 border-green-500' 
+                      : 'bg-yellow-500/10 border-yellow-500'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-white">Overall Status</h3>
+                      <span className={`text-lg font-bold ${
+                        health.overall_status.includes('✅') ? 'text-green-400' : 'text-yellow-400'
+                      }`}>
+                        {health.overall_status}
+                      </span>
+                    </div>
+                    {health.recommendation && (
+                      <div className="mt-3 p-3 bg-gray-700/50 rounded border border-gray-600">
+                        <p className="text-sm font-medium text-gray-300 mb-1">💡 Recommendation:</p>
+                        <p className="text-sm text-gray-400">{health.recommendation}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Health Checks */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold text-white">Health Checks</h3>
+                    
+                    {/* Credentials Check */}
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-white">Credentials</h4>
+                        <span className="text-sm">{health.checks.credentials.status}</span>
+                      </div>
+                      <p className="text-xs text-gray-400">
+                        Exists: {health.checks.credentials.exists ? 'Yes' : 'No'}
+                      </p>
+                    </div>
+
+                    {/* Tokens Storage Check */}
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-medium text-white">Tokens Storage</h4>
+                        <span className="text-sm">{health.checks.tokens_storage.status}</span>
+                      </div>
+                      <div className="mt-2 space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Storage exists:</span>
+                          <span className={health.checks.tokens_storage.exists ? 'text-green-400' : 'text-red-400'}>
+                            {health.checks.tokens_storage.exists ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Access Token:</span>
+                          <span className={health.checks.tokens_storage.access_token_present ? 'text-green-400' : 'text-red-400'}>
+                            {health.checks.tokens_storage.access_token_present 
+                              ? `Present (${health.checks.tokens_storage.access_token_length} chars)` 
+                              : 'Missing'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Refresh Token:</span>
+                          <span className={health.checks.tokens_storage.refresh_token_present ? 'text-green-400' : 'text-red-400'}>
+                            {health.checks.tokens_storage.refresh_token_present 
+                              ? `Present (${health.checks.tokens_storage.refresh_token_length} chars)` 
+                              : 'Missing'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Token Validation Check */}
+                    {health.checks.token_validation && (
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-white">Token Validation</h4>
+                          <span className={`text-sm ${
+                            health.checks.token_validation.valid ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {health.checks.token_validation.status}
+                          </span>
+                        </div>
+                        {health.checks.token_validation.user_name && (
+                          <div className="mt-2 space-y-1 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-gray-400">User Name:</span>
+                              <span className="text-white">{health.checks.token_validation.user_name}</span>
+                            </div>
+                            {health.checks.token_validation.user_id && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">User ID:</span>
+                                <span className="text-white">{health.checks.token_validation.user_id}</span>
+                              </div>
+                            )}
+                            {health.checks.token_validation.is_expired && (
+                              <div className="flex justify-between">
+                                <span className="text-gray-400">Expired:</span>
+                                <span className="text-red-400">Yes</span>
+                              </div>
+                            )}
+                            {health.checks.token_validation.error && (
+                              <div className="mt-2 p-2 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs">
+                                Error: {health.checks.token_validation.error}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Token Refresh Check */}
+                    {health.checks.token_refresh && (
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-white">Token Refresh</h4>
+                          <span className={`text-sm ${
+                            health.checks.token_refresh.success ? 'text-green-400' : 'text-red-400'
+                          }`}>
+                            {health.checks.token_refresh.status}
+                          </span>
+                        </div>
+                        {health.checks.token_refresh.error && (
+                          <div className="mt-2 p-2 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs">
+                            Error: {health.checks.token_refresh.error}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Timestamp */}
+                  <div className="text-xs text-gray-500 text-center pt-4 border-t border-gray-700">
+                    Checked at: {new Date(health.timestamp).toLocaleString()}
+                  </div>
                 </div>
               ) : null}
             </div>
