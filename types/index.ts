@@ -140,29 +140,46 @@ export interface PortfolioParams {
 
 // Backtesting Types
 export type IntervalType = 
-  | 'day' 
-  | '60minute' 
-  | '30minute' 
-  | '15minute' 
-  | '5minute' 
+  // Direct intervals (from Zerodha)
+  | 'minute' 
   | '3minute' 
-  | 'minute';
+  | '5minute' 
+  | '15minute' 
+  | '30minute' 
+  | '60minute' 
+  | 'day'
+  // Aggregated intervals (built from daily data)
+  | 'week' 
+  | 'month' 
+  | 'quarter' 
+  | 'year';
 
 export interface IntervalOption {
   value: IntervalType;
   label: string;
   description: string;
-  barsPerDay: number;
+  category: 'intraday' | 'daily' | 'aggregated';
+  barsPerDay: number; // Approximate bars per trading day (for aggregated, this is based on daily data)
+  dateRangeRecommendation?: string; // Recommended date range for this interval
 }
 
 export const INTERVAL_OPTIONS: IntervalOption[] = [
-  { value: 'day', label: 'Daily', description: '1 bar per trading day (~250/year)', barsPerDay: 1 },
-  { value: '60minute', label: 'Hourly', description: '~6.25 bars per day (~1,562/year)', barsPerDay: 6.25 },
-  { value: '30minute', label: '30 Minutes', description: '~12.5 bars per day (~3,125/year)', barsPerDay: 12.5 },
-  { value: '15minute', label: '15 Minutes', description: '~25 bars per day (~6,250/year)', barsPerDay: 25 },
-  { value: '5minute', label: '5 Minutes', description: '~75 bars per day (~18,750/year)', barsPerDay: 75 },
-  { value: '3minute', label: '3 Minutes', description: '~125 bars per day (~31,250/year)', barsPerDay: 125 },
-  { value: 'minute', label: '1 Minute', description: '~375 bars per day (~93,750/year)', barsPerDay: 375 },
+  // Intraday intervals
+  { value: 'minute', label: '1 Minute', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 375, dateRangeRecommendation: '1-60 days' },
+  { value: '3minute', label: '3 Minutes', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 125, dateRangeRecommendation: '1-60 days' },
+  { value: '5minute', label: '5 Minutes', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 75, dateRangeRecommendation: '1-60 days' },
+  { value: '15minute', label: '15 Minutes', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 25, dateRangeRecommendation: '1-60 days' },
+  { value: '30minute', label: '30 Minutes', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 12.5, dateRangeRecommendation: '1-60 days' },
+  { value: '60minute', label: '1 Hour', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 6.25, dateRangeRecommendation: '1-60 days' },
+  
+  // Daily
+  { value: 'day', label: 'Daily', description: 'Long-term (5 years max)', category: 'daily', barsPerDay: 1, dateRangeRecommendation: 'Up to 5 years' },
+  
+  // Aggregated intervals (built from daily data)
+  { value: 'week', label: 'Weekly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/5, dateRangeRecommendation: '1-10 years (recommended)' },
+  { value: 'month', label: 'Monthly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/20, dateRangeRecommendation: '1-20 years (recommended)' },
+  { value: 'quarter', label: 'Quarterly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/60, dateRangeRecommendation: '1-20 years (recommended)' },
+  { value: 'year', label: 'Annual', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/250, dateRangeRecommendation: '5+ years (recommended)' },
 ];
 
 export interface BacktestRequest {

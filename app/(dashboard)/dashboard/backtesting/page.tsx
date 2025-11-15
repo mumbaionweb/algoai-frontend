@@ -767,36 +767,135 @@ class MyStrategy(bt.Strategy):
                     (ℹ️ Select intervals based on your strategy code)
                   </span>
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                  {INTERVAL_OPTIONS.map((option) => {
-                    const isSelected = intervals.includes(option.value);
-                    return (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            // Remove if already selected (but keep at least one)
-                            if (intervals.length > 1) {
-                              setIntervals(intervals.filter(i => i !== option.value));
-                            }
-                          } else {
-                            // Add to selection
-                            setIntervals([...intervals, option.value]);
-                          }
-                        }}
-                        className={`p-2 rounded-lg border-2 transition-all text-sm ${
-                          isSelected
-                            ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-                            : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
-                        }`}
-                      >
-                        <div className="font-medium">{option.label}</div>
-                        <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
-                      </button>
-                    );
-                  })}
-                </div>
+                
+                {/* Group intervals by category */}
+                {(() => {
+                  const intradayOptions = INTERVAL_OPTIONS.filter(opt => opt.category === 'intraday');
+                  const dailyOptions = INTERVAL_OPTIONS.filter(opt => opt.category === 'daily');
+                  const aggregatedOptions = INTERVAL_OPTIONS.filter(opt => opt.category === 'aggregated');
+                  
+                  return (
+                    <div className="space-y-4">
+                      {/* Intraday Intervals */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Intraday</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                          {intradayOptions.map((option) => {
+                            const isSelected = intervals.includes(option.value);
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    if (intervals.length > 1) {
+                                      setIntervals(intervals.filter(i => i !== option.value));
+                                    }
+                                  } else {
+                                    setIntervals([...intervals, option.value]);
+                                  }
+                                }}
+                                className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                                    : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                                }`}
+                                title={option.dateRangeRecommendation ? `Recommended: ${option.dateRangeRecommendation}` : undefined}
+                              >
+                                <div className="font-medium">{option.label}</div>
+                                <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Daily Interval */}
+                      <div>
+                        <h4 className="text-xs font-semibold text-gray-400 mb-2 uppercase tracking-wide">Daily</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2">
+                          {dailyOptions.map((option) => {
+                            const isSelected = intervals.includes(option.value);
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    if (intervals.length > 1) {
+                                      setIntervals(intervals.filter(i => i !== option.value));
+                                    }
+                                  } else {
+                                    setIntervals([...intervals, option.value]);
+                                  }
+                                }}
+                                className={`p-2 rounded-lg border-2 transition-all text-sm ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                                    : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                                }`}
+                                title={option.dateRangeRecommendation ? `Recommended: ${option.dateRangeRecommendation}` : undefined}
+                              >
+                                <div className="font-medium">{option.label}</div>
+                                <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Aggregated Intervals */}
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Aggregated (from Daily Data)</h4>
+                          <span 
+                            className="text-xs text-gray-500 cursor-help" 
+                            title="Weekly, Monthly, Quarterly, and Annual bars are built from daily data. For date ranges > 5 years, data is fetched in parallel chunks."
+                          >
+                            ⓘ
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                          {aggregatedOptions.map((option) => {
+                            const isSelected = intervals.includes(option.value);
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                  if (isSelected) {
+                                    if (intervals.length > 1) {
+                                      setIntervals(intervals.filter(i => i !== option.value));
+                                    }
+                                  } else {
+                                    setIntervals([...intervals, option.value]);
+                                  }
+                                }}
+                                className={`p-2 rounded-lg border-2 transition-all text-sm relative ${
+                                  isSelected
+                                    ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                                    : 'border-gray-600 bg-gray-700 text-gray-300 hover:border-gray-500'
+                                }`}
+                                title={option.dateRangeRecommendation ? `Recommended: ${option.dateRangeRecommendation}. Built from daily data.` : 'Built from daily data'}
+                              >
+                                <div className="font-medium flex items-center gap-1">
+                                  {option.label}
+                                  <span className="text-xs text-gray-500" title="Built from daily data">ⓘ</span>
+                                </div>
+                                <div className="text-xs text-gray-400 mt-0.5">{option.description}</div>
+                                {option.dateRangeRecommendation && (
+                                  <div className="text-xs text-blue-400 mt-1">
+                                    {option.dateRangeRecommendation}
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {intervals.length > 0 && (() => {
                   // Analyze strategy code to show appropriate messages
                   const strategyAnalysis = analyzeStrategyCode(strategyCode);
@@ -829,6 +928,35 @@ class MyStrategy(bt.Strategy):
                           ⚠️ <strong>Multi-timeframe backtest:</strong> This will fetch data for {intervals.length} intervals. Estimated processing time may be longer.
                         </div>
                       )}
+                      {/* Show warning for aggregated intervals */}
+                      {intervals.some(i => {
+                        const option = INTERVAL_OPTIONS.find(opt => opt.value === i);
+                        return option?.category === 'aggregated';
+                      }) && (
+                        <div className="mt-2 p-2 bg-purple-500/10 border border-purple-500/30 rounded text-xs text-purple-400">
+                          ℹ️ <strong>Aggregated intervals selected:</strong> The backend will fetch daily data first, then aggregate to {intervals.filter(i => {
+                            const option = INTERVAL_OPTIONS.find(opt => opt.value === i);
+                            return option?.category === 'aggregated';
+                          }).map(i => INTERVAL_OPTIONS.find(opt => opt.value === i)?.label).join(', ')}. This may take longer for large date ranges.
+                        </div>
+                      )}
+                      {/* Show date range recommendations */}
+                      {intervals.length > 0 && fromDate && toDate && (() => {
+                        const selectedOptions = intervals.map(i => INTERVAL_OPTIONS.find(opt => opt.value === i)).filter(Boolean);
+                        const recommendations = selectedOptions
+                          .map(opt => opt?.dateRangeRecommendation)
+                          .filter(Boolean)
+                          .filter((v, i, a) => a.indexOf(v) === i); // Unique values
+                        
+                        if (recommendations.length > 0) {
+                          return (
+                            <div className="mt-2 p-2 bg-gray-700/50 border border-gray-600 rounded text-xs text-gray-300">
+                              💡 <strong>Recommended date ranges:</strong> {recommendations.join(', ')}
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   );
                 })()}
@@ -988,6 +1116,19 @@ class MyStrategy(bt.Strategy):
               <div className="text-gray-400 text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
                 <p>Running backtest...</p>
+                {intervals.some(i => {
+                  const option = INTERVAL_OPTIONS.find(opt => opt.value === i);
+                  return option?.category === 'aggregated';
+                }) && (
+                  <div className="mt-4 p-3 bg-purple-500/10 border border-purple-500/30 rounded-lg max-w-md mx-auto">
+                    <p className="text-sm text-purple-300 font-medium mb-1">
+                      Fetching daily data and aggregating...
+                    </p>
+                    <p className="text-xs text-purple-400">
+                      This may take a moment for large date ranges. The backend handles chunking and parallel fetching automatically.
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
