@@ -896,8 +896,25 @@ class MyStrategy(bt.Strategy):
               </div>
 
               {error && (
-                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
+                <div className={`border px-4 py-3 rounded-lg text-sm ${
+                  error.includes('taking longer than expected') || error.includes('timeout')
+                    ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400'
+                    : 'bg-red-500/10 border-red-500 text-red-400'
+                }`}>
                   <p className="whitespace-pre-wrap">{error}</p>
+                  {(error.includes('taking longer than expected') || error.includes('timeout')) && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs text-gray-300">
+                        💡 <strong>Tips:</strong>
+                      </p>
+                      <ul className="list-disc list-inside text-xs text-gray-300 space-y-1 ml-2">
+                        <li>Complex multi-timeframe strategies with large datasets can take 30-60 seconds</li>
+                        <li>Try reducing the date range or number of intervals</li>
+                        <li>Check your network connection</li>
+                        <li>Wait a moment and try again - the backend may still be processing</li>
+                      </ul>
+                    </div>
+                  )}
                   {(error.includes('credentials') || error.includes('OAuth')) && (
                     <div className="mt-3">
                       <Link

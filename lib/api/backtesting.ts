@@ -38,6 +38,7 @@ export async function runBacktest(
       to_date: request.to_date,
       broker_type: brokerType,
       credentials_id: credentialsId || 'none',
+      timeout: '120 seconds (2 minutes)',
     });
 
     const params = new URLSearchParams();
@@ -47,7 +48,12 @@ export async function runBacktest(
     }
 
     const url = `/api/backtesting/run?${params.toString()}`;
-    const response = await apiClient.post<BacktestResponse>(url, request);
+    
+    // Use extended timeout for backtesting (120 seconds = 2 minutes)
+    // Backtests can take 30-60 seconds for complex multi-timeframe strategies
+    const response = await apiClient.post<BacktestResponse>(url, request, {
+      timeout: 120000, // 120 seconds (2 minutes)
+    });
 
     logApiCall('Backtest completed', undefined, {
       backtest_id: response.data.backtest_id,
@@ -60,6 +66,17 @@ export async function runBacktest(
     return response.data;
   } catch (error: any) {
     logError('Backtest failed', error);
+    
+    // Handle timeout errors specifically
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      const timeoutError = new Error(
+        'Backtest is taking longer than expected (over 2 minutes). ' +
+        'This can happen with complex multi-timeframe strategies or large datasets. ' +
+        'Please try again or check your network connection.'
+      );
+      timeoutError.name = 'BacktestTimeoutError';
+      throw timeoutError;
+    }
     
     // Enhanced error handling
     if (error.response) {
