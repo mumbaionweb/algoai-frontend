@@ -66,6 +66,7 @@ export function useBacktestProgress({
           progress: progress.progress,
           current_bar: progress.current_bar,
           total_bars: progress.total_bars,
+          progress_message: progress.message, // Store progress message from WebSocket
         } : null);
       },
       (result) => {

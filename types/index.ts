@@ -338,6 +338,7 @@ export interface BacktestJob {
   progress: number; // 0-100
   current_bar?: number;
   total_bars?: number;
+  progress_message?: string; // Optional progress message from backend
   error_message?: string;
   result?: BacktestResponse; // Reuse BacktestResponse for result
   created_at: string;

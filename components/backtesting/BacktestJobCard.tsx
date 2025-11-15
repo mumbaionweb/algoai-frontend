@@ -81,6 +81,7 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
         progress={job.progress}
         currentBar={job.current_bar}
         totalBars={job.total_bars}
+        message={job.progress_message}
         errorMessage={job.error_message}
       />
 
