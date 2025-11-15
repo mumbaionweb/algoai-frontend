@@ -17,6 +17,7 @@ import {
   getStrategyPerformance,
 } from '@/lib/api/strategies';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
+import { formatDate } from '@/utils/dateUtils';
 import type {
   Strategy,
   StrategyCreate,
@@ -843,7 +844,7 @@ class MyStrategy(bt.Strategy):
                         <div>
                           <p className="text-sm text-gray-400 mb-1">Started At</p>
                           <p className="text-white font-medium">
-                            {new Date(performanceData.started_at).toLocaleString()}
+                            {formatDate(performanceData.started_at)}
                           </p>
                         </div>
                       )}
@@ -851,7 +852,7 @@ class MyStrategy(bt.Strategy):
                         <div>
                           <p className="text-sm text-gray-400 mb-1">Stopped At</p>
                           <p className="text-white font-medium">
-                            {new Date(performanceData.stopped_at).toLocaleString()}
+                            {formatDate(performanceData.stopped_at)}
                           </p>
                         </div>
                       )}

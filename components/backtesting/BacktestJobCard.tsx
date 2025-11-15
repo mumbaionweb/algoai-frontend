@@ -6,6 +6,7 @@ import {
   pauseBacktestJob, 
   resumeBacktestJob 
 } from '@/lib/api/backtesting';
+import { formatDate } from '@/utils/dateUtils';
 
 interface BacktestJobCardProps {
   job: BacktestJob;
@@ -72,7 +73,16 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
           </p>
         </div>
         <div className="text-xs text-gray-500">
-          {new Date(job.created_at).toLocaleString()}
+          {formatDate(job.created_at)}
+          {job.started_at && (
+            <> | Started: {formatDate(job.started_at)}</>
+          )}
+          {job.completed_at && (
+            <> | Completed: {formatDate(job.completed_at)}</>
+          )}
+          {job.paused_at && (
+            <> | Paused: {formatDate(job.paused_at)}</>
+          )}
         </div>
       </div>
 

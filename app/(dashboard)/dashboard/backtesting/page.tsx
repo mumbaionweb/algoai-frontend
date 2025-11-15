@@ -11,6 +11,7 @@ import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryI
 import { INTERVAL_OPTIONS } from '@/types';
 import { useBacktestProgress } from '@/hooks/useBacktestProgress';
 import { BacktestJobCard } from '@/components/backtesting/BacktestJobCard';
+import { formatDate, formatDateShort } from '@/utils/dateUtils';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -1619,7 +1620,7 @@ class MyStrategy(bt.Strategy):
                           {item.from_date} to {item.to_date}
                         </p>
                         <p className="text-xs text-gray-500 mt-1">
-                          {new Date(item.created_at).toLocaleString()}
+                          {formatDate(item.created_at)}
                         </p>
                       </div>
                       <div className="flex flex-col sm:items-end gap-1">
@@ -1831,14 +1832,7 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
                   {position.entry_action} {position.total_quantity} shares @ ₹{position.entry_price.toFixed(2)}
                 </div>
                 <div className="text-gray-400 text-xs mt-1">
-                  {position.entry_date ? new Date(position.entry_date).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: true,
-                  }) : 'N/A'}
+                  {formatDateShort(position.entry_date)}
                 </div>
               </div>
               <div className="bg-gray-700/50 rounded p-2">
@@ -1899,15 +1893,7 @@ function PositionView({ transactions }: { transactions: Transaction[] }) {
                                 {txn.exit_action || txn.type} {txn.quantity} shares @ ₹{txn.exit_price?.toFixed(2) || 'N/A'}
                               </span>
                               <div className="text-gray-400 text-xs mt-0.5">
-                                {txn.exit_date || txn.entry_date || txn.date 
-                                  ? new Date(txn.exit_date || txn.entry_date || txn.date || '').toLocaleString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      hour12: true,
-                                    })
-                                  : 'N/A'}
+                                {formatDateShort(txn.exit_date || txn.entry_date || txn.date)}
                               </div>
                             </div>
                           </div>
@@ -1992,14 +1978,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
               } else {
                 dateStr = txn.exit_date || txn.entry_date || txn.date || '';
               }
-              const date = dateStr ? new Date(dateStr).toLocaleString('en-US', {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-              }) : '-';
+              const date = formatDateShort(dateStr);
 
               // Use transaction_amount from API (or calculate if missing)
               // Transaction amount logic:
