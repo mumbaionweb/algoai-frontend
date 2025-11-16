@@ -5,8 +5,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
-import { getBacktest } from '@/lib/api/backtesting';
-import type { BacktestHistoryItem } from '@/types';
+import { getBacktest, listBacktestJobs } from '@/lib/api/backtesting';
+import { BacktestJobCard } from '@/components/backtesting/BacktestJobCard';
+import type { BacktestHistoryItem, BacktestJob } from '@/types';
 
 export default function BacktestDetailPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -17,6 +18,8 @@ export default function BacktestDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [backtest, setBacktest] = useState<BacktestHistoryItem | null>(null);
+  const [job, setJob] = useState<BacktestJob | null>(null);
+  const [loadingJob, setLoadingJob] = useState(false);
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
@@ -34,6 +37,9 @@ export default function BacktestDetailPage() {
       setError('');
       const data = await getBacktest(backtestId);
       setBacktest(data);
+      
+      // Load associated job if available
+      loadJob(data.backtest_id);
     } catch (err: any) {
       console.error('Failed to load backtest:', err);
       const errorDetail = err.response?.data?.detail || '';
@@ -48,6 +54,29 @@ export default function BacktestDetailPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadJob = async (backtestId: string) => {
+    try {
+      setLoadingJob(true);
+      // Fetch all jobs and find the one that matches this backtest_id
+      const jobs = await listBacktestJobs(undefined, 100); // Get more jobs to find the match
+      const matchingJob = jobs.find(j => j.result?.backtest_id === backtestId);
+      if (matchingJob) {
+        setJob(matchingJob);
+      }
+    } catch (err) {
+      console.error('Failed to load job:', err);
+      // Don't show error for job loading, it's optional
+    } finally {
+      setLoadingJob(false);
+    }
+  };
+
+  const refreshJob = () => {
+    if (backtest?.backtest_id) {
+      loadJob(backtest.backtest_id);
     }
   };
 
@@ -175,6 +204,23 @@ export default function BacktestDetailPage() {
               </div>
             </div>
           </div>
+
+          {/* Job Status Section */}
+          {job && (
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-semibold text-white">Backtest Job Status</h3>
+                <button
+                  onClick={refreshJob}
+                  disabled={loadingJob}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
+                >
+                  {loadingJob ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              <BacktestJobCard job={job} onUpdate={refreshJob} />
+            </div>
+          )}
 
           {/* Additional Details */}
           <div className="bg-gray-800 rounded-lg p-6">

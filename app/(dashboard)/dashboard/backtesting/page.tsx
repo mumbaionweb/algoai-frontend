@@ -76,7 +76,6 @@ export default function BacktestingPage() {
       setResults(jobResult);
       setLoading(false);
       loadHistory(); // Refresh history
-      loadJobs(); // Refresh jobs list
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [completed, jobResult]);
@@ -260,7 +259,6 @@ class MyStrategy(bt.Strategy):
       // The actual localStorage values are loaded in useState initializers above
       checkOAuthAndLoadCredentials();
       loadHistory();
-      loadJobs(); // Load async jobs
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, isAuthenticated, router]);
@@ -485,7 +483,6 @@ class MyStrategy(bt.Strategy):
           });
           setActiveJobId(newJob.job_id);
           setLoading(false); // Don't keep loading state, let progress hook handle it
-          await loadJobs(); // Refresh job list
           setError(''); // Clear any previous errors
           return; // Exit early, progress will be handled by WebSocket
         } catch (jobErr: any) {
@@ -1216,7 +1213,7 @@ class MyStrategy(bt.Strategy):
             {useAsyncMode && activeJobId && activeJob && (
               <div className="mb-6 bg-gray-700 rounded-lg p-4 border border-gray-600">
                 <h3 className="text-lg font-semibold text-white mb-4">Current Backtest Job</h3>
-                <BacktestJobCard job={activeJob} onUpdate={loadJobs} />
+                <BacktestJobCard job={activeJob} onUpdate={() => {}} />
               </div>
             )}
             
@@ -1540,43 +1537,7 @@ class MyStrategy(bt.Strategy):
             )}
           </div>
 
-          {/* Async Jobs Section (if async mode is enabled) */}
-          {useAsyncMode && (
-            <div className="bg-gray-800 rounded-lg p-6 mt-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-white">Backtest Jobs</h2>
-                <button
-                  onClick={loadJobs}
-                  disabled={loadingJobs}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
-                >
-                  {loadingJobs ? 'Loading...' : 'Refresh'}
-                </button>
-              </div>
-              
-              {loadingJobs ? (
-                <div className="text-gray-400 text-center py-8">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
-                  <p>Loading jobs...</p>
-                </div>
-              ) : jobs.length === 0 ? (
-                <div className="text-gray-400 text-center py-8">
-                  <p>No backtest jobs yet.</p>
-                  <p className="text-sm mt-2">Create a backtest job to see it here.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {jobs.map((job) => (
-                    <BacktestJobCard
-                      key={job.job_id}
-                      job={job}
-                      onUpdate={loadJobs}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* Note: Job history is now shown on individual backtest detail pages */}
 
           {/* History Section */}
           <div className="bg-gray-800 rounded-lg p-6 mt-6">
