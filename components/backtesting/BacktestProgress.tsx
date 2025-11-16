@@ -80,7 +80,7 @@ export const BacktestProgress: React.FC<BacktestProgressProps> = ({
       )}
 
       {/* Progress Details */}
-      {(currentBar !== undefined && totalBars !== undefined) && (
+      {(currentBar !== undefined && currentBar !== null && totalBars !== undefined && totalBars !== null) && (
         <div className="text-sm text-gray-400 mb-2">
           Processing bar {currentBar.toLocaleString()} of {totalBars.toLocaleString()}
         </div>

@@ -132,7 +132,7 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
           <h4 className="font-semibold mb-2 text-green-400">Results</h4>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="text-gray-300">
-              <span className="text-gray-400">Final Value:</span> ₹{job.result.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <span className="text-gray-400">Final Value:</span> ₹{job.result.final_value != null ? job.result.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : 'N/A'}
             </div>
             <div className="text-gray-300">
               <span className="text-gray-400">Total Return:</span> {job.result.total_return_pct.toFixed(2)}%
