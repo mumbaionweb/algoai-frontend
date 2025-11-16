@@ -40,7 +40,12 @@ export function useBacktestProgress({
       setJob(jobData);
       
       if (jobData.status === 'completed') {
+        console.log('✅ Backtest job completed (from API fetch), result:', jobData.result);
         setCompleted(true);
+        // If we have a result, ensure it's set
+        if (jobData.result) {
+          setJob((prev) => prev ? { ...prev, result: jobData.result } : jobData);
+        }
       } else if (jobData.status === 'failed' || jobData.status === 'cancelled') {
         const errorMsg = jobData.error_message || 'Job failed';
         console.error('❌ Backtest job status:', jobData.status, 'Error:', errorMsg);
@@ -72,7 +77,8 @@ export function useBacktestProgress({
         } : null);
       },
       (result) => {
-        // Job completed
+        // Job completed via WebSocket
+        console.log('✅ Backtest job completed via WebSocket, result:', result);
         setJob((prev) => prev ? {
           ...prev,
           status: 'completed',
@@ -80,6 +86,10 @@ export function useBacktestProgress({
           result,
         } : null);
         setCompleted(true);
+        // Fetch job again to ensure we have the latest data with result
+        setTimeout(() => {
+          fetchJob();
+        }, 500);
       },
       (errorMsg) => {
         console.error('❌ Backtest job failed:', errorMsg);

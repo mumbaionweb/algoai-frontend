@@ -72,13 +72,26 @@ export default function BacktestingPage() {
   
   // Update results when job completes
   useEffect(() => {
-    if (completed && jobResult) {
-      setResults(jobResult);
-      setLoading(false);
-      loadHistory(); // Refresh history
+    console.log('🔍 Results update check:', { completed, jobResult: !!jobResult, activeJob: !!activeJob, activeJobResult: !!activeJob?.result });
+    if (completed) {
+      // Try to get result from jobResult first, then from activeJob.result
+      const result = jobResult || activeJob?.result || null;
+      if (result) {
+        console.log('✅ Setting results from completed job:', result);
+        setResults(result);
+        setLoading(false);
+        loadHistory(); // Refresh history
+      } else {
+        console.warn('⚠️ Job completed but no result available yet. Job status:', activeJob?.status, 'Job result:', activeJob?.result);
+        // If job is completed but no result, try fetching the job again
+        if (activeJobId && activeJob?.status === 'completed' && !activeJob.result) {
+          console.log('🔄 Fetching job again to get result...');
+          // The useBacktestProgress hook will handle fetching
+        }
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [completed, jobResult]);
+  }, [completed, jobResult, activeJob]);
   
   // Transaction view mode: 'position' (default) or 'transaction'
   const [viewMode, setViewMode] = useState<'position' | 'transaction'>('position');
@@ -1220,6 +1233,14 @@ class MyStrategy(bt.Strategy):
             {!results && !loading && !activeJob && (
               <div className="text-gray-400 text-center py-12">
                 <p>No results yet. {useAsyncMode ? 'Create a backtest job' : 'Run a backtest'} to see results here.</p>
+              </div>
+            )}
+
+            {/* Show message if job completed but results not loaded yet */}
+            {useAsyncMode && activeJob && activeJob.status === 'completed' && !results && !activeJob.result && (
+              <div className="bg-yellow-500/10 border border-yellow-500 text-yellow-400 px-4 py-3 rounded-lg text-sm">
+                <p className="font-semibold mb-2">⏳ Results Loading...</p>
+                <p>The backtest job has completed, but results are still being processed. Please wait a moment or refresh the page.</p>
               </div>
             )}
 
