@@ -140,7 +140,10 @@ export class BacktestProgressClient {
         break;
 
       case 'failed':
-        onError(message.error_message || 'Backtest failed');
+        const errorMsg = message.error_message || 'Backtest failed';
+        console.error('❌ Backtest job failed via WebSocket:', errorMsg);
+        console.error('Failed message details:', message);
+        onError(errorMsg);
         this.disconnect();
         break;
 

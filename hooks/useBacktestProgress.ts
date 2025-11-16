@@ -42,7 +42,9 @@ export function useBacktestProgress({
       if (jobData.status === 'completed') {
         setCompleted(true);
       } else if (jobData.status === 'failed' || jobData.status === 'cancelled') {
-        setError(jobData.error_message || 'Job failed');
+        const errorMsg = jobData.error_message || 'Job failed';
+        console.error('❌ Backtest job status:', jobData.status, 'Error:', errorMsg);
+        setError(errorMsg);
       }
     } catch (err: any) {
       console.error('Error fetching job:', err);
@@ -80,7 +82,14 @@ export function useBacktestProgress({
         setCompleted(true);
       },
       (errorMsg) => {
+        console.error('❌ Backtest job failed:', errorMsg);
         setError(errorMsg);
+        // Update job with error message
+        setJob((prev) => prev ? {
+          ...prev,
+          status: 'failed' as any,
+          error_message: errorMsg,
+        } : null);
       }
     );
 

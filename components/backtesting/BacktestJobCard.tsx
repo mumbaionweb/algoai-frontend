@@ -126,6 +126,25 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
         )}
       </div>
 
+      {/* Failed Status - Show error prominently */}
+      {job.status === 'failed' && job.error_message && (
+        <div className="mt-4 p-4 bg-red-500/10 border border-red-500/30 rounded">
+          <h4 className="font-semibold mb-2 text-red-400">❌ Job Failed</h4>
+          <div className="text-sm text-red-300 whitespace-pre-wrap break-words">
+            {job.error_message}
+          </div>
+          <div className="mt-2 text-xs text-gray-400">
+            <p>This is a backend error. Common causes:</p>
+            <ul className="list-disc list-inside mt-1 space-y-1">
+              <li>Strategy code syntax errors or logic issues</li>
+              <li>Missing or incorrect data access (e.g., 'NoneType' object has no attribute 'datas')</li>
+              <li>Invalid strategy parameters or configuration</li>
+            </ul>
+            <p className="mt-2">Check your strategy code and try again.</p>
+          </div>
+        </div>
+      )}
+
       {/* Results */}
       {job.status === 'completed' && job.result && (
         <div className="mt-4 p-4 bg-green-500/10 border border-green-500/30 rounded">
