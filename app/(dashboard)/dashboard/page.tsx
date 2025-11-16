@@ -77,7 +77,7 @@ function DashboardPageContent() {
           </Link>
 
           <Link
-            href="/dashboard/backtesting"
+            href="/backtesting"
             className="bg-gray-800 p-6 rounded-lg hover:bg-gray-700 transition"
           >
             <h2 className="text-xl font-semibold text-white mb-2">Backtesting</h2>

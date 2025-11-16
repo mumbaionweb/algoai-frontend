@@ -1,4 +1,4 @@
-import type { BacktestResponse } from '@/types';
+import type { BacktestResponse, Transaction } from '@/types';
 import { getBacktestJob } from '@/lib/api/backtesting';
 
 export type ProgressCallback = (progress: {
@@ -8,6 +8,14 @@ export type ProgressCallback = (progress: {
   current_bar?: number;
   total_bars?: number;
   message?: string;
+}) => void;
+
+export type TransactionCallback = (transactions: {
+  job_id: string;
+  transactions: Transaction[];
+  total_transactions: number;
+  new_transactions_count: number;
+  timestamp?: string;
 }) => void;
 
 export type CompleteCallback = (result: BacktestResponse) => void;
@@ -31,7 +39,8 @@ export class BacktestProgressClient {
   connect(
     onProgress: ProgressCallback,
     onComplete: CompleteCallback,
-    onError: ErrorCallback
+    onError: ErrorCallback,
+    onTransaction?: TransactionCallback
   ): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       console.warn('WebSocket already connected');
@@ -53,7 +62,7 @@ export class BacktestProgressClient {
       this.ws.onmessage = (event) => {
         try {
           const message = JSON.parse(event.data);
-          this.handleMessage(message, onProgress, onComplete, onError);
+          this.handleMessage(message, onProgress, onComplete, onError, onTransaction);
         } catch (error) {
           console.error('Error parsing WebSocket message:', error);
           onError('Invalid message format');
@@ -81,7 +90,7 @@ export class BacktestProgressClient {
           console.log(`🔄 Reconnecting in ${delay}ms... (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
           
           setTimeout(() => {
-            this.connect(onProgress, onComplete, onError);
+            this.connect(onProgress, onComplete, onError, onTransaction);
           }, delay);
         }
       };
@@ -117,7 +126,8 @@ export class BacktestProgressClient {
     message: any,
     onProgress: ProgressCallback,
     onComplete: CompleteCallback,
-    onError: ErrorCallback
+    onError: ErrorCallback,
+    onTransaction?: TransactionCallback
   ): void {
     switch (message.type) {
       case 'connection':
@@ -133,6 +143,49 @@ export class BacktestProgressClient {
           total_bars: message.total_bars,
           message: message.message,
         });
+        break;
+
+      case 'transaction':
+        // NEW: Handle transaction streaming
+        if (onTransaction && message.transactions) {
+          console.log(`📊 Received ${message.new_transactions_count || message.transactions.length} new transactions via WebSocket`);
+          
+          // Debug: Analyze trade_id distribution
+          const tradeIdCounts: Record<string, number> = {};
+          message.transactions.forEach((txn: Transaction) => {
+            const tid = txn.trade_id || 'NO_TRADE_ID';
+            tradeIdCounts[tid] = (tradeIdCounts[tid] || 0) + 1;
+          });
+          
+          console.log('🔍 Transaction stream analysis:', {
+            new_transactions: message.new_transactions_count || message.transactions.length,
+            total_transactions: message.total_transactions,
+            unique_trade_ids: Object.keys(tradeIdCounts).length,
+            transactions_without_trade_id: message.transactions.filter((t: Transaction) => !t.trade_id).length,
+            trade_id_distribution: tradeIdCounts,
+            sample_transactions: message.transactions.slice(0, 3).map((t: Transaction) => ({
+              trade_id: t.trade_id || 'N/A',
+              type: t.type,
+              status: t.status,
+              quantity: t.quantity,
+              symbol: t.symbol,
+            })),
+          });
+          
+          onTransaction({
+            job_id: message.job_id,
+            transactions: message.transactions,
+            total_transactions: message.total_transactions || message.transactions.length,
+            new_transactions_count: message.new_transactions_count || message.transactions.length,
+            timestamp: message.timestamp,
+          });
+        } else {
+          console.warn('⚠️ Transaction message received but no callback provided or transactions missing:', {
+            has_callback: !!onTransaction,
+            has_transactions: !!message.transactions,
+            message_type: message.type,
+          });
+        }
         break;
 
       case 'completed':

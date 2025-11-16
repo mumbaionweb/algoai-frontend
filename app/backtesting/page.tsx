@@ -64,14 +64,10 @@ export default function BacktestingPage() {
   const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
   
   // Use progress hook for active job
-  const { job: activeJob, progress, status, completed, result: jobResult, streamingTransactions } = useBacktestProgress({
+  const { job: activeJob, progress, status, completed, result: jobResult } = useBacktestProgress({
     jobId: activeJobId,
     token,
     useWebSocket: true,
-    onTransaction: (newTransactions) => {
-      // Optional: Handle new transactions as they arrive
-      console.log(`📊 New transactions received in UI: ${newTransactions.length}`);
-    },
   });
   
   // Update results when job completes
@@ -501,7 +497,11 @@ class MyStrategy(bt.Strategy):
           setActiveJobId(newJob.job_id);
           setLoading(false); // Don't keep loading state, let progress hook handle it
           setError(''); // Clear any previous errors
-          return; // Exit early, progress will be handled by WebSocket
+          
+          // Redirect to the dedicated backtest page using job_id
+          // Note: backtest_id is only available after job completes, so we use job_id initially
+          router.push(`/backtesting/${newJob.job_id}`);
+          return; // Exit early, redirect will navigate away
         } catch (jobErr: any) {
           console.error('❌ Failed to create backtest job:', jobErr);
           const errorDetail = jobErr.response?.data?.detail || '';
@@ -1228,84 +1228,9 @@ class MyStrategy(bt.Strategy):
             
             {/* Active Job Progress (Async Mode) */}
             {useAsyncMode && activeJobId && activeJob && (
-              <div className="mb-6 space-y-4">
-                <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-                  <h3 className="text-lg font-semibold text-white mb-4">Current Backtest Job</h3>
-                  <BacktestJobCard job={activeJob} onUpdate={() => {}} />
-                </div>
-                
-                {/* Real-time Transaction Stream */}
-                {activeJob.status === 'running' && streamingTransactions.length > 0 && (
-                  <div className="bg-gray-700 rounded-lg p-4 border border-blue-500/30">
-                    <div className="flex justify-between items-center mb-3">
-                      <h3 className="text-lg font-semibold text-white">
-                        📊 Live Transaction Stream
-                      </h3>
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span className="text-sm text-gray-400">
-                          {streamingTransactions.length} transaction{streamingTransactions.length !== 1 ? 's' : ''} received
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="max-h-[300px] overflow-y-auto space-y-2">
-                      {streamingTransactions.slice(-20).reverse().map((txn, idx) => {
-                        const dateStr = txn.type === 'BUY' 
-                          ? (txn.entry_date || txn.date || '')
-                          : (txn.exit_date || txn.entry_date || txn.date || '');
-                        const date = dateStr ? formatDateShort(dateStr) : 'N/A';
-                        
-                        return (
-                          <div
-                            key={`${txn.trade_id || 'unlinked'}_${txn.entry_date || txn.date}_${txn.type}_${idx}`}
-                            className="bg-gray-800 rounded p-3 border border-gray-600 hover:border-blue-500/50 transition-colors"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                <span className={`px-2 py-1 text-xs font-semibold rounded ${
-                                  txn.type === 'BUY' 
-                                    ? 'bg-blue-500/20 text-blue-300' 
-                                    : 'bg-red-500/20 text-red-300'
-                                }`}>
-                                  {txn.type}
-                                </span>
-                                <div>
-                                  <div className="text-sm text-white">
-                                    {txn.symbol} - {txn.quantity} shares
-                                  </div>
-                                  <div className="text-xs text-gray-400">
-                                    {date} | Trade ID: {txn.trade_id || 'N/A'} | Status: {txn.status}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="text-right">
-                                {txn.entry_price && (
-                                  <div className="text-sm text-gray-300">
-                                    @ ₹{txn.entry_price.toFixed(2)}
-                                  </div>
-                                )}
-                                {txn.pnl !== undefined && txn.pnl !== null && (
-                                  <div className={`text-xs font-semibold ${
-                                    txn.pnl >= 0 ? 'text-green-400' : 'text-red-400'
-                                  }`}>
-                                    P&L: {txn.pnl >= 0 ? '+' : ''}₹{txn.pnl.toFixed(2)}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    
-                    {streamingTransactions.length > 20 && (
-                      <div className="mt-2 text-xs text-gray-400 text-center">
-                        Showing last 20 transactions. Total: {streamingTransactions.length}
-                      </div>
-                    )}
-                  </div>
-                )}
+              <div className="mb-6 bg-gray-700 rounded-lg p-4 border border-gray-600">
+                <h3 className="text-lg font-semibold text-white mb-4">Current Backtest Job</h3>
+                <BacktestJobCard job={activeJob} onUpdate={() => {}} />
               </div>
             )}
             

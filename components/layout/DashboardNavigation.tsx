@@ -214,7 +214,7 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     setOrdersMenuOpen(false);
                   }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                    pathname?.startsWith('/dashboard/backtesting')
+                    pathname?.startsWith('/backtesting')
                       ? 'bg-blue-600 text-white'
                       : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                   }`}
@@ -236,7 +236,7 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     {/* New Backtest Button */}
                     <div className="px-4 py-3 border-b border-gray-700">
                       <Link
-                        href="/dashboard/backtesting"
+                        href="/backtesting"
                         onClick={() => setBacktestMenuOpen(false)}
                         className="flex items-center justify-center gap-2 w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                       >
@@ -275,11 +275,14 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     ) : (
                       <div className="py-2">
                         {allBacktests.map((backtest) => {
-                          // For completed backtests, use backtest_id; for active jobs, link to main page
+                          // For completed backtests, use backtest_id; for active jobs, use job_id
                           const href = backtest.status === 'completed' && backtest.backtest_id
-                            ? `/dashboard/backtesting/${backtest.backtest_id}`
-                            : '/dashboard/backtesting';
-                          const isClickable = backtest.status === 'completed' && backtest.backtest_id;
+                            ? `/backtesting/${backtest.backtest_id}`
+                            : backtest.type === 'job' && backtest.job_id
+                            ? `/backtesting/${backtest.job_id}`
+                            : '/backtesting';
+                          const isClickable = (backtest.status === 'completed' && backtest.backtest_id) || 
+                                             (backtest.type === 'job' && backtest.job_id);
                           
                           const content = (
                             <div className="block px-4 py-3 hover:bg-gray-700 transition-colors border-b border-gray-700/50 last:border-b-0">
@@ -350,7 +353,7 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                               onClick={() => {
                                 if (!isClickable) {
                                   setBacktestMenuOpen(false);
-                                  router.push('/dashboard/backtesting');
+                                  router.push('/backtesting');
                                 }
                               }}
                               className="cursor-pointer"
@@ -365,7 +368,7 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     {/* Footer - View All Link */}
                     <div className="border-t border-gray-700 pt-2">
                       <Link
-                        href="/dashboard/backtesting/list"
+                        href="/backtesting/list"
                         onClick={() => setBacktestMenuOpen(false)}
                         className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
                       >

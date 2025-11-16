@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { BacktestJob, BacktestResponse } from '@/types';
+import type { BacktestJob, BacktestResponse, Transaction } from '@/types';
 import { BacktestProgressClient } from '@/lib/services/backtestWebSocket';
 import { getBacktestJob } from '@/lib/api/backtesting';
 
@@ -8,6 +8,7 @@ interface UseBacktestProgressOptions {
   token: string | null;
   useWebSocket?: boolean; // Default: true
   pollInterval?: number; // For polling fallback (ms)
+  onTransaction?: (transactions: Transaction[]) => void; // Callback for streaming transactions
 }
 
 interface UseBacktestProgressReturn {
@@ -17,6 +18,7 @@ interface UseBacktestProgressReturn {
   error: string | null;
   completed: boolean;
   result: BacktestResponse | null;
+  streamingTransactions: Transaction[]; // Accumulated streaming transactions
   refresh: () => void;
 }
 
@@ -25,10 +27,12 @@ export function useBacktestProgress({
   token,
   useWebSocket = true,
   pollInterval = 2000,
+  onTransaction,
 }: UseBacktestProgressOptions): UseBacktestProgressReturn {
   const [job, setJob] = useState<BacktestJob | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
+  const [streamingTransactions, setStreamingTransactions] = useState<Transaction[]>([]);
   const wsClientRef = useRef<BacktestProgressClient | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -108,6 +112,37 @@ export function useBacktestProgress({
           status: 'failed' as any,
           error_message: errorMsg,
         } : null);
+      },
+      (transactionData) => {
+        // Handle streaming transactions
+        console.log(`📊 Streaming transactions received: ${transactionData.new_transactions_count} new, ${transactionData.total_transactions} total`);
+        
+        // Add new transactions to accumulated list
+        setStreamingTransactions((prev) => {
+          // Create a map of existing transactions by a unique key (trade_id + date + type)
+          const existingKeys = new Set(
+            prev.map(t => `${t.trade_id || 'unlinked'}_${t.entry_date || t.date}_${t.type}_${t.quantity}`)
+          );
+          
+          // Filter out duplicates
+          const newTxns = transactionData.transactions.filter(
+            t => !existingKeys.has(`${t.trade_id || 'unlinked'}_${t.entry_date || t.date}_${t.type}_${t.quantity}`)
+          );
+          
+          if (newTxns.length > 0) {
+            console.log(`✅ Adding ${newTxns.length} new unique transactions to stream`);
+            const updated = [...prev, ...newTxns];
+            
+            // Call external callback if provided
+            if (onTransaction) {
+              onTransaction(newTxns);
+            }
+            
+            return updated;
+          }
+          
+          return prev;
+        });
       }
     );
 
@@ -169,6 +204,7 @@ export function useBacktestProgress({
     error,
     completed,
     result: job?.result || null,
+    streamingTransactions,
     refresh,
   };
 }
