@@ -1426,10 +1426,17 @@ class MyStrategy(bt.Strategy):
                   </div>
 
                   <div className="bg-gray-700 rounded-lg p-4">
-                    <div className="text-gray-400 text-sm mb-1">Total Trades</div>
-                    <div className="text-2xl font-bold text-white">
-                      {results.total_trades}
+                    <div className="text-gray-400 text-sm mb-1">
+                      {results.positions ? 'Total Positions' : 'Total Trades'}
                     </div>
+                    <div className="text-2xl font-bold text-white">
+                      {results.positions ? results.positions.length : results.total_trades}
+                    </div>
+                    {results.positions && results.positions.length !== results.total_trades && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        (Backend reports {results.total_trades} trades)
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-gray-700 rounded-lg p-4">
