@@ -2511,17 +2511,20 @@ function DataBarsChart({
                           title: (tooltipItems) => {
                             if (tooltipItems.length > 0) {
                               const dataIndex = tooltipItems[0].dataIndex;
-                              if (intervalData && intervalData[dataIndex]) {
-                                const date = new Date(intervalData[dataIndex].time);
-                                if (!isNaN(date.getTime())) {
-                                  return date.toLocaleString('en-US', {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true,
-                                  });
+                              if (intervalData && intervalData[dataIndex] && intervalData[dataIndex].time) {
+                                const timeValue = intervalData[dataIndex].time;
+                                if (timeValue) {
+                                  const date = new Date(timeValue);
+                                  if (!isNaN(date.getTime())) {
+                                    return date.toLocaleString('en-US', {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true,
+                                    });
+                                  }
                                 }
                               }
                             }
@@ -2731,17 +2734,20 @@ function DataBarsChart({
                             title: (tooltipItems) => {
                               if (tooltipItems.length > 0) {
                                 const dataIndex = tooltipItems[0].dataIndex;
-                                if (historicalData && historicalData[dataIndex]) {
-                                  const date = new Date(historicalData[dataIndex].time);
-                                  if (!isNaN(date.getTime())) {
-                                    return date.toLocaleString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric',
-                                      hour: '2-digit',
-                                      minute: '2-digit',
-                                      hour12: true,
-                                    });
+                                if (historicalData && historicalData[dataIndex] && historicalData[dataIndex].time) {
+                                  const timeValue = historicalData[dataIndex].time;
+                                  if (timeValue) {
+                                    const date = new Date(timeValue);
+                                    if (!isNaN(date.getTime())) {
+                                      return date.toLocaleString('en-US', {
+                                        month: 'short',
+                                        day: 'numeric',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                        hour12: true,
+                                      });
+                                    }
                                   }
                                 }
                               }
