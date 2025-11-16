@@ -1426,17 +1426,10 @@ class MyStrategy(bt.Strategy):
                   </div>
 
                   <div className="bg-gray-700 rounded-lg p-4">
-                    <div className="text-gray-400 text-sm mb-1">
-                      {results.positions ? 'Total Positions' : 'Total Trades'}
-                    </div>
+                    <div className="text-gray-400 text-sm mb-1">Total Trades</div>
                     <div className="text-2xl font-bold text-white">
-                      {results.positions ? results.positions.length : results.total_trades}
+                      {results.total_trades}
                     </div>
-                    {results.positions && results.positions.length !== results.total_trades && (
-                      <div className="text-xs text-gray-500 mt-1">
-                        (Backend reports {results.total_trades} trades)
-                      </div>
-                    )}
                   </div>
 
                   <div className="bg-gray-700 rounded-lg p-4">
@@ -1544,15 +1537,79 @@ class MyStrategy(bt.Strategy):
                       const positions = results.positions || (results.transactions ? buildPositionView(results.transactions) : []);
                       const usingBackendPositions = !!results.positions;
                       
-                      // Only show discrepancy warning if using client-side calculation
+                      // Diagnostic logging for backend positions
                       if (usingBackendPositions) {
-                        console.log('✅ Using backend positions:', {
-                          positions_count: positions.length,
-                          total_trades: results.total_trades,
-                          open_positions: results.open_positions_count,
-                          closed_positions: results.closed_positions_count,
+                        const closedPositions = positions.filter(p => p.is_closed);
+                        const openPositions = positions.filter(p => !p.is_closed);
+                        const uniqueTradeIds = new Set(positions.map(p => p.trade_id));
+                        const positionsWithMultipleClosures = positions.filter(p => {
+                          const exitTxns = p.transactions.filter(t => 
+                            t.status === 'CLOSED' || (t.type === t.exit_action && t.status !== 'OPENED')
+                          );
+                          return exitTxns.length > 1;
                         });
-                        return null; // No warning needed when using backend positions
+                        
+                        console.log('🔍 DIAGNOSTIC: Backend positions vs total_trades discrepancy:', {
+                          total_trades_from_backend: results.total_trades,
+                          positions_count: positions.length,
+                          open_positions_count: openPositions.length,
+                          closed_positions_count: closedPositions.length,
+                          unique_trade_ids: uniqueTradeIds.size,
+                          positions_with_multiple_closures: positionsWithMultipleClosures.length,
+                          backend_open_positions_count: results.open_positions_count,
+                          backend_closed_positions_count: results.closed_positions_count,
+                          discrepancy: positions.length !== results.total_trades,
+                          sample_positions: positions.slice(0, 5).map(p => ({
+                            trade_id: p.trade_id,
+                            is_closed: p.is_closed,
+                            total_quantity: p.total_quantity,
+                            closures_count: p.transactions.filter(t => 
+                              t.status === 'CLOSED' || (t.type === t.exit_action && t.status !== 'OPENED')
+                            ).length,
+                          })),
+                        });
+                        
+                        // Show diagnostic banner if there's a discrepancy
+                        if (positions.length !== results.total_trades) {
+                          return (
+                            <div className="mb-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                              <p className="font-semibold text-yellow-400 mb-3">🔍 Diagnostic: Discrepancy Detected</p>
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+                                <div>
+                                  <span className="text-gray-400">Backend total_trades:</span>
+                                  <span className="text-white ml-2 font-semibold">{results.total_trades}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">Backend positions:</span>
+                                  <span className="text-white ml-2 font-semibold">{positions.length}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">Closed positions:</span>
+                                  <span className="text-white ml-2 font-semibold">{closedPositions.length}</span>
+                                </div>
+                                <div>
+                                  <span className="text-gray-400">Open positions:</span>
+                                  <span className="text-white ml-2 font-semibold">{openPositions.length}</span>
+                                </div>
+                              </div>
+                              <div className="text-xs text-yellow-300 bg-yellow-500/5 p-3 rounded border border-yellow-500/20">
+                                <p className="font-semibold mb-2">Possible Causes:</p>
+                                <ul className="list-disc list-inside space-y-1 text-gray-300">
+                                  <li><strong>Backend `total_trades`</strong> may count only fully closed trades (round-trip trades)</li>
+                                  <li><strong>Backend `positions`</strong> includes all positions: open, closed, and partially closed</li>
+                                  <li>If positions have multiple partial closures, each closure might be counted separately in positions but not in total_trades</li>
+                                  <li>Check backend logic: Does `total_trades` count unique trade_ids or completed trade cycles?</li>
+                                </ul>
+                                <p className="mt-2 text-gray-400">
+                                  <strong>Action:</strong> Review backend code that calculates `total_trades` vs `positions`. 
+                                  The discrepancy suggests different counting logic between these two metrics.
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        return null;
                       }
                       
                       // Client-side calculation fallback
