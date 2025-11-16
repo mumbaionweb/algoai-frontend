@@ -109,7 +109,7 @@ function HomePageContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900">
-        <DashboardNavigation title="Portfolio" />
+        <DashboardNavigation />
         <main className="container mx-auto px-4 py-8">
           <div className="bg-gray-800 rounded-lg p-8 text-center">
             <p className="text-gray-400">Loading portfolio...</p>
@@ -122,7 +122,7 @@ function HomePageContent() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-900">
-        <DashboardNavigation title="Portfolio" />
+        <DashboardNavigation />
         <main className="container mx-auto px-4 py-8">
           <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-4">
             {error}
@@ -157,7 +157,7 @@ function HomePageContent() {
   if (!portfolio) {
     return (
       <div className="min-h-screen bg-gray-900">
-        <DashboardNavigation title="Portfolio" />
+        <DashboardNavigation />
         <main className="container mx-auto px-4 py-8">
           <div className="bg-gray-800 rounded-lg p-8 text-center">
             <p className="text-gray-400">No portfolio data available.</p>
@@ -169,7 +169,7 @@ function HomePageContent() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <DashboardNavigation title="Portfolio" />
+      <DashboardNavigation />
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-6">

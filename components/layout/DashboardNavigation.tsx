@@ -11,7 +11,7 @@ interface DashboardNavigationProps {
   title?: string;
 }
 
-export default function DashboardNavigation({ title = 'AlgoAI Dashboard' }: DashboardNavigationProps) {
+export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavigationProps) {
   const { user, logout } = useAuthStore();
   const router = useRouter();
   const pathname = usePathname();
