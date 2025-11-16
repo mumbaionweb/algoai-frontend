@@ -1486,6 +1486,40 @@ class MyStrategy(bt.Strategy):
                       </h3>
                     </div>
                     
+                    {/* Summary Statistics */}
+                    {(() => {
+                      const positions = buildPositionView(results.transactions);
+                      const uniqueTradeIds = new Set(results.transactions.map(t => t.trade_id || 'unlinked')).size;
+                      const hasDiscrepancy = results.total_trades !== uniqueTradeIds;
+                      
+                      return hasDiscrepancy ? (
+                        <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm">
+                          <p className="font-semibold text-yellow-400 mb-2">📊 Data Summary</p>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <span className="text-gray-400">Backend Total Trades:</span>
+                              <span className="text-white ml-2 font-semibold">{results.total_trades}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Unique Trade IDs:</span>
+                              <span className="text-white ml-2 font-semibold">{uniqueTradeIds}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Total Transactions:</span>
+                              <span className="text-white ml-2 font-semibold">{results.transactions.length}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-400">Positions (Grouped):</span>
+                              <span className="text-white ml-2 font-semibold">{positions.length}</span>
+                            </div>
+                          </div>
+                          <p className="text-yellow-300 mt-2 text-xs">
+                            ℹ️ <strong>Note:</strong> Backend's "total_trades" may count only fully closed trades, while we show all positions (including partial closures). Each position can have multiple transactions (entry + exits).
+                          </p>
+                        </div>
+                      ) : null;
+                    })()}
+                    
                     {/* Tab Navigation */}
                     <div className="flex gap-2 mb-4 border-b border-gray-600">
                       <button
@@ -1633,6 +1667,28 @@ class MyStrategy(bt.Strategy):
 
 // Helper function to build Position View from transactions
 function buildPositionView(transactions: Transaction[]): BacktestPosition[] {
+  // Log transaction analysis
+  console.log('📊 Building Position View from transactions:', {
+    total_transactions: transactions.length,
+    unique_trade_ids: new Set(transactions.map(t => t.trade_id || 'unlinked')).size,
+    transactions_with_trade_id: transactions.filter(t => t.trade_id).length,
+    transactions_without_trade_id: transactions.filter(t => !t.trade_id).length,
+    trade_id_distribution: (() => {
+      const counts: Record<string, number> = {};
+      transactions.forEach(t => {
+        const id = t.trade_id || 'unlinked';
+        counts[id] = (counts[id] || 0) + 1;
+      });
+      return counts;
+    })(),
+    sample_transactions: transactions.slice(0, 5).map(t => ({
+      type: t.type,
+      trade_id: t.trade_id,
+      status: t.status,
+      quantity: t.quantity,
+    })),
+  });
+
   // Group by trade_id
   const grouped = transactions.reduce((acc, txn) => {
     const tradeId = txn.trade_id || 'unlinked';
@@ -1642,6 +1698,15 @@ function buildPositionView(transactions: Transaction[]): BacktestPosition[] {
     acc[tradeId].push(txn);
     return acc;
   }, {} as Record<string, Transaction[]>);
+
+  console.log('📊 Grouped transactions:', {
+    total_groups: Object.keys(grouped).length,
+    groups_with_multiple_txns: Object.entries(grouped).filter(([_, txns]) => txns.length > 1).length,
+    groups_with_single_txn: Object.entries(grouped).filter(([_, txns]) => txns.length === 1).length,
+    unlinked_count: grouped['unlinked']?.length || 0,
+    largest_group: Math.max(...Object.values(grouped).map(txns => txns.length)),
+    group_sizes: Object.entries(grouped).map(([id, txns]) => ({ trade_id: id, count: txns.length })),
+  });
 
   // Build position objects
   const positions: BacktestPosition[] = [];
@@ -1700,6 +1765,17 @@ function buildPositionView(transactions: Transaction[]): BacktestPosition[] {
   // Sort positions by entry_date (oldest first - ascending order)
   positions.sort((a, b) => {
     return (a.entry_date || '').localeCompare(b.entry_date || '');
+  });
+
+  console.log('📊 Final positions:', {
+    total_positions: positions.length,
+    positions_summary: positions.slice(0, 5).map(p => ({
+      trade_id: p.trade_id,
+      position_type: p.position_type,
+      total_quantity: p.total_quantity,
+      transaction_count: p.transactions.length,
+      is_closed: p.is_closed,
+    })),
   });
 
   return positions;
