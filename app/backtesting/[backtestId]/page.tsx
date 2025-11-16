@@ -24,7 +24,7 @@ export default function BacktestDetailPage() {
   const [loadingJob, setLoadingJob] = useState(false);
 
   // Use progress hook if we have a job
-  const { completed, jobResult, progress } = useBacktestProgress({
+  const { completed, result, progress } = useBacktestProgress({
     jobId: job?.job_id || '',
     token: user?.accessToken || '',
     useWebSocket: true,
@@ -47,11 +47,11 @@ export default function BacktestDetailPage() {
 
   // When job completes, try to load the backtest
   useEffect(() => {
-    if (completed && jobResult?.backtest_id && isJobId) {
+    if (completed && result?.backtest_id && isJobId) {
       // Job completed, redirect to backtest_id URL
-      router.replace(`/backtesting/${jobResult.backtest_id}`);
+      router.replace(`/backtesting/${result.backtest_id}`);
     }
-  }, [completed, jobResult, isJobId, router]);
+  }, [completed, result, isJobId, router]);
 
   const loadData = async () => {
     if (!id) return;
