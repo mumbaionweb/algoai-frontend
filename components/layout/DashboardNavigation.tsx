@@ -34,23 +34,35 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
         // Fetch last 5 completed backtests from history
         const historyData = await getBacktestHistory(5);
         setBacktestHistory(historyData.backtests || []);
-        
-        // Fetch active/running jobs
+      } catch (err) {
+        console.error('Failed to load backtest history for navigation:', err);
+        // Don't set history if it fails, but don't block the UI
+        setBacktestHistory([]);
+      }
+      
+      // Fetch active/running jobs separately - make it optional so it doesn't break navigation
+      try {
         const jobs = await listBacktestJobs(undefined, 10);
         // Filter to show only active jobs (running, pending, queued)
         const activeJobs = jobs.filter(job => 
           ['running', 'pending', 'queued', 'paused', 'resuming'].includes(job.status)
         );
         setBacktestJobs(activeJobs);
-      } catch (err) {
-        console.error('Failed to load backtest data for navigation:', err);
+      } catch (err: any) {
+        // Silently fail for jobs - backend may have issues, but we still want to show history
+        // Only log if it's not a 500 error (which indicates backend issue)
+        if (err.response?.status !== 500) {
+          console.error('Failed to load backtest jobs for navigation:', err);
+        }
+        // Don't set jobs if it fails - just show history
+        setBacktestJobs([]);
       } finally {
         setLoadingBacktests(false);
       }
     };
 
     loadBacktestData();
-    // Refresh every 30 seconds to update job statuses
+    // Refresh every 30 seconds to update job statuses (only if successful)
     const interval = setInterval(loadBacktestData, 30000);
     return () => clearInterval(interval);
   }, []);

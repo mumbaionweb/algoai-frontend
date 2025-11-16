@@ -66,9 +66,14 @@ export default function BacktestDetailPage() {
       if (matchingJob) {
         setJob(matchingJob);
       }
-    } catch (err) {
-      console.error('Failed to load job:', err);
+    } catch (err: any) {
+      // Silently fail for job loading - backend may have issues with jobs endpoint
+      // Only log if it's not a 500 error (which indicates backend issue)
+      if (err.response?.status !== 500) {
+        console.error('Failed to load job:', err);
+      }
       // Don't show error for job loading, it's optional
+      setJob(null);
     } finally {
       setLoadingJob(false);
     }
