@@ -11,7 +11,7 @@ import { useBacktestProgress } from '@/hooks/useBacktestProgress';
 import type { BacktestHistoryItem, BacktestJob } from '@/types';
 
 export default function BacktestDetailPage() {
-  const { isAuthenticated, isInitialized, user } = useAuthStore();
+  const { isAuthenticated, isInitialized, token } = useAuthStore();
   const router = useRouter();
   const params = useParams();
   const id = params?.backtestId as string;
@@ -26,7 +26,7 @@ export default function BacktestDetailPage() {
   // Use progress hook if we have a job
   const { completed, result, progress } = useBacktestProgress({
     jobId: job?.job_id || '',
-    token: user?.accessToken || '',
+    token: token || '',
     useWebSocket: true,
   });
 
