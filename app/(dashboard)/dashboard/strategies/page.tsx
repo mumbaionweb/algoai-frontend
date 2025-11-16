@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import DashboardHeader from '@/components/layout/DashboardHeader';
+import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import {
   getStrategies,
   createStrategy,
@@ -425,7 +425,7 @@ class MyStrategy(bt.Strategy):
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <DashboardHeader title="Strategies" backButton />
+      <DashboardNavigation />
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto">

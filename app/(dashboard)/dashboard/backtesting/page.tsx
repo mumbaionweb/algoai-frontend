@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import DashboardHeader from '@/components/layout/DashboardHeader';
+import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { runBacktest, getBacktestHistory, getBacktestHistoricalData, createBacktestJob, listBacktestJobs, type HistoricalDataPoint } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
 import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, BacktestPosition, BacktestJob } from '@/types';
@@ -655,7 +655,7 @@ class MyStrategy(bt.Strategy):
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <DashboardHeader title="Backtesting" backButton />
+      <DashboardNavigation />
 
       <main className="container mx-auto px-4 py-8">
         {/* OAuth Status Alert */}

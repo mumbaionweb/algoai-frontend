@@ -4,7 +4,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import Link from 'next/link';
-import DashboardHeader from '@/components/layout/DashboardHeader';
+import DashboardNavigation from '@/components/layout/DashboardNavigation';
 
 export default function OrdersPage() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -30,7 +30,7 @@ export default function OrdersPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <DashboardHeader title="Orders" backButton />
+      <DashboardNavigation />
 
       <main className="container mx-auto px-4 py-8">
         <div className="bg-gray-800 rounded-lg p-8 text-center">

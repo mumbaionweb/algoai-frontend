@@ -3,7 +3,7 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter, useSearchParams } from 'next/navigation';
-import DashboardHeader from '@/components/layout/DashboardHeader';
+import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import Link from 'next/link';
 import { formatDate } from '@/utils/dateUtils';
 import {
@@ -681,7 +681,7 @@ function BrokerPageContent() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <DashboardHeader title="Broker Settings" backButton />
+      <DashboardNavigation />
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
