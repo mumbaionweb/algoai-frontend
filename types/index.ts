@@ -243,6 +243,9 @@ export interface BacktestPosition {
   remaining_quantity?: number;  // Remaining = entryQuantity - sum of exits
   symbol?: string;
   exchange?: string;
+  // NEW: Capital allocation (for open positions)
+  invested_capital?: number;  // entry_price × remaining_quantity
+  current_value?: number;     // current_price × remaining_quantity
 }
 
 export interface BacktestResponse {
@@ -271,6 +274,13 @@ export interface BacktestResponse {
   intervals?: string[];  // NEW: All intervals used in multi-timeframe strategy
   data_bars_count?: number;  // Number of historical data bars fetched
   transactions?: Transaction[];  // Individual trade transactions
+  // NEW: Positions data (pre-calculated by backend)
+  positions?: BacktestPosition[];  // Grouped positions (optional for backward compatibility)
+  open_positions_count?: number;  // Number of open positions
+  closed_positions_count?: number;  // Number of closed positions
+  total_invested_capital?: number;  // Total capital invested in open positions
+  available_capital?: number;  // Available capital (not invested)
+  total_open_positions_value?: number;  // Current value of open positions
 }
 
 // Backtest History

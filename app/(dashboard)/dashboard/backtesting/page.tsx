@@ -1486,15 +1486,75 @@ class MyStrategy(bt.Strategy):
                       </h3>
                     </div>
                     
-                    {/* Summary Statistics */}
+                    {/* Capital Allocation (if available from backend) */}
+                    {(results.open_positions_count !== undefined || results.total_invested_capital !== undefined) && (
+                      <div className="mb-4 p-3 bg-blue-500/10 border border-blue-500/30 rounded-lg text-sm">
+                        <p className="font-semibold text-blue-400 mb-2">💰 Capital Allocation</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                          {results.open_positions_count !== undefined && (
+                            <div>
+                              <span className="text-gray-400">Open Positions:</span>
+                              <span className="text-white ml-2 font-semibold">{results.open_positions_count}</span>
+                            </div>
+                          )}
+                          {results.closed_positions_count !== undefined && (
+                            <div>
+                              <span className="text-gray-400">Closed Positions:</span>
+                              <span className="text-white ml-2 font-semibold">{results.closed_positions_count}</span>
+                            </div>
+                          )}
+                          {results.total_invested_capital !== undefined && (
+                            <div>
+                              <span className="text-gray-400">Total Invested:</span>
+                              <span className="text-white ml-2 font-semibold">₹{results.total_invested_capital.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {results.available_capital !== undefined && (
+                            <div>
+                              <span className="text-gray-400">Available Capital:</span>
+                              <span className="text-white ml-2 font-semibold">₹{results.available_capital.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {results.total_open_positions_value !== undefined && (
+                            <div>
+                              <span className="text-gray-400">Open Positions Value:</span>
+                              <span className="text-white ml-2 font-semibold">₹{results.total_open_positions_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          )}
+                          {results.positions && (
+                            <div>
+                              <span className="text-gray-400">Total Positions:</span>
+                              <span className="text-white ml-2 font-semibold">{results.positions.length}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Summary Statistics (only show if using client-side calculation) */}
                     {(() => {
-                      const positions = buildPositionView(results.transactions);
+                      // Use backend positions if available, otherwise calculate client-side
+                      const positions = results.positions || (results.transactions ? buildPositionView(results.transactions) : []);
+                      const usingBackendPositions = !!results.positions;
+                      
+                      // Only show discrepancy warning if using client-side calculation
+                      if (usingBackendPositions) {
+                        console.log('✅ Using backend positions:', {
+                          positions_count: positions.length,
+                          total_trades: results.total_trades,
+                          open_positions: results.open_positions_count,
+                          closed_positions: results.closed_positions_count,
+                        });
+                        return null; // No warning needed when using backend positions
+                      }
+                      
+                      // Client-side calculation fallback
                       const uniqueTradeIds = new Set(results.transactions.map(t => t.trade_id || 'unlinked')).size;
                       const hasDiscrepancy = results.total_trades !== uniqueTradeIds;
                       
                       return hasDiscrepancy ? (
                         <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm">
-                          <p className="font-semibold text-yellow-400 mb-2">📊 Data Summary</p>
+                          <p className="font-semibold text-yellow-400 mb-2">📊 Data Summary (Client-Side Calculation)</p>
                           <div className="grid grid-cols-2 gap-2 text-xs">
                             <div>
                               <span className="text-gray-400">Backend Total Trades:</span>
@@ -1514,7 +1574,7 @@ class MyStrategy(bt.Strategy):
                             </div>
                           </div>
                           <p className="text-yellow-300 mt-2 text-xs">
-                            ℹ️ <strong>Note:</strong> Backend's "total_trades" may count only fully closed trades, while we show all positions (including partial closures). Each position can have multiple transactions (entry + exits).
+                            ℹ️ <strong>Note:</strong> Using client-side position calculation (backend positions not available). Backend's "total_trades" may count only fully closed trades, while we show all positions (including partial closures).
                           </p>
                         </div>
                       ) : null;
@@ -1546,7 +1606,10 @@ class MyStrategy(bt.Strategy):
 
                     {/* Position View */}
                     {viewMode === 'position' && (
-                      <PositionView transactions={results.transactions} />
+                      <PositionView 
+                        positions={results.positions} 
+                        transactions={results.transactions}
+                      />
                     )}
 
                     {/* Transaction View */}
@@ -1812,8 +1875,25 @@ function buildTransactionView(transactions: Transaction[]): Transaction[] {
 }
 
 // Position View Component
-function PositionView({ transactions }: { transactions: Transaction[] }) {
-  const positions = buildPositionView(transactions);
+function PositionView({ 
+  positions: backendPositions, 
+  transactions 
+}: { 
+  positions?: BacktestPosition[];
+  transactions: Transaction[];
+}) {
+  // Use backend positions if available, otherwise calculate client-side (backward compatibility)
+  const positions = backendPositions || (transactions ? buildPositionView(transactions) : []);
+  
+  if (backendPositions) {
+    console.log('✅ Using backend positions:', {
+      positions_count: positions.length,
+      open_positions: positions.filter(p => !p.is_closed).length,
+      closed_positions: positions.filter(p => p.is_closed).length,
+    });
+  } else {
+    console.log('⚠️ Using client-side position calculation (backend positions not available)');
+  }
 
   return (
     <div className="overflow-x-auto">
