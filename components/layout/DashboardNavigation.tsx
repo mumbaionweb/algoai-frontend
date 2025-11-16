@@ -353,7 +353,7 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     {/* Footer - View All Link */}
                     <div className="border-t border-gray-700 pt-2">
                       <Link
-                        href="/dashboard/backtesting"
+                        href="/dashboard/backtesting/list"
                         onClick={() => setBacktestMenuOpen(false)}
                         className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
                       >
