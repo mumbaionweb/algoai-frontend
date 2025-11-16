@@ -29,17 +29,43 @@ export default function BacktestListPage() {
     try {
       setLoading(true);
       setError('');
-      // Fetch all backtests (using a large limit to get all)
-      const data = await getBacktestHistory(1000);
+      // Use a reasonable limit (100) - backend may have a max limit
+      // If there are more backtests, we'll show a message
+      const data = await getBacktestHistory(100);
       setHistory(data.backtests || []);
       setTotal(data.total || 0);
     } catch (err: any) {
       console.error('Failed to load backtest history:', err);
-      const errorDetail = err.response?.data?.detail || '';
+      
+      // Handle error detail - it might be a string or an object
+      let errorDetail = '';
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === 'string') {
+          errorDetail = err.response.data.detail;
+        } else if (Array.isArray(err.response.data.detail)) {
+          // Pydantic validation errors are arrays
+          errorDetail = err.response.data.detail.map((e: any) => 
+            e.msg || e.message || JSON.stringify(e)
+          ).join(', ');
+        } else if (typeof err.response.data.detail === 'object') {
+          errorDetail = JSON.stringify(err.response.data.detail);
+        }
+      }
+      
       const status = err.response?.status;
       
       if (status === 401) {
         setError('Authentication failed. Please log in again.');
+      } else if (status === 422) {
+        // Validation error - likely limit too high, try with smaller limit
+        try {
+          const data = await getBacktestHistory(50);
+          setHistory(data.backtests || []);
+          setTotal(data.total || 0);
+          setError(''); // Clear error if retry succeeds
+        } catch (retryErr: any) {
+          setError(errorDetail || 'Failed to load backtest history. The backend may have restrictions on the number of items returned.');
+        }
       } else {
         setError(errorDetail || 'Failed to load backtest history. Please try again.');
       }

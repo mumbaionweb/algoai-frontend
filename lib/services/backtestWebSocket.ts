@@ -1,4 +1,5 @@
 import type { BacktestResponse } from '@/types';
+import { getBacktestJob } from '@/lib/api/backtesting';
 
 export type ProgressCallback = (progress: {
   job_id: string;
@@ -135,7 +136,31 @@ export class BacktestProgressClient {
         break;
 
       case 'completed':
-        onComplete(message.result);
+        // ⚠️ WebSocket sends result_summary only (not full result)
+        const resultSummary = message.result_summary || message.result; // Support both for backward compatibility
+        console.log('✅ Job completed, result_summary received:', resultSummary);
+        console.log('📊 Fetching full result via REST API...');
+        
+        // IMPORTANT: Fetch full result immediately via REST API
+        this.fetchFullResult().then((fullResult) => {
+          if (fullResult) {
+            console.log('✅ Full result fetched:', {
+              backtest_id: fullResult.backtest_id,
+              total_trades: fullResult.total_trades,
+              transactions_count: fullResult.transactions?.length || 0,
+              has_transactions: !!fullResult.transactions,
+            });
+            onComplete(fullResult); // Pass full result with transactions
+          } else {
+            console.warn('⚠️ Full result not available, using summary');
+            onComplete(resultSummary); // Fallback to summary
+          }
+        }).catch((error) => {
+          console.error('❌ Error fetching full result:', error);
+          console.warn('⚠️ Falling back to result_summary');
+          onComplete(resultSummary); // Fallback to summary
+        });
+        
         this.disconnect();
         break;
 
@@ -188,6 +213,38 @@ export class BacktestProgressClient {
     if (this.ws) {
       this.ws.close(1000, 'Client disconnect');
       this.ws = null;
+    }
+  }
+
+  /**
+   * Fetch full result via REST API after WebSocket completion
+   * WebSocket sends only result_summary to avoid large message sizes
+   */
+  private async fetchFullResult(): Promise<BacktestResponse | null> {
+    try {
+      console.log(`📡 Fetching full result for job ${this.jobId}...`);
+      const job = await getBacktestJob(this.jobId);
+
+      if (job.status === 'completed' && job.result) {
+        console.log('✅ Full result retrieved from API:', {
+          backtest_id: job.result.backtest_id,
+          total_trades: job.result.total_trades,
+          transactions_count: job.result.transactions?.length || 0,
+          has_transactions: !!job.result.transactions,
+          result_keys: Object.keys(job.result),
+        });
+        return job.result; // Full result with transactions
+      }
+
+      console.warn('⚠️ Job status is not completed or result not available:', {
+        status: job.status,
+        has_result: !!job.result,
+        job_keys: Object.keys(job),
+      });
+      return null;
+    } catch (error) {
+      console.error('❌ Error fetching full result:', error);
+      throw error;
     }
   }
 }

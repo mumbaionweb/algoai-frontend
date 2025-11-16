@@ -76,9 +76,16 @@ export function useBacktestProgress({
           progress_message: progress.message, // Store progress message from WebSocket
         } : null);
       },
-      (result) => {
+      async (result) => {
         // Job completed via WebSocket
-        console.log('✅ Backtest job completed via WebSocket, result:', result);
+        // Note: WebSocket sends result_summary, but BacktestProgressClient
+        // automatically fetches full result via REST API before calling this callback
+        console.log('✅ Backtest job completed via WebSocket, full result received:', {
+          backtest_id: result?.backtest_id,
+          total_trades: result?.total_trades,
+          transactions_count: result?.transactions?.length || 0,
+          has_transactions: !!result?.transactions,
+        });
         setJob((prev) => prev ? {
           ...prev,
           status: 'completed',
@@ -86,7 +93,8 @@ export function useBacktestProgress({
           result,
         } : null);
         setCompleted(true);
-        // Fetch job again to ensure we have the latest data with result
+        // Fetch job again to ensure we have the latest data (in case result wasn't fully populated)
+        // This is a safety measure - the WebSocket client should have already fetched the full result
         setTimeout(() => {
           fetchJob();
         }, 500);
@@ -138,6 +146,21 @@ export function useBacktestProgress({
       fetchJob();
     }
   }, [fetchJob]);
+
+  // Debug logging for job state
+  useEffect(() => {
+    if (job) {
+      console.log('📊 Job state update:', {
+        status: job.status,
+        progress: job.progress,
+        has_result: !!job.result,
+        result_keys: job.result ? Object.keys(job.result) : [],
+        total_trades: job.result?.total_trades,
+        transactions_count: job.result?.transactions?.length || 0,
+        completed,
+      });
+    }
+  }, [job, completed]);
 
   return {
     job,
