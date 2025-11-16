@@ -7,8 +7,9 @@ import Link from 'next/link';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { getBacktest, getBacktestJob, listBacktestJobs } from '@/lib/api/backtesting';
 import { BacktestJobCard } from '@/components/backtesting/BacktestJobCard';
+import BacktestResultsDisplay from '@/components/backtesting/BacktestResultsDisplay';
 import { useBacktestProgress } from '@/hooks/useBacktestProgress';
-import type { BacktestHistoryItem, BacktestJob } from '@/types';
+import type { BacktestHistoryItem, BacktestJob, BacktestResponse } from '@/types';
 
 export default function BacktestDetailPage() {
   const { isAuthenticated, isInitialized, token } = useAuthStore();
@@ -22,6 +23,7 @@ export default function BacktestDetailPage() {
   const [job, setJob] = useState<BacktestJob | null>(null);
   const [isJobId, setIsJobId] = useState(false);
   const [loadingJob, setLoadingJob] = useState(false);
+  const [results, setResults] = useState<BacktestResponse | null>(null);
 
   // Use progress hook if we have a job
   const { completed, result, progress } = useBacktestProgress({
@@ -45,11 +47,14 @@ export default function BacktestDetailPage() {
     }
   }, [progress, job]);
 
-  // When job completes, try to load the backtest
+  // When job completes, use the result
   useEffect(() => {
-    if (completed && result?.backtest_id && isJobId) {
-      // Job completed, redirect to backtest_id URL
-      router.replace(`/backtesting/${result.backtest_id}`);
+    if (completed && result && isJobId) {
+      setResults(result);
+      // Redirect to backtest_id URL
+      if (result.backtest_id) {
+        router.replace(`/backtesting/${result.backtest_id}`);
+      }
     }
   }, [completed, result, isJobId, router]);
 
@@ -66,13 +71,15 @@ export default function BacktestDetailPage() {
       setJob(jobData);
       setIsJobId(true);
       
-      // If job has completed and has a backtest_id, load the backtest
-      if (jobData.status === 'completed' && jobData.result?.backtest_id) {
+      // If job has completed and has a result, use it (full BacktestResponse)
+      if (jobData.status === 'completed' && jobData.result) {
+        setResults(jobData.result);
+        // Also load history item for metadata
         try {
           const backtestData = await getBacktest(jobData.result.backtest_id);
           setBacktest(backtestData);
         } catch (err) {
-          console.warn('Failed to load backtest for completed job:', err);
+          console.warn('Failed to load backtest history for completed job:', err);
         }
       }
       
@@ -122,6 +129,10 @@ export default function BacktestDetailPage() {
       const matchingJob = jobs.find(j => j.result?.backtest_id === backtestId);
       if (matchingJob) {
         setJob(matchingJob);
+        // If job has completed result, use it
+        if (matchingJob.status === 'completed' && matchingJob.result) {
+          setResults(matchingJob.result);
+        }
       }
     } catch (err: any) {
       // Silently fail for job loading
@@ -138,8 +149,10 @@ export default function BacktestDetailPage() {
         const jobData = await getBacktestJob(job.job_id);
         setJob(jobData);
         
-        // If job completed, reload backtest
-        if (jobData.status === 'completed' && jobData.result?.backtest_id) {
+        // If job completed, use full result
+        if (jobData.status === 'completed' && jobData.result) {
+          setResults(jobData.result);
+          // Also load history item
           try {
             const backtestData = await getBacktest(jobData.result.backtest_id);
             setBacktest(backtestData);
@@ -237,35 +250,11 @@ export default function BacktestDetailPage() {
               <BacktestJobCard job={job} onUpdate={refreshJob} />
             </div>
 
-            {/* Show backtest results if job is completed and we have backtest data */}
-            {job.status === 'completed' && backtest && (
-              <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+            {/* Show full backtest results if job is completed and we have results */}
+            {job.status === 'completed' && results && (
+              <div className="bg-gray-800 rounded-lg p-6">
                 <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-lg font-bold text-white">{backtest.symbol}</h3>
-                      <span className="text-gray-400">({backtest.exchange})</span>
-                    </div>
-                    <p className="text-sm text-gray-400 mb-1">
-                      {backtest.from_date} to {backtest.to_date}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <p className={`text-3xl font-bold ${backtest.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {backtest.total_return >= 0 ? '+' : ''}{backtest.total_return.toFixed(2)}%
-                    </p>
-                    <div className="flex gap-4 text-sm text-gray-400">
-                      <span>{backtest.total_trades} trades</span>
-                      {backtest.win_rate !== null && (
-                        <span>{backtest.win_rate.toFixed(1)}% win rate</span>
-                      )}
-                    </div>
-                    <p className={`text-lg font-semibold ${backtest.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      ₹{backtest.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                </div>
+                <BacktestResultsDisplay results={results} />
               </div>
             )}
           </div>
@@ -355,20 +344,36 @@ export default function BacktestDetailPage() {
               </div>
             )}
 
-            {/* Additional Details */}
-            <div className="bg-gray-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-white mb-4">Backtest Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-gray-400 text-sm">Backtest ID:</span>
-                  <p className="text-white font-mono text-sm mt-1">{backtest.backtest_id}</p>
+            {/* Full Results Display (if available) */}
+            {results && (
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
+                <BacktestResultsDisplay results={results} />
+              </div>
+            )}
+
+            {/* Additional Details (if no results available) */}
+            {!results && (
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-white mb-4">Backtest Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <span className="text-gray-400 text-sm">Backtest ID:</span>
+                    <p className="text-white font-mono text-sm mt-1">{backtest.backtest_id}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 text-sm">Transactions Count:</span>
+                    <p className="text-white text-sm mt-1">{backtest.transactions_count || 0}</p>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-gray-400 text-sm">Transactions Count:</span>
-                  <p className="text-white text-sm mt-1">{backtest.transactions_count || 0}</p>
+                <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
+                  <p className="text-sm text-blue-300">
+                    <strong>Note:</strong> Full backtest results with transaction details, charts, and positions are available when viewing from a completed job. 
+                    The job result contains the complete BacktestResponse with all data.
+                  </p>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </main>
       </div>
