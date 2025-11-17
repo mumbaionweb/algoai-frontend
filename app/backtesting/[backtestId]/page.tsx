@@ -91,12 +91,18 @@ export default function BacktestDetailPage() {
       if (jobErr.response?.status === 404) {
         try {
           const backtestData = await getBacktest(id);
+          console.log('✅ Loaded backtest history item:', {
+            backtest_id: backtestData.backtest_id,
+            symbol: backtestData.symbol,
+            total_trades: backtestData.total_trades,
+          });
           setBacktest(backtestData);
           setIsJobId(false);
           
-          // Try to find associated job
+          // Try to find associated job to get full results
           if (backtestData.backtest_id) {
-            loadJobByBacktestId(backtestData.backtest_id);
+            console.log('🔍 Attempting to load full results from associated job...');
+            await loadJobByBacktestId(backtestData.backtest_id);
           }
         } catch (backtestErr: any) {
           console.error('Failed to load backtest:', backtestErr);
@@ -124,20 +130,48 @@ export default function BacktestDetailPage() {
 
   const loadJobByBacktestId = async (backtestId: string) => {
     try {
-      // Fetch all jobs and find the one that matches this backtest_id
-      const jobs = await listBacktestJobs(undefined, 100);
+      console.log('🔍 Searching for job with backtest_id:', backtestId);
+      // Try to fetch more jobs to find the match (increase limit)
+      const jobs = await listBacktestJobs(undefined, 200);
+      console.log(`📋 Found ${jobs.length} jobs to search through`);
+      
       const matchingJob = jobs.find(j => j.result?.backtest_id === backtestId);
       if (matchingJob) {
+        console.log('✅ Found matching job:', {
+          job_id: matchingJob.job_id,
+          status: matchingJob.status,
+          has_result: !!matchingJob.result,
+          backtest_id: matchingJob.result?.backtest_id,
+        });
         setJob(matchingJob);
         // If job has completed result, use it
         if (matchingJob.status === 'completed' && matchingJob.result) {
+          console.log('✅ Loading full results from job:', {
+            total_trades: matchingJob.result.total_trades,
+            transactions_count: matchingJob.result.transactions?.length || 0,
+            has_positions: !!matchingJob.result.positions,
+          });
           setResults(matchingJob.result);
+        } else {
+          console.log('⚠️ Job found but not completed or missing result:', {
+            status: matchingJob.status,
+            has_result: !!matchingJob.result,
+          });
         }
+      } else {
+        console.log('⚠️ No matching job found for backtest_id:', backtestId);
+        console.log('📋 Searched through jobs:', jobs.map(j => ({
+          job_id: j.job_id,
+          status: j.status,
+          backtest_id: j.result?.backtest_id,
+        })));
       }
     } catch (err: any) {
       // Silently fail for job loading
       if (err.response?.status !== 500) {
-        console.error('Failed to load job:', err);
+        console.error('❌ Failed to load job:', err);
+      } else {
+        console.warn('⚠️ Backend 500 error when searching for job (this is expected if jobs endpoint has issues)');
       }
     }
   };
@@ -251,12 +285,29 @@ export default function BacktestDetailPage() {
             </div>
 
             {/* Show full backtest results if job is completed and we have results */}
-            {job.status === 'completed' && results && (
+            {job.status === 'completed' && results ? (
               <div className="bg-gray-800 rounded-lg p-6">
                 <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
                 <BacktestResultsDisplay results={results} />
               </div>
-            )}
+            ) : job.status === 'failed' ? (
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
+                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
+                  <p className="font-semibold mb-2">❌ Backtest Job Failed</p>
+                  <p className="mb-2">The backtest job failed and no results are available.</p>
+                  {job.error_message && (
+                    <div className="mt-3 p-3 bg-gray-900 rounded text-sm">
+                      <p className="font-semibold mb-1">Error Details:</p>
+                      <p className="font-mono text-xs">{job.error_message}</p>
+                    </div>
+                  )}
+                  <p className="text-sm mt-3 text-gray-400">
+                    Please fix the error in your strategy code and create a new backtest.
+                  </p>
+                </div>
+              </div>
+            ) : null}
           </div>
         </main>
       </div>
@@ -355,7 +406,20 @@ export default function BacktestDetailPage() {
             {/* Additional Details (if no results available) */}
             {!results && (
               <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold text-white mb-4">Backtest Information</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-white">Backtest Information</h3>
+                  <button
+                    onClick={async () => {
+                      if (backtest?.backtest_id) {
+                        console.log('🔄 Manually refreshing job search...');
+                        await loadJobByBacktestId(backtest.backtest_id);
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                  >
+                    🔄 Search for Full Results
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <span className="text-gray-400 text-sm">Backtest ID:</span>
@@ -366,11 +430,24 @@ export default function BacktestDetailPage() {
                     <p className="text-white text-sm mt-1">{backtest.transactions_count || 0}</p>
                   </div>
                 </div>
-                <div className="mt-4 p-4 bg-blue-500/10 border border-blue-500/30 rounded-lg">
-                  <p className="text-sm text-blue-300">
-                    <strong>Note:</strong> Full backtest results with transaction details, charts, and positions are available when viewing from a completed job. 
-                    The job result contains the complete BacktestResponse with all data.
+                <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                  <p className="text-sm text-yellow-300 mb-2">
+                    <strong>⚠️ Limited View:</strong> Full backtest results with transaction details, charts, and positions are not available.
                   </p>
+                  <p className="text-xs text-yellow-400 mb-3">
+                    This usually means the associated backtest job could not be found. Full results are only available when viewing from a completed job.
+                  </p>
+                  <button
+                    onClick={async () => {
+                      if (backtest?.backtest_id) {
+                        console.log('🔄 Retrying job search...');
+                        await loadJobByBacktestId(backtest.backtest_id);
+                      }
+                    }}
+                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm"
+                  >
+                    🔄 Retry Loading Full Results
+                  </button>
                 </div>
               </div>
             )}

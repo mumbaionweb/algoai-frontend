@@ -77,18 +77,102 @@ export interface StrategyParams {
 }
 
 // Order Types
+export type OrderStatus = 'PENDING' | 'OPEN' | 'COMPLETE' | 'REJECTED' | 'CANCELLED';
+export type OrderType = 'MARKET' | 'LIMIT' | 'SL' | 'SLM';
+export type TransactionType = 'BUY' | 'SELL';
+export type ProductType = 'MIS' | 'CNC' | 'NRML';
+export type OrderVariety = 'regular' | 'bracket' | 'cover' | 'amo';
+export type OrderValidity = 'DAY' | 'IOC' | 'TTL';
+
 export interface Order {
   id: string;
   user_id: string;
-  strategy_id?: string;
   symbol: string;
   exchange: string;
-  transaction_type: 'BUY' | 'SELL';
+  transaction_type: TransactionType;
+  order_type: OrderType;
+  product_type: ProductType;
   quantity: number;
-  order_type: 'MARKET' | 'LIMIT' | 'SL' | 'SLM';
-  price?: number;
-  status: 'PENDING' | 'EXECUTED' | 'CANCELLED' | 'REJECTED';
+  price?: number | null;
+  trigger_price?: number | null;
+  validity: OrderValidity;
+  variety: OrderVariety;
+  strategy_id?: string | null;
+  order_id?: string | null; // Broker order ID
+  status: OrderStatus;
+  filled_quantity: number;
+  average_price?: number | null;
+  error_message?: string | null;
+  broker_type?: string;
+  disclosed_quantity?: number;
   created_at: string;
+  updated_at: string;
+}
+
+export interface OrderCreate {
+  symbol: string;
+  exchange: string;
+  transaction_type: TransactionType;
+  order_type: OrderType;
+  product_type: ProductType;
+  quantity: number;
+  price?: number | null;
+  trigger_price?: number | null;
+  strategy_id?: string | null;
+  disclosed_quantity?: number;
+}
+
+export interface OrderUpdate {
+  quantity?: number;
+  price?: number | null;
+  order_type?: OrderType;
+  trigger_price?: number | null;
+  validity?: OrderValidity;
+}
+
+export interface OrdersListResponse {
+  orders: Order[];
+  total: number;
+}
+
+export interface OrderParams {
+  broker_type?: string;
+  credentials_id?: string;
+  limit?: number;
+  status_filter?: OrderStatus;
+  sync?: boolean;
+}
+
+// Order history from broker (raw KiteConnect format)
+export interface BrokerOrderHistory {
+  order_id: string;
+  exchange_order_id: string | null;
+  parent_order_id: string | null;
+  status: string;
+  status_message: string | null;
+  status_message_raw: string | null;
+  order_timestamp: string;
+  exchange_timestamp: string;
+  tradingsymbol: string;
+  exchange: string;
+  instrument_token: number;
+  order_type: string;
+  transaction_type: string;
+  validity: string;
+  product: string;
+  quantity: number;
+  disclosed_quantity: number;
+  price: number;
+  trigger_price: number;
+  average_price: number;
+  filled_quantity: number;
+  pending_quantity: number;
+  cancelled_quantity: number;
+  market_protection: number;
+  tag: string | null;
+  guid: string;
+  validity_ttl: number;
+  variety: string;
 }
 
 // Portfolio Types
