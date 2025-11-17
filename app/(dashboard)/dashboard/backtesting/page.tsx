@@ -60,7 +60,7 @@ export default function BacktestingPage() {
   const [jobs, setJobs] = useState<BacktestJob[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(false);
   
-  // Get Firebase token for WebSocket
+  // Get Firebase token for SSE
   const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
   
   // Use progress hook for active job
@@ -501,7 +501,7 @@ class MyStrategy(bt.Strategy):
           setActiveJobId(newJob.job_id);
           setLoading(false); // Don't keep loading state, let progress hook handle it
           setError(''); // Clear any previous errors
-          return; // Exit early, progress will be handled by WebSocket
+          return; // Exit early, progress will be handled by SSE
         } catch (jobErr: any) {
           console.error('❌ Failed to create backtest job:', jobErr);
           const errorDetail = jobErr.response?.data?.detail || '';
