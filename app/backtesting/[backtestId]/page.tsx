@@ -381,143 +381,166 @@ export default function BacktestDetailPage() {
     );
   }
 
-  // If we have a completed backtest, show backtest details
+  // If we have a completed backtest (viewed by backtest_id), show backtest details with same layout
   if (backtest && !isJobId) {
     return (
       <div className="min-h-screen bg-gray-900">
         <DashboardNavigation />
 
         <main className="container mx-auto px-4 py-8">
-          <div className="max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <Link
-                  href="/backtesting"
-                  className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block"
+          {/* Header with back link */}
+          <div className="mb-6">
+            <Link
+              href="/backtesting"
+              className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block"
+            >
+              ← Back to Backtesting
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Side - Backtest Information (similar to form section) */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-white">Backtest Information</h2>
+                <button
+                  onClick={async () => {
+                    if (backtest?.backtest_id) {
+                      console.log('🔄 Manually refreshing job search...');
+                      await loadJobByBacktestId(backtest.backtest_id);
+                    }
+                  }}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
                 >
-                  ← Back to Backtesting
-                </Link>
-                <h1 className="text-2xl font-bold text-white">Backtest Details</h1>
+                  🔄 Search for Full Results
+                </button>
               </div>
+
+              {/* Backtest Summary */}
+              <div className="bg-gray-700 rounded-lg p-4 mb-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="text-lg font-bold text-white">{backtest.symbol}</h3>
+                  <span className="text-gray-400">({backtest.exchange})</span>
+                  {backtest.data_bars_count > 0 && (
+                    <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">
+                      {backtest.data_bars_count} bars
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-400">Period:</span>
+                    <span className="text-white ml-2">{backtest.from_date} to {backtest.to_date}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Total Return:</span>
+                    <span className={`ml-2 font-semibold ${backtest.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {backtest.total_return >= 0 ? '+' : ''}{backtest.total_return.toFixed(2)}%
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Total Trades:</span>
+                    <span className="text-white ml-2">{backtest.total_trades}</span>
+                  </div>
+                  {backtest.win_rate !== null && (
+                    <div>
+                      <span className="text-gray-400">Win Rate:</span>
+                      <span className="text-white ml-2">{backtest.win_rate.toFixed(1)}%</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-gray-400">Total P&L:</span>
+                    <span className={`ml-2 font-semibold ${backtest.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      ₹{backtest.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Backtest ID:</span>
+                    <span className="text-white ml-2 font-mono text-xs break-all">{backtest.backtest_id}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Created:</span>
+                    <span className="text-white ml-2 text-xs">
+                      {new Date(backtest.created_at).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Job Status Section (if available) */}
+              {job && (
+                <div className="bg-gray-700 rounded-lg p-4">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-sm font-semibold text-gray-300">Associated Job</h3>
+                    <button
+                      onClick={refreshJob}
+                      disabled={loadingJob}
+                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded text-xs disabled:opacity-50"
+                    >
+                      {loadingJob ? 'Loading...' : 'Refresh'}
+                    </button>
+                  </div>
+                  <BacktestJobCard job={job} onUpdate={refreshJob} />
+                </div>
+              )}
             </div>
 
-            {/* Backtest Summary Card */}
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <h2 className="text-xl font-bold text-white">{backtest.symbol}</h2>
-                    <span className="text-gray-400">({backtest.exchange})</span>
-                    {backtest.data_bars_count > 0 && (
-                      <span className="px-2 py-1 bg-green-500/20 text-green-400 text-xs rounded">
-                        {backtest.data_bars_count} bars
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-400 mb-1">
-                    {backtest.from_date} to {backtest.to_date}
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Created: {new Date(backtest.created_at).toLocaleString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                </div>
-                <div className="flex flex-col items-end gap-2">
-                  <p className={`text-3xl font-bold ${backtest.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    {backtest.total_return >= 0 ? '+' : ''}{backtest.total_return.toFixed(2)}%
-                  </p>
-                  <div className="flex gap-4 text-sm text-gray-400">
-                    <span>{backtest.total_trades} trades</span>
-                    {backtest.win_rate !== null && (
-                      <span>{backtest.win_rate.toFixed(1)}% win rate</span>
-                    )}
-                  </div>
-                  <p className={`text-lg font-semibold ${backtest.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                    ₹{backtest.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Job Status Section (if available) */}
-            {job && (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-white">Backtest Job Status</h3>
-                  <button
-                    onClick={refreshJob}
-                    disabled={loadingJob}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
-                  >
-                    {loadingJob ? 'Loading...' : 'Refresh'}
-                  </button>
-                </div>
-                <BacktestJobCard job={job} onUpdate={refreshJob} />
-              </div>
-            )}
-
-            {/* Full Results Display (if available) */}
-            {results && (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
+            {/* Right Side - Results Section (same as main page) */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
+              
+              {/* Show full results if available */}
+              {results ? (
                 <BacktestResultsDisplay results={results} />
-              </div>
-            )}
+              ) : (
+                <div className="space-y-4">
+                  {/* Job Status if available */}
+                  {job && (
+                    <div className="mb-6 bg-gray-700 rounded-lg p-4 border border-gray-600">
+                      <h3 className="text-lg font-semibold text-white mb-4">Current Backtest Job</h3>
+                      <BacktestJobCard job={job} onUpdate={refreshJob} />
+                    </div>
+                  )}
 
-            {/* Additional Details (if no results available) */}
-            {!results && (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-white">Backtest Information</h3>
-                  <button
-                    onClick={async () => {
-                      if (backtest?.backtest_id) {
-                        console.log('🔄 Manually refreshing job search...');
-                        await loadJobByBacktestId(backtest.backtest_id);
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
-                  >
-                    🔄 Search for Full Results
-                  </button>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-gray-400 text-sm">Backtest ID:</span>
-                    <p className="text-white font-mono text-sm mt-1">{backtest.backtest_id}</p>
+                  {/* Limited view message */}
+                  <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                    <p className="text-sm text-yellow-300 mb-2">
+                      <strong>⚠️ Limited View:</strong> Full backtest results with transaction details, charts, and positions are not available.
+                    </p>
+                    <p className="text-xs text-yellow-400 mb-3">
+                      This usually means the associated backtest job could not be found. Full results are only available when viewing from a completed job.
+                    </p>
+                    <button
+                      onClick={async () => {
+                        if (backtest?.backtest_id) {
+                          console.log('🔄 Retrying job search...');
+                          await loadJobByBacktestId(backtest.backtest_id);
+                        }
+                      }}
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm"
+                    >
+                      🔄 Retry Loading Full Results
+                    </button>
                   </div>
-                  <div>
-                    <span className="text-gray-400 text-sm">Transactions Count:</span>
-                    <p className="text-white text-sm mt-1">{backtest.transactions_count || 0}</p>
+
+                  <div className="text-gray-400 text-center py-12">
+                    <p>No results available. Full results require the associated job to be found.</p>
+                    <Link
+                      href="/backtesting"
+                      className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                    >
+                      Create New Backtest
+                    </Link>
                   </div>
                 </div>
-                <div className="mt-4 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                  <p className="text-sm text-yellow-300 mb-2">
-                    <strong>⚠️ Limited View:</strong> Full backtest results with transaction details, charts, and positions are not available.
-                  </p>
-                  <p className="text-xs text-yellow-400 mb-3">
-                    This usually means the associated backtest job could not be found. Full results are only available when viewing from a completed job.
-                  </p>
-                  <button
-                    onClick={async () => {
-                      if (backtest?.backtest_id) {
-                        console.log('🔄 Retrying job search...');
-                        await loadJobByBacktestId(backtest.backtest_id);
-                      }
-                    }}
-                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm"
-                  >
-                    🔄 Retry Loading Full Results
-                  </button>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </main>
       </div>
