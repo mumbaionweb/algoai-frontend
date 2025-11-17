@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -24,6 +24,7 @@ export default function BacktestDetailPage() {
   const [isJobId, setIsJobId] = useState(false);
   const [loadingJob, setLoadingJob] = useState(false);
   const [results, setResults] = useState<BacktestResponse | null>(null);
+  const redirectingRef = useRef(false);
 
   // Use progress hook if we have a job
   const { completed, result, progress } = useBacktestProgress({
@@ -49,14 +50,20 @@ export default function BacktestDetailPage() {
 
   // When job completes, use the result
   useEffect(() => {
-    if (completed && result && isJobId) {
+    if (completed && result && isJobId && !redirectingRef.current) {
       setResults(result);
-      // Redirect to backtest_id URL
-      if (result.backtest_id) {
+      // Redirect to backtest_id URL only if we're still on the job_id URL
+      // and the backtest_id is different from current id
+      if (result.backtest_id && result.backtest_id !== id) {
+        console.log('🔄 Redirecting from job_id to backtest_id:', {
+          current_id: id,
+          backtest_id: result.backtest_id,
+        });
+        redirectingRef.current = true;
         router.replace(`/backtesting/${result.backtest_id}`);
       }
     }
-  }, [completed, result, isJobId, router]);
+  }, [completed, result, isJobId, router, id]);
 
   const loadData = async () => {
     if (!id) return;
@@ -191,8 +198,15 @@ export default function BacktestDetailPage() {
           try {
             const backtestData = await getBacktest(jobData.result.backtest_id);
             setBacktest(backtestData);
-            // Redirect to backtest_id URL
-            router.replace(`/backtesting/${jobData.result.backtest_id}`);
+            // Redirect to backtest_id URL only if different from current id and not already redirecting
+            if (jobData.result.backtest_id && jobData.result.backtest_id !== id && !redirectingRef.current) {
+              console.log('🔄 Redirecting from job_id to backtest_id (refresh):', {
+                current_id: id,
+                backtest_id: jobData.result.backtest_id,
+              });
+              redirectingRef.current = true;
+              router.replace(`/backtesting/${jobData.result.backtest_id}`);
+            }
           } catch (err) {
             console.warn('Failed to load backtest after job completion:', err);
           }
@@ -221,7 +235,7 @@ export default function BacktestDetailPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900">
+      <div className="min-h-screen bg-gray-900" style={{ pointerEvents: 'auto' }}>
         <DashboardNavigation />
         <main className="container mx-auto px-4 py-8">
           <div className="bg-gray-800 rounded-lg p-8 text-center">
@@ -253,8 +267,15 @@ export default function BacktestDetailPage() {
 
   // If we have a job (running or completed), show job status with same layout as main page
   if (job && isJobId) {
+    console.log('📄 Rendering job detail page:', {
+      job_id: job.job_id,
+      status: job.status,
+      has_results: !!results,
+      isJobId,
+      id,
+    });
     return (
-      <div className="min-h-screen bg-gray-900">
+      <div className="min-h-screen bg-gray-900" style={{ pointerEvents: 'auto', position: 'relative' }}>
         <DashboardNavigation />
 
         <main className="container mx-auto px-4 py-8">
@@ -262,7 +283,12 @@ export default function BacktestDetailPage() {
           <div className="mb-6">
             <Link
               href="/backtesting"
-              className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block"
+              className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block cursor-pointer"
+              onClick={(e) => {
+                console.log('🖱️ Back link clicked (job view)');
+                // Let default behavior happen
+              }}
+              style={{ pointerEvents: 'auto' }}
             >
               ← Back to Backtesting
             </Link>
@@ -283,6 +309,7 @@ export default function BacktestDetailPage() {
                   disabled={loadingJob}
                   className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50 cursor-pointer"
                   type="button"
+                  style={{ pointerEvents: 'auto' }}
                 >
                   {loadingJob ? 'Loading...' : 'Refresh'}
                 </button>
@@ -410,13 +437,19 @@ export default function BacktestDetailPage() {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        console.log('🖱️ Copy strategy code button clicked');
                         if (job.strategy_code) {
-                          navigator.clipboard.writeText(job.strategy_code);
-                          alert('Strategy code copied to clipboard!');
+                          navigator.clipboard.writeText(job.strategy_code).then(() => {
+                            alert('Strategy code copied to clipboard!');
+                          }).catch((err) => {
+                            console.error('Failed to copy:', err);
+                            alert('Failed to copy strategy code');
+                          });
                         }
                       }}
-                      className="text-xs px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded"
+                      className="text-xs px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded cursor-pointer"
                       type="button"
+                      style={{ pointerEvents: 'auto' }}
                     >
                       Copy
                     </button>
