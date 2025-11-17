@@ -461,6 +461,99 @@ export default function BacktestDetailPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Performance Metrics Card */}
+              {results && (
+                <div className="bg-gray-700 rounded-lg p-4 mt-4">
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3">Performance Metrics</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Total Return</div>
+                      <div className={`text-xl font-bold ${results.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {results.total_return_pct.toFixed(2)}%
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        ₹{results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Final Value</div>
+                      <div className="text-xl font-bold text-white">
+                        ₹{results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Total P&L</div>
+                      <div className={`text-xl font-bold ${results.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        ₹{results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Win Rate</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.win_rate !== null ? `${results.win_rate.toFixed(2)}%` : 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {results.winning_trades}W / {results.losing_trades}L
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Total Trades</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.total_trades}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Sharpe Ratio</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.sharpe_ratio !== null ? results.sharpe_ratio.toFixed(2) : 'N/A'}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Max Drawdown</div>
+                      <div className="text-xl font-bold text-red-400">
+                        {results.max_drawdown_pct !== null ? `${results.max_drawdown_pct.toFixed(2)}%` : 'N/A'}
+                      </div>
+                      {results.max_drawdown !== null && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          ₹{Math.abs(results.max_drawdown).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">System Quality Number</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.system_quality_number !== null ? results.system_quality_number.toFixed(2) : 'N/A'}
+                      </div>
+                    </div>
+
+                    {results.annual_return !== null && (
+                      <div className="bg-gray-800 rounded-lg p-3">
+                        <div className="text-gray-400 text-xs mb-1">Annual Return</div>
+                        <div className={`text-xl font-bold ${results.annual_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {results.annual_return.toFixed(2)}%
+                        </div>
+                      </div>
+                    )}
+
+                    {results.average_return !== null && (
+                      <div className="bg-gray-800 rounded-lg p-3">
+                        <div className="text-gray-400 text-xs mb-1">Average Return</div>
+                        <div className={`text-xl font-bold ${results.average_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {results.average_return.toFixed(4)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Right Side - Results Section (same as main page) */}
@@ -623,9 +716,102 @@ export default function BacktestDetailPage() {
                 </div>
               </div>
 
+              {/* Performance Metrics Card */}
+              {results && (
+                <div className="bg-gray-700 rounded-lg p-4 mt-4">
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3">Performance Metrics</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Total Return</div>
+                      <div className={`text-xl font-bold ${results.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {results.total_return_pct.toFixed(2)}%
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        ₹{results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Final Value</div>
+                      <div className="text-xl font-bold text-white">
+                        ₹{results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Total P&L</div>
+                      <div className={`text-xl font-bold ${results.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        ₹{results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Win Rate</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.win_rate !== null ? `${results.win_rate.toFixed(2)}%` : 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        {results.winning_trades}W / {results.losing_trades}L
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Total Trades</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.total_trades}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Sharpe Ratio</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.sharpe_ratio !== null ? results.sharpe_ratio.toFixed(2) : 'N/A'}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">Max Drawdown</div>
+                      <div className="text-xl font-bold text-red-400">
+                        {results.max_drawdown_pct !== null ? `${results.max_drawdown_pct.toFixed(2)}%` : 'N/A'}
+                      </div>
+                      {results.max_drawdown !== null && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          ₹{Math.abs(results.max_drawdown).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="bg-gray-800 rounded-lg p-3">
+                      <div className="text-gray-400 text-xs mb-1">System Quality Number</div>
+                      <div className="text-xl font-bold text-white">
+                        {results.system_quality_number !== null ? results.system_quality_number.toFixed(2) : 'N/A'}
+                      </div>
+                    </div>
+
+                    {results.annual_return !== null && (
+                      <div className="bg-gray-800 rounded-lg p-3">
+                        <div className="text-gray-400 text-xs mb-1">Annual Return</div>
+                        <div className={`text-xl font-bold ${results.annual_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {results.annual_return.toFixed(2)}%
+                        </div>
+                      </div>
+                    )}
+
+                    {results.average_return !== null && (
+                      <div className="bg-gray-800 rounded-lg p-3">
+                        <div className="text-gray-400 text-xs mb-1">Average Return</div>
+                        <div className={`text-xl font-bold ${results.average_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {results.average_return.toFixed(4)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Job Status Section (if available) */}
               {job && (
-                <div className="bg-gray-700 rounded-lg p-4">
+                <div className="bg-gray-700 rounded-lg p-4 mt-4">
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-semibold text-gray-300">Associated Job</h3>
                     <button
