@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { BacktestJob, BacktestResponse, Transaction } from '@/types';
-import { BacktestProgressClient } from '@/lib/services/backtestWebSocket';
+import { BacktestSSEClient } from '@/lib/services/backtestSSE';
 import { getBacktestJob } from '@/lib/api/backtesting';
 
 interface UseBacktestProgressOptions {
   jobId: string | null;
   token: string | null;
-  useWebSocket?: boolean; // Default: true
+  useWebSocket?: boolean; // Default: true (uses SSE, kept for backward compatibility)
   pollInterval?: number; // For polling fallback (ms)
   onTransaction?: (transactions: Transaction[]) => void; // Callback for streaming transactions
 }
@@ -33,7 +33,7 @@ export function useBacktestProgress({
   const [error, setError] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
   const [streamingTransactions, setStreamingTransactions] = useState<Transaction[]>([]);
-  const wsClientRef = useRef<BacktestProgressClient | null>(null);
+  const sseClientRef = useRef<BacktestSSEClient | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchJob = useCallback(async () => {
@@ -61,12 +61,12 @@ export function useBacktestProgress({
     }
   }, [jobId, token]);
 
-  // WebSocket connection
+  // SSE connection (replaces WebSocket)
   useEffect(() => {
     if (!jobId || !token || !useWebSocket) return;
 
-    const client = new BacktestProgressClient(jobId, token);
-    wsClientRef.current = client;
+    const client = new BacktestSSEClient(jobId, token);
+    sseClientRef.current = client;
 
     client.connect(
       (progress) => {
@@ -151,7 +151,7 @@ export function useBacktestProgress({
 
     return () => {
       client.disconnect();
-      wsClientRef.current = null;
+      sseClientRef.current = null;
     };
   }, [jobId, token, useWebSocket, fetchJob]);
 
@@ -175,11 +175,9 @@ export function useBacktestProgress({
   }, [jobId, token, useWebSocket, pollInterval, fetchJob]);
 
   const refresh = useCallback(() => {
-    if (wsClientRef.current) {
-      wsClientRef.current.refresh();
-    } else {
-      fetchJob();
-    }
+    // SSE doesn't have a refresh method like WebSocket
+    // Just fetch the job status directly
+    fetchJob();
   }, [fetchJob]);
 
   // Debug logging for job state
