@@ -177,6 +177,7 @@ export default function BacktestDetailPage() {
   };
 
   const refreshJob = async () => {
+    console.log('🔄 refreshJob called', { job_id: job?.job_id });
     if (job?.job_id) {
       try {
         setLoadingJob(true);
@@ -201,6 +202,8 @@ export default function BacktestDetailPage() {
       } finally {
         setLoadingJob(false);
       }
+    } else {
+      console.warn('⚠️ refreshJob called but no job_id available');
     }
   };
 
@@ -271,9 +274,15 @@ export default function BacktestDetailPage() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-white">Backtest Job Information</h2>
                 <button
-                  onClick={refreshJob}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🖱️ Refresh button clicked');
+                    refreshJob();
+                  }}
                   disabled={loadingJob}
-                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50 cursor-pointer"
+                  type="button"
                 >
                   {loadingJob ? 'Loading...' : 'Refresh'}
                 </button>
@@ -357,7 +366,10 @@ export default function BacktestDetailPage() {
                     <p>No results available for failed backtest.</p>
                     <Link
                       href="/backtesting"
-                      className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                      className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
+                      onClick={(e) => {
+                        console.log('🖱️ Create New Backtest link clicked (failed job)');
+                      }}
                     >
                       Create New Backtest
                     </Link>
@@ -392,7 +404,10 @@ export default function BacktestDetailPage() {
           <div className="mb-6">
             <Link
               href="/backtesting"
-              className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block"
+              className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block cursor-pointer"
+              onClick={(e) => {
+                console.log('🖱️ Back link clicked (backtest view)');
+              }}
             >
               ← Back to Backtesting
             </Link>
@@ -404,13 +419,17 @@ export default function BacktestDetailPage() {
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-white">Backtest Information</h2>
                 <button
-                  onClick={async () => {
+                  onClick={async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('🖱️ Search for Full Results button clicked');
                     if (backtest?.backtest_id) {
                       console.log('🔄 Manually refreshing job search...');
                       await loadJobByBacktestId(backtest.backtest_id);
                     }
                   }}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
+                  type="button"
                 >
                   🔄 Search for Full Results
                 </button>
@@ -479,9 +498,15 @@ export default function BacktestDetailPage() {
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-semibold text-gray-300">Associated Job</h3>
                     <button
-                      onClick={refreshJob}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🖱️ Refresh button clicked (associated job)');
+                        refreshJob();
+                      }}
                       disabled={loadingJob}
-                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded text-xs disabled:opacity-50"
+                      className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded text-xs disabled:opacity-50 cursor-pointer"
+                      type="button"
                     >
                       {loadingJob ? 'Loading...' : 'Refresh'}
                     </button>
@@ -517,13 +542,17 @@ export default function BacktestDetailPage() {
                       This usually means the associated backtest job could not be found. Full results are only available when viewing from a completed job.
                     </p>
                     <button
-                      onClick={async () => {
+                      onClick={async (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🖱️ Retry Loading Full Results button clicked');
                         if (backtest?.backtest_id) {
                           console.log('🔄 Retrying job search...');
                           await loadJobByBacktestId(backtest.backtest_id);
                         }
                       }}
-                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm"
+                      className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm cursor-pointer"
+                      type="button"
                     >
                       🔄 Retry Loading Full Results
                     </button>
@@ -533,7 +562,10 @@ export default function BacktestDetailPage() {
                     <p>No results available. Full results require the associated job to be found.</p>
                     <Link
                       href="/backtesting"
-                      className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                      className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
+                      onClick={(e) => {
+                        console.log('🖱️ Create New Backtest link clicked (no results)');
+                      }}
                     >
                       Create New Backtest
                     </Link>
@@ -547,5 +579,21 @@ export default function BacktestDetailPage() {
     );
   }
 
-  return null;
+  // Fallback - should not reach here, but show error if we do
+  return (
+    <div className="min-h-screen bg-gray-900">
+      <DashboardNavigation />
+      <main className="container mx-auto px-4 py-8">
+        <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-4">
+          Unable to load backtest details. Please check the URL and try again.
+        </div>
+        <Link
+          href="/backtesting"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded inline-block"
+        >
+          Back to Backtesting
+        </Link>
+      </main>
+    </div>
+  );
 }
