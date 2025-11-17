@@ -269,10 +269,10 @@ export default function BacktestDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Left Side - Job Information (similar to form section) */}
+            {/* Left Side - Job Details Only */}
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-white">Backtest Job Information</h2>
+                <h2 className="text-xl font-semibold text-white">Job Details</h2>
                 <button
                   onClick={(e) => {
                     e.preventDefault();
@@ -287,19 +287,13 @@ export default function BacktestDetailPage() {
                   {loadingJob ? 'Loading...' : 'Refresh'}
                 </button>
               </div>
-              
-              {/* Job Status Card */}
-              <div className="mb-4">
-                <BacktestJobCard job={job} onUpdate={refreshJob} />
-              </div>
 
-              {/* Job Details */}
+              {/* Job Details Card */}
               <div className="bg-gray-700 rounded-lg p-4">
-                <h3 className="text-sm font-semibold text-gray-300 mb-3">Job Details</h3>
                 <div className="space-y-2 text-sm">
                   <div>
                     <span className="text-gray-400">Job ID:</span>
-                    <span className="text-white ml-2 font-mono text-xs">{job.job_id}</span>
+                    <span className="text-white ml-2 font-mono text-xs break-all">{job.job_id}</span>
                   </div>
                   <div>
                     <span className="text-gray-400">Symbol:</span>
@@ -327,6 +321,110 @@ export default function BacktestDetailPage() {
                     }`}>
                       {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
                     </span>
+                  </div>
+                  {job.created_at && (
+                    <div>
+                      <span className="text-gray-400">Created:</span>
+                      <span className="text-white ml-2 text-xs">
+                        {new Date(job.created_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {job.started_at && (
+                    <div>
+                      <span className="text-gray-400">Started:</span>
+                      <span className="text-white ml-2 text-xs">
+                        {new Date(job.started_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  {job.completed_at && (
+                    <div>
+                      <span className="text-gray-400">Completed:</span>
+                      <span className="text-white ml-2 text-xs">
+                        {new Date(job.completed_at).toLocaleString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Strategy & Configuration Card */}
+              <div className="bg-gray-700 rounded-lg p-4 mt-4">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Strategy & Configuration</h3>
+                
+                {/* Configuration Parameters */}
+                <div className="space-y-2 text-sm mb-4">
+                  <div>
+                    <span className="text-gray-400">Initial Cash:</span>
+                    <span className="text-white ml-2">₹{job.initial_cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Commission:</span>
+                    <span className="text-white ml-2">{(job.commission * 100).toFixed(3)}%</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Broker Type:</span>
+                    <span className="text-white ml-2 capitalize">{job.broker_type}</span>
+                  </div>
+                  {job.strategy_params && Object.keys(job.strategy_params).length > 0 && (
+                    <div className="mt-3 pt-3 border-t border-gray-600">
+                      <span className="text-gray-400 text-xs block mb-2">Additional Parameters:</span>
+                      <div className="space-y-1">
+                        {Object.entries(job.strategy_params).map(([key, value]) => (
+                          <div key={key} className="text-xs">
+                            <span className="text-gray-500">{key}:</span>
+                            <span className="text-white ml-2">
+                              {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Strategy Code */}
+                <div className="mt-4 pt-4 border-t border-gray-600">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-400 text-sm font-semibold">Strategy Code:</span>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        if (job.strategy_code) {
+                          navigator.clipboard.writeText(job.strategy_code);
+                          alert('Strategy code copied to clipboard!');
+                        }
+                      }}
+                      className="text-xs px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded"
+                      type="button"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                  <div className="bg-gray-900 rounded p-3 max-h-64 overflow-y-auto">
+                    <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                      {job.strategy_code || 'No strategy code available'}
+                    </pre>
                   </div>
                 </div>
               </div>

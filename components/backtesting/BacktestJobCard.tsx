@@ -18,6 +18,65 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
   onUpdate,
 }) => {
   const [actionLoading, setActionLoading] = React.useState(false);
+  const [progressStuckWarning, setProgressStuckWarning] = React.useState(false);
+  const lastProgressRef = React.useRef<{ value: number; timestamp: number } | null>(null);
+
+  // Detect if progress is stuck (hasn't changed for 3 minutes)
+  React.useEffect(() => {
+    if (job.status === 'running' && job.progress !== undefined && job.progress !== null) {
+      const now = Date.now();
+      const currentProgress = job.progress;
+
+      if (lastProgressRef.current) {
+        const { value: lastProgress, timestamp: lastTimestamp } = lastProgressRef.current;
+        
+        // If progress hasn't changed (within 0.01% tolerance)
+        if (Math.abs(currentProgress - lastProgress) < 0.01) {
+          // Don't update timestamp, keep the original timestamp when progress first reached this value
+          // This allows us to track how long it's been stuck
+        } else {
+          // Progress changed, update timestamp
+          lastProgressRef.current = { value: currentProgress, timestamp: now };
+          setProgressStuckWarning(false);
+        }
+      } else {
+        // First time, initialize
+        lastProgressRef.current = { value: currentProgress, timestamp: now };
+        setProgressStuckWarning(false);
+      }
+    } else {
+      // Not running, clear warning
+      setProgressStuckWarning(false);
+      lastProgressRef.current = null;
+    }
+  }, [job.status, job.progress]);
+
+  // Periodically check if progress is stuck (every 30 seconds)
+  React.useEffect(() => {
+    if (job.status === 'running' && job.progress !== undefined && job.progress !== null && lastProgressRef.current) {
+      const checkInterval = setInterval(() => {
+        const now = Date.now();
+        const { value: lastProgress, timestamp: lastTimestamp } = lastProgressRef.current!;
+        const currentProgress = job.progress!;
+        
+        // If progress hasn't changed and it's been more than 3 minutes
+        if (Math.abs(currentProgress - lastProgress) < 0.01) {
+          const timeSinceLastUpdate = now - lastTimestamp;
+          const threeMinutes = 3 * 60 * 1000; // 3 minutes in milliseconds
+          
+          if (timeSinceLastUpdate > threeMinutes) {
+            setProgressStuckWarning(true);
+          } else {
+            setProgressStuckWarning(false);
+          }
+        } else {
+          setProgressStuckWarning(false);
+        }
+      }, 30000); // Check every 30 seconds
+
+      return () => clearInterval(checkInterval);
+    }
+  }, [job.status, job.progress]);
 
   const handleCancel = async () => {
     try {
@@ -94,6 +153,20 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
         message={job.progress_message}
         errorMessage={job.error_message}
       />
+
+      {/* Progress Stuck Warning */}
+      {progressStuckWarning && job.status === 'running' && (
+        <div className="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+          <p className="text-sm text-yellow-300 font-semibold mb-1">
+            ⚠️ Progress appears stuck at {job.progress?.toFixed(1)}%
+          </p>
+          <p className="text-xs text-yellow-400">
+            The job is still running and processing transactions, but the progress percentage hasn't updated in a while. 
+            This may indicate a backend issue with progress calculation. The job may still complete successfully - 
+            please wait or check backend logs if this persists.
+          </p>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex gap-2 mt-4">
