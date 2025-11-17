@@ -490,18 +490,18 @@ class MyStrategy(bt.Strategy):
             'zerodha',
             selectedCredentialsId || undefined
           );
-          console.log('✅ Backtest job created:', {
-            job_id: newJob.job_id,
-            status: newJob.status,
-          });
-          setActiveJobId(newJob.job_id);
-          setLoading(false); // Don't keep loading state, let progress hook handle it
-          setError(''); // Clear any previous errors
-          
-          // Redirect to the dedicated backtest page using job_id
-          // Note: backtest_id is only available after job completes, so we use job_id initially
-          router.push(`/backtesting/${newJob.job_id}`);
-          return; // Exit early, redirect will navigate away
+        console.log('✅ Backtest job created:', {
+          job_id: newJob.job_id,
+          status: newJob.status,
+        });
+        setActiveJobId(newJob.job_id);
+        setLoading(false); // Don't keep loading state, let progress hook handle it
+        setError(''); // Clear any previous errors
+        
+        // Redirect to the dedicated backtest page using job_id
+        // Note: backtest_id is only available after job completes, so we use job_id initially
+        router.push(`/backtesting/${newJob.job_id}`);
+        return; // Exit early, redirect will navigate away
         } catch (jobErr: any) {
           console.error('❌ Failed to create backtest job:', jobErr);
           const errorDetail = jobErr.response?.data?.detail || '';
