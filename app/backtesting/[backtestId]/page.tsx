@@ -248,66 +248,133 @@ export default function BacktestDetailPage() {
     );
   }
 
-  // If we have a job (running or completed), show job status
+  // If we have a job (running or completed), show job status with same layout as main page
   if (job && isJobId) {
     return (
       <div className="min-h-screen bg-gray-900">
         <DashboardNavigation />
 
         <main className="container mx-auto px-4 py-8">
-          <div className="max-w-7xl mx-auto space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <div>
-                <Link
-                  href="/backtesting"
-                  className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block"
+          {/* Header with back link */}
+          <div className="mb-6">
+            <Link
+              href="/backtesting"
+              className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block"
+            >
+              ← Back to Backtesting
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Left Side - Job Information (similar to form section) */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-white">Backtest Job Information</h2>
+                <button
+                  onClick={refreshJob}
+                  disabled={loadingJob}
+                  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
                 >
-                  ← Back to Backtesting
-                </Link>
-                <h1 className="text-2xl font-bold text-white">Backtest Job</h1>
-                <p className="text-gray-400 text-sm mt-1">
-                  {job.symbol} ({job.exchange}) • {job.from_date} to {job.to_date}
-                </p>
+                  {loadingJob ? 'Loading...' : 'Refresh'}
+                </button>
               </div>
-              <button
-                onClick={refreshJob}
-                disabled={loadingJob}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
-              >
-                {loadingJob ? 'Loading...' : 'Refresh'}
-              </button>
-            </div>
-
-            {/* Job Status Card */}
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <BacktestJobCard job={job} onUpdate={refreshJob} />
-            </div>
-
-            {/* Show full backtest results if job is completed and we have results */}
-            {job.status === 'completed' && results ? (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
-                <BacktestResultsDisplay results={results} />
+              
+              {/* Job Status Card */}
+              <div className="mb-4">
+                <BacktestJobCard job={job} onUpdate={refreshJob} />
               </div>
-            ) : job.status === 'failed' ? (
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
-                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
-                  <p className="font-semibold mb-2">❌ Backtest Job Failed</p>
-                  <p className="mb-2">The backtest job failed and no results are available.</p>
-                  {job.error_message && (
-                    <div className="mt-3 p-3 bg-gray-900 rounded text-sm">
-                      <p className="font-semibold mb-1">Error Details:</p>
-                      <p className="font-mono text-xs">{job.error_message}</p>
-                    </div>
-                  )}
-                  <p className="text-sm mt-3 text-gray-400">
-                    Please fix the error in your strategy code and create a new backtest.
-                  </p>
+
+              {/* Job Details */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-gray-300 mb-3">Job Details</h3>
+                <div className="space-y-2 text-sm">
+                  <div>
+                    <span className="text-gray-400">Job ID:</span>
+                    <span className="text-white ml-2 font-mono text-xs">{job.job_id}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Symbol:</span>
+                    <span className="text-white ml-2">{job.symbol}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Exchange:</span>
+                    <span className="text-white ml-2">{job.exchange}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Period:</span>
+                    <span className="text-white ml-2">{job.from_date} to {job.to_date}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Intervals:</span>
+                    <span className="text-white ml-2">{job.intervals.join(', ')}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400">Status:</span>
+                    <span className={`ml-2 font-semibold ${
+                      job.status === 'completed' ? 'text-green-400' :
+                      job.status === 'failed' ? 'text-red-400' :
+                      job.status === 'running' ? 'text-blue-400' :
+                      'text-yellow-400'
+                    }`}>
+                      {job.status.charAt(0).toUpperCase() + job.status.slice(1)}
+                    </span>
+                  </div>
                 </div>
               </div>
-            ) : null}
+            </div>
+
+            {/* Right Side - Results Section (same as main page) */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
+              
+              {/* Active Job Progress */}
+              {job && (
+                <div className="mb-6 bg-gray-700 rounded-lg p-4 border border-gray-600">
+                  <h3 className="text-lg font-semibold text-white mb-4">Current Backtest Job</h3>
+                  <BacktestJobCard job={job} onUpdate={refreshJob} />
+                </div>
+              )}
+
+              {/* Show full backtest results if job is completed and we have results */}
+              {job.status === 'completed' && results ? (
+                <BacktestResultsDisplay results={results} />
+              ) : job.status === 'failed' ? (
+                <div className="space-y-4">
+                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
+                    <p className="font-semibold mb-2">❌ Backtest Job Failed</p>
+                    <p className="mb-2">The backtest job failed and no results are available.</p>
+                    {job.error_message && (
+                      <div className="mt-3 p-3 bg-gray-900 rounded text-sm">
+                        <p className="font-semibold mb-1">Error Details:</p>
+                        <p className="font-mono text-xs break-all">{job.error_message}</p>
+                      </div>
+                    )}
+                    <p className="text-sm mt-3 text-gray-400">
+                      Please fix the error in your strategy code and create a new backtest.
+                    </p>
+                  </div>
+                  <div className="text-gray-400 text-center py-12">
+                    <p>No results available for failed backtest.</p>
+                    <Link
+                      href="/backtesting"
+                      className="mt-4 inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                    >
+                      Create New Backtest
+                    </Link>
+                  </div>
+                </div>
+              ) : job.status === 'running' || job.status === 'queued' || job.status === 'pending' ? (
+                <div className="text-gray-400 text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                  <p>Backtest job is {job.status}...</p>
+                  <p className="text-sm mt-2">Results will appear here when the job completes.</p>
+                </div>
+              ) : (
+                <div className="text-gray-400 text-center py-12">
+                  <p>No results yet. {job.status === 'paused' ? 'Job is paused.' : 'Waiting for job to complete.'}</p>
+                </div>
+              )}
+            </div>
           </div>
         </main>
       </div>
