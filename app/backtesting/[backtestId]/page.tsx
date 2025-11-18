@@ -716,6 +716,76 @@ export default function BacktestDetailPage() {
                 </div>
               </div>
 
+              {/* Strategy & Configuration Card (if job data is available) */}
+              {job && (
+                <div className="bg-gray-700 rounded-lg p-4 mt-4">
+                  <h3 className="text-sm font-semibold text-gray-300 mb-3">Strategy & Configuration</h3>
+                  
+                  {/* Configuration Parameters */}
+                  <div className="space-y-2 text-sm mb-4">
+                    <div>
+                      <span className="text-gray-400">Initial Cash:</span>
+                      <span className="text-white ml-2">₹{job.initial_cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Commission:</span>
+                      <span className="text-white ml-2">{(job.commission * 100).toFixed(3)}%</span>
+                    </div>
+                    <div>
+                      <span className="text-gray-400">Broker Type:</span>
+                      <span className="text-white ml-2 capitalize">{job.broker_type}</span>
+                    </div>
+                    {job.strategy_params && Object.keys(job.strategy_params).length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-600">
+                        <span className="text-gray-400 text-xs block mb-2">Additional Parameters:</span>
+                        <div className="space-y-1">
+                          {Object.entries(job.strategy_params).map(([key, value]) => (
+                            <div key={key} className="text-xs">
+                              <span className="text-gray-500">{key}:</span>
+                              <span className="text-white ml-2">
+                                {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Strategy Code */}
+                  <div className="mt-4 pt-4 border-t border-gray-600">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-gray-400 text-sm font-semibold">Strategy Code:</span>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🖱️ Copy strategy code button clicked');
+                          if (job.strategy_code) {
+                            navigator.clipboard.writeText(job.strategy_code).then(() => {
+                              alert('Strategy code copied to clipboard!');
+                            }).catch((err) => {
+                              console.error('Failed to copy:', err);
+                              alert('Failed to copy strategy code');
+                            });
+                          }
+                        }}
+                        className="text-xs px-2 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded cursor-pointer"
+                        type="button"
+                        style={{ pointerEvents: 'auto' }}
+                      >
+                        Copy
+                      </button>
+                    </div>
+                    <div className="bg-gray-900 rounded p-3 max-h-64 overflow-y-auto">
+                      <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                        {job.strategy_code || 'No strategy code available'}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Performance Metrics Card */}
               {results && (
                 <div className="bg-gray-700 rounded-lg p-4 mt-4">
