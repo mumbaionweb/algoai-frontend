@@ -13,7 +13,7 @@ import type { BacktestHistoryItem, BacktestJob, BacktestResponse } from '@/types
 
 // Debug helper to track what's causing re-renders
 const useWhyDidYouUpdate = (name: string, props: Record<string, any>) => {
-  const previous = useRef<Record<string, any>>();
+  const previous = useRef<Record<string, any> | undefined>(undefined);
   useEffect(() => {
     if (previous.current) {
       const allKeys = Object.keys({ ...previous.current, ...props });
