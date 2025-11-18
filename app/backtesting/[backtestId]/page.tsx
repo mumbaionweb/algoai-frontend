@@ -11,29 +11,6 @@ import BacktestResultsDisplay from '@/components/backtesting/BacktestResultsDisp
 import { useBacktestProgress } from '@/hooks/useBacktestProgress';
 import type { BacktestHistoryItem, BacktestJob, BacktestResponse } from '@/types';
 
-// Debug helper to track what's causing re-renders
-const useWhyDidYouUpdate = (name: string, props: Record<string, any>) => {
-  const previous = useRef<Record<string, any> | undefined>(undefined);
-  useEffect(() => {
-    if (previous.current) {
-      const allKeys = Object.keys({ ...previous.current, ...props });
-      const changedProps: Record<string, { from: any; to: any }> = {};
-      allKeys.forEach((key) => {
-        if (previous.current![key] !== props[key]) {
-          changedProps[key] = {
-            from: previous.current![key],
-            to: props[key],
-          };
-        }
-      });
-      if (Object.keys(changedProps).length) {
-        console.log(`[why-did-you-update] ${name}`, changedProps);
-      }
-    }
-    previous.current = props;
-  });
-};
-
 export default function BacktestDetailPage() {
   const { isAuthenticated, isInitialized, token } = useAuthStore();
   const router = useRouter();
@@ -48,6 +25,7 @@ export default function BacktestDetailPage() {
   const [loadingJob, setLoadingJob] = useState(false);
   const [results, setResults] = useState<BacktestResponse | null>(null);
   const redirectingRef = useRef(false);
+  const renderCountRef = useRef(0); // Debug: Track render count (must be at top level)
 
   // Use progress hook if we have a job
   // Note: We maintain local job state for initial load, but use hook's job for real-time updates
@@ -56,6 +34,9 @@ export default function BacktestDetailPage() {
     token: token || '',
     useWebSocket: true,
   });
+  
+  // Increment render count (for debugging)
+  renderCountRef.current += 1;
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
@@ -310,10 +291,6 @@ export default function BacktestDetailPage() {
       </div>
     );
   }
-
-  // Debug: Track render count (must be at top level, not conditional)
-  const renderCountRef = useRef(0);
-  renderCountRef.current += 1;
 
   // If we have a job (running or completed), show job status with same layout as main page
   if (job && isJobId) {
