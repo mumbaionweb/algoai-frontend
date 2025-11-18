@@ -120,7 +120,7 @@ function HomePageContent() {
   }
 
   if (error) {
-    return (
+  return (
       <div className="min-h-screen bg-gray-900">
         <DashboardNavigation />
         <main className="container mx-auto px-4 py-8">
@@ -134,12 +134,12 @@ function HomePageContent() {
                   ? 'You need to add your Zerodha API credentials to view your portfolio.'
                   : 'You need to connect your Zerodha account to view your portfolio.'}
               </p>
-              <Link
+            <Link
                 href="/dashboard/broker"
                 className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded inline-block"
-              >
+            >
                 Go to Broker Settings
-              </Link>
+            </Link>
             </div>
           ) : (
             <button

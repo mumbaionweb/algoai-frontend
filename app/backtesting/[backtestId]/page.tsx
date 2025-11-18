@@ -11,6 +11,29 @@ import BacktestResultsDisplay from '@/components/backtesting/BacktestResultsDisp
 import { useBacktestProgress } from '@/hooks/useBacktestProgress';
 import type { BacktestHistoryItem, BacktestJob, BacktestResponse } from '@/types';
 
+// Debug helper to track what's causing re-renders
+const useWhyDidYouUpdate = (name: string, props: Record<string, any>) => {
+  const previous = useRef<Record<string, any>>();
+  useEffect(() => {
+    if (previous.current) {
+      const allKeys = Object.keys({ ...previous.current, ...props });
+      const changedProps: Record<string, { from: any; to: any }> = {};
+      allKeys.forEach((key) => {
+        if (previous.current![key] !== props[key]) {
+          changedProps[key] = {
+            from: previous.current![key],
+            to: props[key],
+          };
+        }
+      });
+      if (Object.keys(changedProps).length) {
+        console.log(`[why-did-you-update] ${name}`, changedProps);
+      }
+    }
+    previous.current = props;
+  });
+};
+
 export default function BacktestDetailPage() {
   const { isAuthenticated, isInitialized, token } = useAuthStore();
   const router = useRouter();
@@ -27,7 +50,8 @@ export default function BacktestDetailPage() {
   const redirectingRef = useRef(false);
 
   // Use progress hook if we have a job
-  const { completed, result, progress } = useBacktestProgress({
+  // Note: We maintain local job state for initial load, but use hook's job for real-time updates
+  const { job: hookJob, completed, result, progress } = useBacktestProgress({
     jobId: job?.job_id || '',
     token: token || '',
     useWebSocket: true,
@@ -41,12 +65,34 @@ export default function BacktestDetailPage() {
     }
   }, [isAuthenticated, isInitialized, router, id]);
 
-  // Update job when progress updates
+  // Sync hook's job state to local state (only when hookJob changes meaningfully)
+  const prevHookJobRef = useRef<{ status?: string; progress?: number; hasResult?: boolean; error_message?: string } | null>(null);
   useEffect(() => {
-    if (job && progress !== null) {
-      setJob(prev => prev ? { ...prev, progress } : null);
+    if (hookJob) {
+      const prev = prevHookJobRef.current;
+      // Only update if status, progress, result, or error_message changed
+      const shouldUpdate = !prev || 
+        prev.status !== hookJob.status ||
+        prev.progress !== hookJob.progress ||
+        prev.hasResult !== !!hookJob.result ||
+        prev.error_message !== hookJob.error_message;
+      
+      if (shouldUpdate) {
+        prevHookJobRef.current = {
+          status: hookJob.status,
+          progress: hookJob.progress,
+          hasResult: !!hookJob.result,
+          error_message: hookJob.error_message,
+        };
+        setJob(hookJob);
+        
+        // If job completed and has result, set results
+        if (hookJob.status === 'completed' && hookJob.result) {
+          setResults(hookJob.result);
+        }
+      }
     }
-  }, [progress, job]);
+  }, [hookJob?.status, hookJob?.progress, hookJob?.result, hookJob?.error_message]); // Use specific fields instead of entire object
 
   // When job completes, use the result
   useEffect(() => {
@@ -265,15 +311,24 @@ export default function BacktestDetailPage() {
     );
   }
 
+  // Debug: Track render count (must be at top level, not conditional)
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+
   // If we have a job (running or completed), show job status with same layout as main page
   if (job && isJobId) {
-    console.log('📄 Rendering job detail page:', {
-      job_id: job.job_id,
-      status: job.status,
-      has_results: !!results,
-      isJobId,
-      id,
-    });
+    // Debug: Log render to identify what's causing re-renders (throttled)
+    if (process.env.NODE_ENV === 'development' && (renderCountRef.current % 10 === 0 || renderCountRef.current === 1)) {
+      console.log(`📄 Rendering job detail page (render #${renderCountRef.current}):`, {
+        job_id: job.job_id,
+        status: job.status,
+        progress: job.progress,
+        has_results: !!results,
+        isJobId,
+        id,
+        timestamp: new Date().toISOString(),
+      });
+    }
     return (
       <div className="min-h-screen bg-gray-900" style={{ pointerEvents: 'auto', position: 'relative' }}>
         <DashboardNavigation />

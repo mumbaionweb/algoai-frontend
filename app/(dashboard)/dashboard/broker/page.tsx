@@ -117,7 +117,7 @@ function BrokerPageContent() {
         // Small delay to ensure backend has processed the OAuth callback
         setTimeout(() => {
           console.log('🔄 Reloading broker data after OAuth success...');
-          loadData();
+        loadData();
         }, 1000); // Increased delay to ensure backend has processed
       }
     } else if (oauthStatus === 'error') {
@@ -136,8 +136,8 @@ function BrokerPageContent() {
       // Handle decryption failure from OAuth callback
       if (decodedMessage.includes('decrypt') || decodedMessage.includes('re-add')) {
         setError('Your credentials need to be re-added due to a security update. Please update your API keys.');
-        // Clean up URL
-        router.replace('/dashboard/broker');
+      // Clean up URL
+      router.replace('/dashboard/broker');
         // Optionally show a prompt to update credentials after a delay
         setTimeout(() => {
           if (credentials.length > 0) {
@@ -500,7 +500,7 @@ function BrokerPageContent() {
       
       setLoading(false);
       
-      const errorDetail = err.response?.data?.detail || '';
+        const errorDetail = err.response?.data?.detail || '';
       const status = err.response?.status;
       
       // Handle decryption failure (500 error with decrypt message)
@@ -536,7 +536,7 @@ function BrokerPageContent() {
       if (status === 403) {
         if (errorDetail.includes('do not belong') || errorDetail.includes('not belong')) {
           setError('Security warning: These credentials do not belong to your account. Please contact support if this is unexpected.');
-        } else {
+      } else {
           setError(errorDetail || 'Access denied. You do not have permission to use these credentials.');
         }
         return;
@@ -610,7 +610,7 @@ function BrokerPageContent() {
           setProfileError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
         } else if (errorDetail.includes('Access token not found') || errorDetail.includes('OAuth')) {
           setProfileError('Please complete OAuth flow to connect your Zerodha account.');
-        } else {
+      } else {
           setProfileError(errorDetail || 'Failed to fetch profile. Please check your Zerodha connection.');
         }
       } else if (err.response?.status === 500) {
@@ -716,12 +716,12 @@ function BrokerPageContent() {
                   >
                     {loading ? 'Loading...' : 'Refresh'}
                   </button>
-                  <button
-                    onClick={() => setShowAddForm(true)}
+                <button
+                  onClick={() => setShowAddForm(true)}
                     className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors whitespace-nowrap"
-                  >
-                    Add Broker
-                  </button>
+                >
+                  Add Broker
+                </button>
                 </div>
               )}
             </div>
@@ -955,26 +955,26 @@ function BrokerPageContent() {
                           <>
                             {/* Show "Connect" button only if OAuth is NOT connected */}
                             {!oauthConnectionStatus[cred.id] && (
-                              <button
-                                onClick={() => handleZerodhaOAuth(cred.id)}
+                            <button
+                              onClick={() => handleZerodhaOAuth(cred.id)}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                                disabled={loading}
+                              disabled={loading}
                                 title="Connect to Zerodha using these credentials"
-                              >
-                                Connect
-                              </button>
+                            >
+                              Connect
+                            </button>
                             )}
                             {/* Show "Refresh Token" button only if OAuth IS connected */}
                             {oauthConnectionStatus[cred.id] && (
                               <>
-                                <button
+                            <button
                                   onClick={() => handleRefreshToken(cred.id)}
                                   className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                                  disabled={loading}
+                              disabled={loading}
                                   title="Refresh Zerodha access token"
-                                >
-                                  Refresh Token
-                                </button>
+                            >
+                              Refresh Token
+                            </button>
                                 <button
                                   onClick={() => handleViewProfile(cred.id)}
                                   className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"

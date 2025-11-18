@@ -467,12 +467,12 @@ class MyStrategy(bt.Strategy):
               ) : !oauthStatus.has_tokens ? (
                 <div>
                   <p className="mb-2">Please complete OAuth flow to connect your Zerodha account.</p>
-                  <Link
+          <Link
                     href="/dashboard/broker"
                     className="inline-block px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
-                  >
+          >
                     Connect to Zerodha
-                  </Link>
+          </Link>
                 </div>
               ) : null}
             </div>

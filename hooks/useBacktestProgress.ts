@@ -6,8 +6,8 @@ import { getBacktestJob } from '@/lib/api/backtesting';
 interface UseBacktestProgressOptions {
   jobId: string | null;
   token: string | null;
-  useWebSocket?: boolean; // Default: true (uses SSE, kept for backward compatibility)
-  pollInterval?: number; // For polling fallback (ms)
+  useWebSocket?: boolean; // Default: true (uses SSE via EventSource, kept for backward compatibility - parameter name is legacy)
+  pollInterval?: number; // For polling fallback (ms) - used when useWebSocket is false
   onTransaction?: (transactions: Transaction[]) => void; // Callback for streaming transactions
 }
 
@@ -77,14 +77,14 @@ export function useBacktestProgress({
           progress: progress.progress,
           current_bar: progress.current_bar,
           total_bars: progress.total_bars,
-          progress_message: progress.message, // Store progress message from WebSocket
+          progress_message: progress.message, // Store progress message from SSE
         } : null);
       },
       async (result) => {
-        // Job completed via WebSocket
-        // Note: WebSocket sends result_summary, but BacktestProgressClient
+        // Job completed via SSE
+        // Note: SSE sends result_summary, but BacktestSSEClient
         // automatically fetches full result via REST API before calling this callback
-        console.log('✅ Backtest job completed via WebSocket, full result received:', {
+        console.log('✅ Backtest job completed via SSE, full result received:', {
           backtest_id: result?.backtest_id,
           total_trades: result?.total_trades,
           transactions_count: result?.transactions?.length || 0,
@@ -98,7 +98,7 @@ export function useBacktestProgress({
         } : null);
         setCompleted(true);
         // Fetch job again to ensure we have the latest data (in case result wasn't fully populated)
-        // This is a safety measure - the WebSocket client should have already fetched the full result
+        // This is a safety measure - the SSE client should have already fetched the full result
         setTimeout(() => {
           fetchJob();
         }, 500);
@@ -153,7 +153,8 @@ export function useBacktestProgress({
       client.disconnect();
       sseClientRef.current = null;
     };
-  }, [jobId, token, useWebSocket, fetchJob]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, token, useWebSocket]); // fetchJob is stable via useCallback, don't include it
 
   // Polling fallback
   useEffect(() => {
@@ -172,28 +173,46 @@ export function useBacktestProgress({
         clearInterval(pollIntervalRef.current);
       }
     };
-  }, [jobId, token, useWebSocket, pollInterval, fetchJob]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, token, useWebSocket, pollInterval]); // fetchJob is stable via useCallback, don't include it
 
   const refresh = useCallback(() => {
-    // SSE doesn't have a refresh method like WebSocket
-    // Just fetch the job status directly
+    // SSE (EventSource) doesn't have a manual refresh method
+    // Just fetch the job status directly via REST API
     fetchJob();
   }, [fetchJob]);
 
-  // Debug logging for job state
+  // Debug logging for job state (throttled to avoid spam)
+  const lastLogRef = useRef<{ status?: string; progress?: number; timestamp?: number }>({});
   useEffect(() => {
     if (job) {
-      console.log('📊 Job state update:', {
-        status: job.status,
-        progress: job.progress,
-        has_result: !!job.result,
-        result_keys: job.result ? Object.keys(job.result) : [],
-        total_trades: job.result?.total_trades,
-        transactions_count: job.result?.transactions?.length || 0,
-        completed,
-      });
+      const now = Date.now();
+      const lastLog = lastLogRef.current;
+      const shouldLog = 
+        lastLog.status !== job.status ||
+        lastLog.progress !== job.progress ||
+        !lastLog.timestamp ||
+        now - lastLog.timestamp > 5000; // Log at most every 5 seconds or on status/progress change
+      
+      if (shouldLog) {
+        lastLogRef.current = {
+          status: job.status,
+          progress: job.progress,
+          timestamp: now,
+        };
+        console.log('📊 Job state update:', {
+          status: job.status,
+          progress: job.progress,
+          has_result: !!job.result,
+          result_keys: job.result ? Object.keys(job.result) : [],
+          total_trades: job.result?.total_trades,
+          transactions_count: job.result?.transactions?.length || 0,
+          completed,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
-  }, [job, completed]);
+  }, [job?.status, job?.progress, job?.result, completed]); // Use specific fields instead of entire job object
 
   return {
     job,
