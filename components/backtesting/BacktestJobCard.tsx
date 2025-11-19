@@ -95,10 +95,18 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
     try {
       setActionLoading(true);
       await pauseBacktestJob(job.job_id, 'User requested');
+      // Refresh job state to get updated can_pause flag
       onUpdate();
     } catch (error: any) {
       console.error('Error pausing job:', error);
-      alert('Failed to pause job: ' + (error.response?.data?.detail || error.message));
+      const errorDetail = error.response?.data?.detail || error.message || 'Unknown error';
+      
+      // Show user-friendly error message
+      alert(`Failed to pause job: ${errorDetail}\n\nThis may happen if the job status changed. The job state will be refreshed.`);
+      
+      // Refresh job state immediately to get updated can_pause flag
+      // This handles the case where backend incorrectly returned can_pause: true
+      onUpdate();
     } finally {
       setActionLoading(false);
     }
@@ -179,11 +187,12 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
             Cancel
           </button>
         )}
-        {job.can_pause && (
+        {job.can_pause && job.status === 'running' && (
           <button
             onClick={handlePause}
             disabled={actionLoading}
             className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            title="Pause the running backtest job"
           >
             Pause
           </button>
@@ -198,6 +207,13 @@ export const BacktestJobCard: React.FC<BacktestJobCardProps> = ({
           </button>
         )}
       </div>
+      
+      {/* Warning if can_pause is true but status doesn't allow pausing */}
+      {job.can_pause && job.status !== 'running' && (
+        <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500/30 rounded text-xs text-yellow-400">
+          ⚠️ Backend indicates pause is available, but job status ({job.status}) doesn't allow pausing. This is a backend data inconsistency.
+        </div>
+      )}
 
       {/* Failed Status - Show error prominently */}
       {job.status === 'failed' && job.error_message && (
