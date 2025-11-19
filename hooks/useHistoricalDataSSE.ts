@@ -222,15 +222,22 @@ export function useHistoricalDataSSE({
       },
       (allComplete) => {
         // All intervals complete
-        console.log(`✅ SSE: All intervals complete: ${allComplete.completed_intervals.join(', ')}`);
-        setLoading(false);
-        setCompletedIntervals(allComplete.completed_intervals);
-        // Set all progress to 100
-        const finalProgress: Record<string, number> = {};
-        allComplete.intervals.forEach(interval => {
-          finalProgress[interval] = 100;
-        });
-        setIntervalProgress(finalProgress);
+        // Type guard: check if it's AllCompleteEvent (has completed_intervals property)
+        if ('completed_intervals' in allComplete && 'intervals' in allComplete) {
+          console.log(`✅ SSE: All intervals complete: ${allComplete.completed_intervals.join(', ')}`);
+          setLoading(false);
+          setCompletedIntervals(allComplete.completed_intervals);
+          // Set all progress to 100
+          const finalProgress: Record<string, number> = {};
+          allComplete.intervals.forEach(interval => {
+            finalProgress[interval] = 100;
+          });
+          setIntervalProgress(finalProgress);
+        } else {
+          // This shouldn't happen for multi-interval, but handle gracefully
+          console.log(`✅ SSE: All intervals complete`);
+          setLoading(false);
+        }
       },
       (errorEvent) => {
         console.error('❌ SSE error:', errorEvent);
