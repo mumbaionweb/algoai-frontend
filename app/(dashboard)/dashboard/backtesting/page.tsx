@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { runBacktest, getBacktestHistory, getBacktestHistoricalData, createBacktestJob, listBacktestJobs, type HistoricalDataPoint } from '@/lib/api/backtesting';
+import { useHistoricalDataSSE } from '@/hooks/useHistoricalDataSSE';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
 import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, BacktestPosition, BacktestJob } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
@@ -2421,265 +2422,74 @@ function DataBarsChart({
   intervals?: string[];
   primaryInterval?: string;
 }) {
-  // For multi-timeframe: track data for each interval
-  const [chartsData, setChartsData] = useState<Map<string, {
+  // Get Firebase token for SSE
+  const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
+  
+  // Determine if this is a multi-timeframe backtest
+  const isMultiTimeframe = intervals && intervals.length > 1;
+  
+  // Use SSE hook for streaming historical data
+  const {
+    // Single interval
+    data: sseData,
+    progress: sseProgress,
+    loading: sseLoading,
+    error: sseError,
+    metadata: sseMetadata,
+    // Multi-interval
+    intervalData: sseIntervalData,
+    intervalProgress: sseIntervalProgress,
+    intervalMetadata: sseIntervalMetadata,
+    currentInterval: sseCurrentInterval,
+    completedIntervals: sseCompletedIntervals,
+    // Common
+    isMultiInterval: sseIsMultiInterval,
+    refresh: sseRefresh,
+  } = useHistoricalDataSSE({
+    backtestId: backtestId || null,
+    token: token || null,
+    interval: !isMultiTimeframe ? (primaryInterval || intervals?.[0]) : undefined,
+    intervals: isMultiTimeframe ? intervals : undefined,
+    limit: dataBarsCount || 10000,
+    chunkSize: 500,
+    enabled: !!backtestId && !!token,
+  });
+  
+  // For backward compatibility: map SSE data to old state structure
+  const chartsData = new Map<string, {
     loading: boolean;
     error: string | null;
     historicalData: HistoricalDataPoint[] | null;
     dataInfo: { total_points: number; returned_points: number } | null;
-  }>>(new Map());
+  }>();
   
-  // For single interval (backward compatibility)
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[] | null>(null);
-  const [dataInfo, setDataInfo] = useState<{ total_points: number; returned_points: number } | null>(null);
+  if (isMultiTimeframe && intervals) {
+    intervals.forEach(interval => {
+      const intervalData = sseIntervalData[interval] || [];
+      const intervalMeta = sseIntervalMetadata[interval];
+      chartsData.set(interval, {
+        loading: sseLoading && sseCurrentInterval === interval,
+        error: sseError,
+        historicalData: intervalData.length > 0 ? intervalData : null,
+        dataInfo: intervalMeta ? {
+          total_points: intervalMeta.total_points,
+          returned_points: intervalData.length,
+        } : null,
+      });
+    });
+  }
   
-  // Determine if this is a multi-timeframe backtest
-  const isMultiTimeframe = intervals && intervals.length > 1;
+  // Single interval state (backward compatibility)
+  const loading = sseLoading;
+  const error = sseError;
+  const historicalData = sseData.length > 0 ? sseData : null;
+  const dataInfo = sseMetadata ? {
+    total_points: sseMetadata.total_points,
+    returned_points: sseData.length,
+  } : null;
 
-  // Fetch historical data from backend
-  useEffect(() => {
-    const fetchHistoricalData = async () => {
-      if (!backtestId) {
-        if (isMultiTimeframe) {
-          // Initialize all intervals with error state
-          const newChartsData = new Map<string, {
-            loading: boolean;
-            error: string | null;
-            historicalData: HistoricalDataPoint[] | null;
-            dataInfo: { total_points: number; returned_points: number } | null;
-          }>();
-          intervals.forEach(interval => {
-            newChartsData.set(interval, {
-              loading: false,
-              error: 'Backtest ID is missing',
-              historicalData: null,
-              dataInfo: null,
-            });
-          });
-          setChartsData(newChartsData);
-        } else {
-          setError('Backtest ID is missing');
-          setLoading(false);
-        }
-        return;
-      }
-
-      if (isMultiTimeframe && intervals) {
-        // Multi-timeframe: fetch data for each interval
-        console.log('📊 Fetching historical data for multi-timeframe backtest:', backtestId);
-        console.log('📊 Intervals:', intervals);
-        
-        const newChartsData = new Map<string, {
-          loading: boolean;
-          error: string | null;
-          historicalData: HistoricalDataPoint[] | null;
-          dataInfo: { total_points: number; returned_points: number } | null;
-        }>();
-        
-        // Initialize all intervals with loading state
-        intervals.forEach(interval => {
-          newChartsData.set(interval, {
-            loading: true,
-            error: null,
-            historicalData: null,
-            dataInfo: null,
-          });
-        });
-        setChartsData(newChartsData);
-        
-        // Fetch data for each interval in parallel
-        const fetchPromises = intervals.map(async (interval) => {
-          try {
-            const limit = dataBarsCount || 10000;
-            console.log(`📊 Requesting historical data for interval: "${interval}"`);
-            const data = await getBacktestHistoricalData(backtestId, limit, 'json', interval);
-            
-            // Verify backend returned the correct interval
-            if (data.interval !== interval) {
-              console.warn(`⚠️ Interval mismatch! Requested: "${interval}", Backend returned: "${data.interval}"`);
-            }
-            
-            // Log first and last data points to verify data is different
-            const firstPoint = data.data_points.length > 0 ? data.data_points[0] : null;
-            const lastPoint = data.data_points.length > 0 ? data.data_points[data.data_points.length - 1] : null;
-            
-            console.log(`✅ Historical data fetched for ${interval}:`, {
-              requested_interval: interval,
-              returned_interval: data.interval,
-              total_points: data.total_points,
-              returned_points: data.returned_points,
-              data_points_count: data.data_points.length,
-              first_point: firstPoint ? { time: firstPoint.time, close: firstPoint.close } : null,
-              last_point: lastPoint ? { time: lastPoint.time, close: lastPoint.close } : null,
-            });
-            
-            return {
-              interval,
-              data,
-              error: null,
-            };
-          } catch (err: any) {
-            console.error(`❌ Failed to fetch historical data for ${interval}:`, err);
-            const errorDetail = err.response?.data?.detail || '';
-            const errorMessage = err.message || '';
-            
-            return {
-              interval,
-              data: null,
-              error: errorDetail || errorMessage || 'Failed to load historical data',
-            };
-          }
-        });
-        
-        const results = await Promise.all(fetchPromises);
-        
-        // Update charts data with results - create a fresh Map to ensure data isolation
-        const updatedChartsData = new Map<string, {
-          loading: boolean;
-          error: string | null;
-          historicalData: HistoricalDataPoint[] | null;
-          dataInfo: { total_points: number; returned_points: number } | null;
-        }>();
-        
-        console.log(`📊 Processing ${results.length} interval results for charts`);
-        
-        // Track interval mismatches for UI warnings
-        const intervalMismatches: Array<{ requested: string; returned: string }> = [];
-        
-        results.forEach(({ interval, data, error: fetchError }) => {
-          if (data && data.data_points && data.data_points.length > 0) {
-            // Check for interval mismatch
-            const hasMismatch = data.interval !== interval;
-            if (hasMismatch) {
-              intervalMismatches.push({ requested: interval, returned: data.interval });
-            }
-            
-            // Create a deep copy of the data points to ensure each chart has its own data
-            const dataCopy = data.data_points.map(point => ({ ...point }));
-            
-            console.log(`💾 Storing data for interval "${interval}" in Map:`, {
-              interval,
-              returned_interval: data.interval,
-              has_mismatch: hasMismatch,
-              data_points_count: dataCopy.length,
-              first_point_time: dataCopy[0]?.time,
-              first_point_close: dataCopy[0]?.close,
-            });
-            
-            updatedChartsData.set(interval, {
-              loading: false,
-              error: hasMismatch ? `⚠️ Backend returned "${data.interval}" data instead of "${interval}"` : null,
-              historicalData: dataCopy,
-              dataInfo: {
-                total_points: data.total_points,
-                returned_points: data.returned_points,
-              },
-            });
-          } else {
-            updatedChartsData.set(interval, {
-              loading: false,
-              error: fetchError || 'Failed to load historical data',
-              historicalData: null,
-              dataInfo: null,
-            });
-          }
-        });
-        
-        // Log interval mismatches summary
-        if (intervalMismatches.length > 0) {
-          console.error(`🔴 Interval Mismatches Detected:`, intervalMismatches);
-        }
-        
-        console.log(`📊 Charts data Map after processing:`, {
-          map_size: updatedChartsData.size,
-          map_keys: Array.from(updatedChartsData.keys()),
-          map_entries: Array.from(updatedChartsData.entries()).map(([key, value]) => ({
-            interval: key,
-            has_data: !!value.historicalData,
-            data_count: value.historicalData?.length || 0,
-            first_point: value.historicalData?.[0] ? { time: value.historicalData[0].time, close: value.historicalData[0].close } : null,
-          })),
-        });
-        
-        setChartsData(updatedChartsData);
-      } else {
-        // Single interval (backward compatibility)
-        try {
-          setLoading(true);
-          setError(null);
-          
-          console.log('📊 Fetching historical data for backtest:', backtestId);
-          console.log('📊 Total data bars available:', dataBarsCount);
-          
-          const limit = dataBarsCount || 10000;
-          const data = await getBacktestHistoricalData(backtestId, limit, 'json', primaryInterval);
-          
-          console.log('✅ Historical data fetched:', {
-            backtest_id: data.backtest_id,
-            symbol: data.symbol,
-            exchange: data.exchange,
-            interval: data.interval,
-            total_points: data.total_points,
-            returned_points: data.returned_points,
-            data_points_count: data.data_points.length,
-            requested_limit: limit,
-          });
-
-          if (data.total_points > data.returned_points) {
-            console.warn(`⚠️ Backend returned only ${data.returned_points} of ${data.total_points} total data points.`);
-          }
-
-          setDataInfo({
-            total_points: data.total_points,
-            returned_points: data.returned_points,
-          });
-
-          if (data.data_points.length === 0) {
-            setError('No historical data points returned from API');
-            setHistoricalData(null);
-          } else {
-            setHistoricalData(data.data_points);
-          }
-        } catch (err: any) {
-          console.error('❌ Failed to fetch historical data:', err);
-          const errorDetail = err.response?.data?.detail || '';
-          const errorMessage = err.message || '';
-          const status = err.response?.status;
-          
-          console.error('🔴 Historical Data API Error Details:', {
-            backtest_id: backtestId,
-            status: status,
-            errorDetail: errorDetail,
-            errorMessage: errorMessage,
-          });
-          
-          if (status === 404) {
-            setError(`Backtest not found (404). Backtest ID: ${backtestId}`);
-          } else if (status === 401) {
-            setError('Authentication failed. Please refresh and try again.');
-          } else if (status === 403) {
-            setError('Access denied. You may not have permission to view this backtest data.');
-          } else if (status === 500) {
-            setError(`Server error (500): ${errorDetail || 'Internal server error. Please check backend logs.'}`);
-          } else if (errorDetail) {
-            setError(errorDetail);
-          } else if (errorMessage) {
-            setError(errorMessage);
-          } else {
-            setError('Failed to load historical data. Please check console for details.');
-          }
-          
-          setHistoricalData(null);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    fetchHistoricalData();
-  }, [backtestId, dataBarsCount, intervals, primaryInterval, isMultiTimeframe]);
+  // SSE hook handles all data fetching automatically
+  // No need for manual useEffect fetch logic
 
   // Helper function to render a single chart
   const renderSingleChart = (
@@ -2725,7 +2535,9 @@ function DataBarsChart({
              intervalLabel} ({symbol})
           </div>
           {isLoading && (
-            <div className="text-xs text-gray-500">Loading...</div>
+            <div className="text-xs text-gray-500">
+              Loading... {sseIntervalProgress[intervalValue] > 0 && `${sseIntervalProgress[intervalValue].toFixed(1)}%`}
+            </div>
           )}
         </div>
         
@@ -2733,7 +2545,10 @@ function DataBarsChart({
           <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
-              <p className="text-xs text-gray-400">Loading historical data...</p>
+              <p className="text-xs text-gray-400">
+                Loading historical data via SSE...
+                {sseProgress > 0 && ` (${sseProgress.toFixed(1)}%)`}
+              </p>
             </div>
           </div>
         )}
@@ -2925,7 +2740,9 @@ function DataBarsChart({
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-gray-400">Price Trend ({symbol})</div>
             {loading && (
-              <div className="text-xs text-gray-500">Loading...</div>
+              <div className="text-xs text-gray-500">
+                Loading... {sseProgress > 0 && `${sseProgress.toFixed(1)}%`}
+              </div>
             )}
           </div>
           
@@ -2933,7 +2750,10 @@ function DataBarsChart({
             <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
               <div className="text-center">
                 <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
-                <p className="text-xs text-gray-400">Loading historical data...</p>
+                <p className="text-xs text-gray-400">
+                  Loading historical data via SSE...
+                  {sseProgress > 0 && ` (${sseProgress.toFixed(1)}%)`}
+                </p>
               </div>
             </div>
           )}
