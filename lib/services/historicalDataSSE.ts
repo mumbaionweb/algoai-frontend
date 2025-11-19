@@ -177,12 +177,21 @@ export class HistoricalDataSSEClient {
       });
 
       this.eventSource.addEventListener('error', (event) => {
-        try {
-          const data = JSON.parse(event.data) as ErrorEvent;
-          console.error('❌ SSE error event:', data);
-          onError(data);
-        } catch (error) {
-          // If parsing fails, it's a connection error
+        // Check if event is a MessageEvent with data (custom error event from server)
+        if (event instanceof MessageEvent && event.data) {
+          try {
+            const data = JSON.parse(event.data) as ErrorEvent;
+            console.error('❌ SSE error event:', data);
+            onError(data);
+          } catch (error) {
+            console.error('❌ SSE error parsing failed:', error);
+            onError({
+              error: 'parse_error',
+              message: 'Failed to parse error event',
+            });
+          }
+        } else {
+          // Standard EventSource connection error (no data)
           if (this.eventSource?.readyState === EventSource.CONNECTING) {
             console.log('🔄 SSE reconnecting...');
           } else if (this.eventSource?.readyState === EventSource.CLOSED) {
@@ -190,7 +199,7 @@ export class HistoricalDataSSEClient {
               console.log('🔌 SSE connection closed (will auto-reconnect)');
             }
           } else {
-            console.error('❌ SSE connection error:', error);
+            console.error('❌ SSE connection error');
             onError({
               error: 'connection_error',
               message: 'SSE connection error',
@@ -348,13 +357,22 @@ export class MultiIntervalHistoricalDataSSEClient {
       });
 
       this.eventSource.addEventListener('error', (event) => {
-        try {
-          const data = JSON.parse(event.data) as ErrorEvent;
-          console.error('❌ SSE error event:', data);
-          // Don't close on error - continue with other intervals
-          onError(data);
-        } catch (error) {
-          // If parsing fails, it's a connection error
+        // Check if event is a MessageEvent with data (custom error event from server)
+        if (event instanceof MessageEvent && event.data) {
+          try {
+            const data = JSON.parse(event.data) as ErrorEvent;
+            console.error('❌ SSE error event:', data);
+            // Don't close on error - continue with other intervals
+            onError(data);
+          } catch (error) {
+            console.error('❌ SSE error parsing failed:', error);
+            onError({
+              error: 'parse_error',
+              message: 'Failed to parse error event',
+            });
+          }
+        } else {
+          // Standard EventSource connection error (no data)
           if (this.eventSource?.readyState === EventSource.CONNECTING) {
             console.log('🔄 SSE reconnecting...');
           } else if (this.eventSource?.readyState === EventSource.CLOSED) {
@@ -362,7 +380,7 @@ export class MultiIntervalHistoricalDataSSEClient {
               console.log('🔌 SSE connection closed (will auto-reconnect)');
             }
           } else {
-            console.error('❌ SSE connection error:', error);
+            console.error('❌ SSE connection error');
             onError({
               error: 'connection_error',
               message: 'SSE connection error',
