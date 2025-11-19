@@ -123,7 +123,12 @@ export function useHistoricalDataSSE({
         }
       },
       (result) => {
-        console.log(`✅ SSE: Completed streaming ${result.interval}: ${result.total_points} points`);
+        // For single-interval, result should always be CompleteEvent
+        if ('interval' in result) {
+          console.log(`✅ SSE: Completed streaming ${result.interval}: ${result.total_points} points`);
+        } else {
+          console.log(`✅ SSE: Completed streaming all intervals`);
+        }
         setLoading(false);
         setProgress(100);
       },
