@@ -108,9 +108,9 @@ export function useHistoricalDataSSE({
         const chunkData = chunk as DataChunkEvent;
         setData(prev => {
           // Avoid duplicates by checking if we already have this chunk
-          const existingPoints = new Set(prev.map(p => p.time || p.timestamp?.toString()));
+          const existingPoints = new Set(prev.map(p => p.time));
           const newPoints = chunkData.data_points.filter(
-            p => !existingPoints.has(p.time || p.timestamp?.toString())
+            p => !existingPoints.has(p.time)
           );
           return [...prev, ...newPoints];
         });
@@ -178,10 +178,10 @@ export function useHistoricalDataSSE({
         
         setIntervalData(prev => {
           const existingPoints = new Set(
-            (prev[interval] || []).map(p => p.time || p.timestamp?.toString())
+            (prev[interval] || []).map(p => p.time)
           );
           const newPoints = multiChunk.data_points.filter(
-            p => !existingPoints.has(p.time || p.timestamp?.toString())
+            p => !existingPoints.has(p.time)
           );
           return {
             ...prev,
