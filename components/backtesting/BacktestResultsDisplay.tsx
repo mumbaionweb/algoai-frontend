@@ -32,9 +32,11 @@ ChartJS.register(
 
 interface BacktestResultsDisplayProps {
   results: BacktestResponse;
+  hideTransactionDetails?: boolean; // Hide transaction/position details (for real-time updates during job execution)
+  jobId?: string; // Optional job_id to use as fallback for charts when backtest_id is not available yet
 }
 
-export default function BacktestResultsDisplay({ results }: BacktestResultsDisplayProps) {
+export default function BacktestResultsDisplay({ results, hideTransactionDetails = false, jobId }: BacktestResultsDisplayProps) {
   const [viewMode, setViewMode] = useState<'position' | 'transaction'>('position');
 
   return (
@@ -106,7 +108,7 @@ export default function BacktestResultsDisplay({ results }: BacktestResultsDispl
             {(results.data_bars_count || 0) > 0 && (
               <div className="flex-1 min-w-0 lg:min-w-[300px]">
                 <DataBarsChart 
-                  backtestId={results.backtest_id}
+                  backtestId={results.backtest_id || jobId || ''} // Use job_id as fallback if backtest_id not available
                   dataBarsCount={results.data_bars_count || 0}
                   fromDate={results.from_date}
                   toDate={results.to_date}
@@ -164,8 +166,8 @@ export default function BacktestResultsDisplay({ results }: BacktestResultsDispl
       </div>
 
 
-      {/* Transaction History */}
-      {results.transactions && results.transactions.length > 0 && (
+      {/* Transaction History - Only show if not hiding transaction details */}
+      {!hideTransactionDetails && results.transactions && results.transactions.length > 0 && (
         <div className="bg-gray-700 rounded-lg p-4 mt-4">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-white">
@@ -294,7 +296,7 @@ export default function BacktestResultsDisplay({ results }: BacktestResultsDispl
         </div>
       )}
 
-      {(!results.transactions || results.transactions.length === 0) && (
+      {!hideTransactionDetails && (!results.transactions || results.transactions.length === 0) && (
         <div className="bg-gray-700 rounded-lg p-4 mt-4">
           <div className="text-center text-gray-400 text-sm">
             <p className="font-semibold text-yellow-400 mb-2">⚠️ No Transaction Details Available</p>

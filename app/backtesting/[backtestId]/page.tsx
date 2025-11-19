@@ -67,30 +67,26 @@ export default function BacktestDetailPage() {
         };
         setJob(hookJob);
         
-        // If job completed and has result, set results
-        if (hookJob.status === 'completed' && hookJob.result) {
+        // If job has result (completed), set results
+        if (hookJob.result) {
           setResults(hookJob.result);
         }
+        // Note: During execution, results will be set when available via SSE or when job completes
       }
     }
   }, [hookJob?.status, hookJob?.progress, hookJob?.result, hookJob?.error_message]); // Use specific fields instead of entire object
 
-  // When job completes, use the result
+  // When job completes, use the result (no redirect - user stays on job page)
   useEffect(() => {
-    if (completed && result && isJobId && !redirectingRef.current) {
+    if (completed && result && isJobId) {
       setResults(result);
-      // Redirect to backtest_id URL only if we're still on the job_id URL
-      // and the backtest_id is different from current id
-      if (result.backtest_id && result.backtest_id !== id) {
-        console.log('🔄 Redirecting from job_id to backtest_id:', {
-          current_id: id,
-          backtest_id: result.backtest_id,
-        });
-        redirectingRef.current = true;
-        router.replace(`/backtesting/${result.backtest_id}`);
-      }
+      // Note: We no longer redirect to backtest_id page - user stays on job page with full results
+      console.log('✅ Job completed, results available on job page:', {
+        job_id: id,
+        backtest_id: result.backtest_id,
+      });
     }
-  }, [completed, result, isJobId, router, id]);
+  }, [completed, result, isJobId, id]);
 
   const loadData = async () => {
     if (!id) return;
@@ -218,24 +214,20 @@ export default function BacktestDetailPage() {
         const jobData = await getBacktestJob(job.job_id);
         setJob(jobData);
         
-        // If job completed, use full result
+        // If job completed, use full result (no redirect - user stays on job page)
         if (jobData.status === 'completed' && jobData.result) {
           setResults(jobData.result);
-          // Also load history item
+          // Also load history item for metadata (optional)
           try {
             const backtestData = await getBacktest(jobData.result.backtest_id);
             setBacktest(backtestData);
-            // Redirect to backtest_id URL only if different from current id and not already redirecting
-            if (jobData.result.backtest_id && jobData.result.backtest_id !== id && !redirectingRef.current) {
-              console.log('🔄 Redirecting from job_id to backtest_id (refresh):', {
-                current_id: id,
-                backtest_id: jobData.result.backtest_id,
-              });
-              redirectingRef.current = true;
-              router.replace(`/backtesting/${jobData.result.backtest_id}`);
-            }
+            // Note: We no longer redirect - user stays on job page with full results
+            console.log('✅ Job completed, results available on job page (refresh):', {
+              job_id: id,
+              backtest_id: jobData.result.backtest_id,
+            });
           } catch (err) {
-            console.warn('Failed to load backtest after job completion:', err);
+            console.warn('Failed to load backtest history (optional):', err);
           }
         }
       } catch (err: any) {
@@ -600,9 +592,13 @@ export default function BacktestDetailPage() {
                 </div>
               )}
 
-              {/* Show full backtest results if job is completed and we have results */}
-              {job.status === 'completed' && results ? (
-                <BacktestResultsDisplay results={results} />
+              {/* Show backtest results - charts update in real-time, transaction details only when completed */}
+              {results ? (
+                <BacktestResultsDisplay 
+                  results={results} 
+                  hideTransactionDetails={job.status !== 'completed'}
+                  jobId={job?.job_id} // Pass job_id so charts can use it as fallback if backtest_id not available
+                />
               ) : job.status === 'failed' ? (
                 <div className="space-y-4">
                   <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
