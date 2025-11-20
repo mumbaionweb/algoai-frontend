@@ -1007,10 +1007,10 @@ function DataBarsChart({
     const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue;
 
     // Get partial data status for this interval
-    const intervalData = chartsData.get(intervalValue);
-    const isIntervalPartial = intervalData?.isPartial || false;
-    const intervalCurrentBar = intervalData?.currentBar;
-    const intervalJobStatus = intervalData?.jobStatus;
+    const intervalChartData = chartsData.get(intervalValue);
+    const isIntervalPartial = intervalChartData?.isPartial || false;
+    const intervalCurrentBar = intervalChartData?.currentBar;
+    const intervalJobStatus = intervalChartData?.jobStatus;
     
     return (
       <div key={intervalValue} className="mb-4 last:mb-0">
@@ -1031,7 +1031,7 @@ function DataBarsChart({
                 <span>Live</span>
                 {intervalCurrentBar !== null && intervalCurrentBar !== undefined && (
                   <span className="text-gray-500">
-                    ({intervalCurrentBar} / {intervalData?.dataInfo?.total_points || '?'})
+                    ({intervalCurrentBar} / {intervalChartData?.dataInfo?.total_points || '?'})
                   </span>
                 )}
               </div>
