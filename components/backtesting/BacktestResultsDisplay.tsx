@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getBacktestHistoricalData, type HistoricalDataPoint } from '@/lib/api/backtesting';
+import type { HistoricalDataPoint } from '@/lib/api/backtesting';
+import { useHistoricalDataSSE } from '@/hooks/useHistoricalDataSSE';
 import type { BacktestResponse, Transaction, BacktestPosition, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
 import { formatDate, formatDateShort } from '@/utils/dateUtils';
@@ -704,7 +705,7 @@ function TransactionView({ transactions }: { transactions: Transaction[] }) {
   );
 }
 
-// DataBarsChart Component (simplified version - full version would be very long)
+// DataBarsChart Component - Uses SSE for streaming historical data
 function DataBarsChart({ 
   backtestId,
   dataBarsCount, 
@@ -722,256 +723,71 @@ function DataBarsChart({
   intervals?: string[];
   primaryInterval?: string;
 }) {
-  const [chartsData, setChartsData] = useState<Map<string, {
+  // Get Firebase token for SSE
+  const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
+  
+  // Determine if this is a multi-timeframe backtest
+  const isMultiTimeframe = intervals && intervals.length > 1;
+  
+  // Use SSE hook for streaming historical data
+  const {
+    // Single interval
+    data: sseData,
+    progress: sseProgress,
+    loading: sseLoading,
+    error: sseError,
+    metadata: sseMetadata,
+    // Multi-interval
+    intervalData: sseIntervalData,
+    intervalProgress: sseIntervalProgress,
+    intervalMetadata: sseIntervalMetadata,
+    currentInterval: sseCurrentInterval,
+    completedIntervals: sseCompletedIntervals,
+    // Common
+    isMultiInterval: sseIsMultiInterval,
+  } = useHistoricalDataSSE({
+    id: backtestId || null,
+    token: token || null,
+    interval: !isMultiTimeframe ? (primaryInterval || intervals?.[0]) : undefined,
+    intervals: isMultiTimeframe ? intervals : undefined,
+    limit: dataBarsCount || 10000,
+    chunkSize: 500,
+    enabled: !!backtestId && !!token,
+    useRestApiFallback: false, // Use SSE only, no REST API fallback
+  });
+  
+  // For backward compatibility: map SSE data to old state structure
+  const chartsData = new Map<string, {
     loading: boolean;
     error: string | null;
     historicalData: HistoricalDataPoint[] | null;
     dataInfo: { total_points: number; returned_points: number } | null;
-    isPartial?: boolean;
-    currentBar?: number | null;
-    jobStatus?: string | null;
-  }>>(new Map());
+  }>();
   
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[] | null>(null);
-  const [dataInfo, setDataInfo] = useState<{ total_points: number; returned_points: number } | null>(null);
-  const [isPartial, setIsPartial] = useState(false);
-  const [currentBar, setCurrentBar] = useState<number | null>(null);
-  const [jobStatus, setJobStatus] = useState<string | null>(null);
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  if (isMultiTimeframe && intervals) {
+    intervals.forEach(interval => {
+      const intervalData = sseIntervalData[interval] || [];
+      const intervalMeta = sseIntervalMetadata[interval];
+      chartsData.set(interval, {
+        loading: sseLoading && sseCurrentInterval === interval,
+        error: sseError,
+        historicalData: intervalData.length > 0 ? intervalData : null,
+        dataInfo: intervalMeta ? {
+          total_points: intervalMeta.total_points,
+          returned_points: intervalData.length,
+        } : null,
+      });
+    });
+  }
   
-  const isMultiTimeframe = intervals && intervals.length > 1;
-
-  useEffect(() => {
-    
-    const fetchHistoricalData = async () => {
-      if (!backtestId) {
-        if (isMultiTimeframe) {
-          const newChartsData = new Map();
-          intervals!.forEach(interval => {
-            newChartsData.set(interval, {
-              loading: false,
-              error: 'Backtest ID is missing',
-              historicalData: null,
-              dataInfo: null,
-            });
-          });
-          setChartsData(newChartsData);
-        } else {
-          setError('Backtest ID is missing');
-          setLoading(false);
-        }
-        return;
-      }
-
-      if (isMultiTimeframe && intervals) {
-        const newChartsData = new Map();
-        intervals.forEach(interval => {
-          newChartsData.set(interval, {
-            loading: true,
-            error: null,
-            historicalData: null,
-            dataInfo: null,
-          });
-        });
-        setChartsData(newChartsData);
-        
-        const fetchPromises = intervals.map(async (interval) => {
-          try {
-            const limit = dataBarsCount || 10000;
-            const data = await getBacktestHistoricalData(backtestId, limit, 'json', interval);
-            return { interval, data, error: null };
-          } catch (err: any) {
-            const errorDetail = err.response?.data?.detail || '';
-            const errorMessage = err.message || '';
-            
-            return {
-              interval,
-              data: null,
-              error: errorDetail || errorMessage || 'Failed to load historical data',
-            };
-          }
-        });
-        
-        const results = await Promise.all(fetchPromises);
-        const updatedChartsData = new Map();
-        let hasPartialData = false;
-        let latestCurrentBar: number | null = null;
-        let latestJobStatus: string | null = null;
-        
-        results.forEach(({ interval, data, error: fetchError }) => {
-          if (data && data.data_points && data.data_points.length > 0) {
-            // Track partial data status
-            if (data.is_partial) {
-              hasPartialData = true;
-              if (data.current_bar !== null && data.current_bar !== undefined) {
-                latestCurrentBar = data.current_bar;
-              }
-              if (data.job_status) {
-                latestJobStatus = data.job_status;
-              }
-            }
-            
-            updatedChartsData.set(interval, {
-              loading: false,
-              error: data.interval !== interval ? `⚠️ Backend returned "${data.interval}" data instead of "${interval}"` : null,
-              historicalData: data.data_points.map(point => ({ ...point })),
-              dataInfo: {
-                total_points: data.total_points,
-                returned_points: data.returned_points,
-              },
-              isPartial: data.is_partial,
-              currentBar: data.current_bar,
-              jobStatus: data.job_status,
-            });
-          } else {
-            updatedChartsData.set(interval, {
-              loading: false,
-              error: fetchError || 'Failed to load historical data',
-              historicalData: null,
-              dataInfo: null,
-            });
-          }
-        });
-        
-        setIsPartial(hasPartialData);
-        setCurrentBar(latestCurrentBar);
-        setJobStatus(latestJobStatus);
-        setChartsData(updatedChartsData);
-      } else {
-        try {
-          setLoading(true);
-          setError(null);
-          
-          const limit = dataBarsCount || 10000;
-          const data = await getBacktestHistoricalData(backtestId, limit, 'json', primaryInterval);
-          
-          setDataInfo({
-            total_points: data.total_points,
-            returned_points: data.returned_points,
-          });
-          
-          const partialStatus = data.is_partial || false;
-          setIsPartial(partialStatus);
-          setCurrentBar(data.current_bar || null);
-          setJobStatus(data.job_status || null);
-
-          if (data.data_points.length === 0) {
-            setError('No historical data points returned from API');
-            setHistoricalData(null);
-          } else {
-            setHistoricalData(data.data_points);
-          }
-        } catch (err: any) {
-          const errorDetail = err.response?.data?.detail || '';
-          const errorMessage = err.message || '';
-          setError(errorDetail || errorMessage || 'Failed to load historical data');
-          setHistoricalData(null);
-        } finally {
-          setLoading(false);
-        }
-      }
-    };
-
-    // Initial fetch
-    fetchHistoricalData();
-    
-    return () => {
-      // Cleanup is handled in the separate polling effect
-    };
-  }, [backtestId, dataBarsCount, intervals, primaryInterval, isMultiTimeframe]);
-  
-  // Separate effect for polling when job is running
-  useEffect(() => {
-    // Clear existing interval
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
-    
-    // Set up polling if data is partial and job is running
-    if (isPartial && (jobStatus === 'running' || jobStatus === 'queued' || jobStatus === 'pending')) {
-      const fetchData = async () => {
-        if (!backtestId) return;
-        
-        try {
-          if (isMultiTimeframe && intervals) {
-            const fetchPromises = intervals.map(async (interval) => {
-              try {
-                const limit = dataBarsCount || 10000;
-                const data = await getBacktestHistoricalData(backtestId, limit, 'json', interval);
-                return { interval, data, error: null };
-              } catch (err: any) {
-                return { interval, data: null, error: null };
-              }
-            });
-            
-            const results = await Promise.all(fetchPromises);
-            const updatedChartsData = new Map();
-            
-            results.forEach(({ interval, data }) => {
-              if (data && data.data_points && data.data_points.length > 0) {
-                updatedChartsData.set(interval, {
-                  loading: false,
-                  error: null,
-                  historicalData: data.data_points.map(point => ({ ...point })),
-                  dataInfo: {
-                    total_points: data.total_points,
-                    returned_points: data.returned_points,
-                  },
-                  isPartial: data.is_partial,
-                  currentBar: data.current_bar,
-                  jobStatus: data.job_status,
-                });
-              }
-            });
-            
-            setChartsData(prev => {
-              const merged = new Map(prev);
-              updatedChartsData.forEach((value, key) => {
-                merged.set(key, value);
-              });
-              return merged;
-            });
-            
-            // Update partial status
-            const hasPartial = Array.from(updatedChartsData.values()).some(d => d.isPartial);
-            const latestStatus = Array.from(updatedChartsData.values()).find(d => d.jobStatus)?.jobStatus || null;
-            setIsPartial(hasPartial);
-            setJobStatus(latestStatus);
-          } else {
-            const limit = dataBarsCount || 10000;
-            const data = await getBacktestHistoricalData(backtestId, limit, 'json', primaryInterval);
-            
-            setDataInfo({
-              total_points: data.total_points,
-              returned_points: data.returned_points,
-            });
-            setIsPartial(data.is_partial || false);
-            setCurrentBar(data.current_bar || null);
-            setJobStatus(data.job_status || null);
-            
-            if (data.data_points.length > 0) {
-              setHistoricalData(data.data_points);
-            }
-          }
-        } catch (err) {
-          // Silently fail on polling errors
-          console.warn('Polling error:', err);
-        }
-      };
-      
-      pollingIntervalRef.current = setInterval(fetchData, 5000);
-    }
-    
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [isPartial, jobStatus, backtestId, dataBarsCount, intervals, primaryInterval, isMultiTimeframe]);
+  // Single interval state (backward compatibility)
+  const loading = sseLoading;
+  const error = sseError;
+  const historicalData = sseData.length > 0 ? sseData : null;
+  const dataInfo = sseMetadata ? {
+    total_points: sseMetadata.total_points,
+    returned_points: sseData.length,
+  } : null;
 
   const renderSingleChart = (
     intervalValue: string,

@@ -1095,7 +1095,7 @@ class MyStrategy(bt.Strategy):
                   return (
                     <div className="mt-2">
                       <p className="text-xs text-gray-400">
-                        Estimated total data bars: <span className="text-white font-medium">{totalBars.toLocaleString()}</span>
+                        Estimated total data bars: <span className="text-white font-medium">{(totalBars || 0).toLocaleString()}</span>
                         {intervals.some(i => i !== 'day') && totalBars > 10000 && (
                           <span className="ml-2 text-yellow-400">
                             ⚠️ Large dataset - may take longer to process
