@@ -118,7 +118,7 @@ export default function BacktestDetailPage() {
             // Create/update partial results
             const partialResults = createPartialResults(hookJob);
             // Preserve any existing data_bars_count if it's higher (in case we got updates)
-            if (prevResults && prevResults.data_bars_count && prevResults.data_bars_count > partialResults.data_bars_count) {
+            if (prevResults && prevResults.data_bars_count && partialResults.data_bars_count && prevResults.data_bars_count > partialResults.data_bars_count) {
               partialResults.data_bars_count = prevResults.data_bars_count;
             }
             // If we have a backtest_id from a previous update (maybe it became available), use it
