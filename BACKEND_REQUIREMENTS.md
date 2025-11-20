@@ -195,22 +195,36 @@ The frontend will use this endpoint to:
 
 ### 2. Backtest History Index Fix
 
-**Priority: Medium**
+**Priority: Medium**  
+**Status: ✅ Resolved (Code works without index, but index recommended for performance)**
 
-The backtest history endpoint currently returns a 500 error due to a missing Firestore index.
+The backtest history endpoint was returning a 500 error due to a missing Firestore index. This has been resolved with a code fix that uses in-memory sorting.
 
-**Error Message:**
+**Current Status:**
+- ✅ **Code Fix Applied**: Backend now uses in-memory sorting (works without index)
+- ✅ **No Index Required**: Endpoint works immediately without any deployment
+- ⚡ **Index Recommended**: Creating the index will improve performance for large datasets
+
+**Error Message (if index not created):**
 ```
 Failed to get backtest history: 400 The query requires an index. 
 You can create it here: https://console.firebase.google.com/v1/r/project/algo-ai-477010/firestore/databases/algoai/indexes?create_composite=...
 ```
 
-**Action Required:**
-1. Create the composite index in Firestore as suggested in the error message
-2. Or optimize the query to not require the index
-3. Ensure the index is created for the `backtests` collection with fields:
+**Action Required (Optional - for performance optimization):**
+1. See `FIRESTORE_INDEX_DEPLOYMENT.md` for detailed deployment guide
+2. Create the composite index in Firestore for better performance
+3. Index should be created for the `backtests` collection with fields:
    - `user_id` (Ascending)
    - `created_at` (Descending)
+
+**Deployment Options:**
+- **Option 1 (Recommended)**: Use Firebase Console - Click the link from error message
+- **Option 2**: Use Firebase CLI - `firebase deploy --only firestore:indexes`
+- **Option 3**: Use gcloud CLI - See deployment guide
+- **Option 4**: Use REST API directly - See deployment guide
+
+**Reference:** See `FIRESTORE_INDEX_DEPLOYMENT.md` for complete deployment instructions.
 
 ---
 
