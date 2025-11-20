@@ -794,6 +794,8 @@ function DataBarsChart({
     total_points: sseMetadata.total_points,
     returned_points: sseData.length,
   } : null;
+  const isPartial = false; // Single-interval doesn't track partial status
+  const currentBar = null; // Single-interval doesn't track current bar
 
   const renderSingleChart = (
     intervalValue: string,
