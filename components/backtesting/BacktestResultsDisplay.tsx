@@ -762,6 +762,9 @@ function DataBarsChart({
     error: string | null;
     historicalData: HistoricalDataPoint[] | null;
     dataInfo: { total_points: number; returned_points: number } | null;
+    isPartial?: boolean;
+    currentBar?: number | null;
+    jobStatus?: string | null;
   }>();
   
   if (isMultiTimeframe && intervals) {
@@ -776,6 +779,9 @@ function DataBarsChart({
           total_points: intervalMeta.total_points,
           returned_points: intervalData.length,
         } : null,
+        isPartial: false, // TODO: Get from SSE metadata if available
+        currentBar: null, // TODO: Get from SSE metadata if available
+        jobStatus: null, // TODO: Get from SSE metadata if available
       });
     });
   }
