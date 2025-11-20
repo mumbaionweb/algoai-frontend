@@ -5,9 +5,9 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
-import { runBacktest, getBacktestHistory, getBacktestHistoricalData, createBacktestJob, listBacktestJobs, type HistoricalDataPoint } from '@/lib/api/backtesting';
+import { runBacktest, getBacktestHistoricalData, createBacktestJob, listBacktestJobs, type HistoricalDataPoint } from '@/lib/api/backtesting';
 import { getOAuthStatus, getBrokerCredentials } from '@/lib/api/broker';
-import type { BacktestResponse, BrokerCredentials, Transaction, BacktestHistoryItem, IntervalType, IntervalOption, BacktestPosition, BacktestJob } from '@/types';
+import type { BacktestResponse, BrokerCredentials, Transaction, IntervalType, IntervalOption, BacktestPosition, BacktestJob } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
 import { useBacktestProgress } from '@/hooks/useBacktestProgress';
 import { BacktestJobCard } from '@/components/backtesting/BacktestJobCard';
@@ -51,8 +51,6 @@ export default function BacktestingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [results, setResults] = useState<BacktestResponse | null>(null);
-  const [history, setHistory] = useState<BacktestHistoryItem[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
   
   // Async job management
   const [useAsyncMode, setUseAsyncMode] = useState(true); // Default to async mode
@@ -80,7 +78,6 @@ export default function BacktestingPage() {
         console.log('✅ Setting results from completed job:', result);
         setResults(result);
         setLoading(false);
-        loadHistory(); // Refresh history
       } else {
         console.warn('⚠️ Job completed but no result available yet. Job status:', activeJob?.status, 'Job result:', activeJob?.result);
         // If job is completed but no result, try fetching the job again
@@ -271,7 +268,6 @@ class MyStrategy(bt.Strategy):
       // Note: This log shows initial state values, not necessarily what was loaded from localStorage
       // The actual localStorage values are loaded in useState initializers above
       checkOAuthAndLoadCredentials();
-      loadHistory();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isInitialized, isAuthenticated, router]);
@@ -289,30 +285,6 @@ class MyStrategy(bt.Strategy):
     }
   };
 
-  const loadHistory = async () => {
-    try {
-      setLoadingHistory(true);
-      const historyData = await getBacktestHistory(5); // Limit to 5 recent backtests
-      setHistory(historyData.backtests.slice(0, 5)); // Ensure max 5 items
-      console.log('📜 Loaded backtest history:', historyData.total, 'items (showing max 5)');
-    } catch (err: any) {
-      console.error('Failed to load history:', err);
-      const errorDetail = err.response?.data?.detail || '';
-      
-      // Handle Firestore index error gracefully
-      if (errorDetail.includes('requires an index') || errorDetail.includes('index')) {
-        console.warn('⚠️ Firestore index required for backtest history. This is a backend configuration issue.');
-        console.warn('The backend team needs to create the Firestore composite index.');
-        // Don't show error to user - history is optional
-        setHistory([]);
-      } else {
-        // Other errors - could show a non-blocking message
-        console.error('History loading error:', errorDetail);
-      }
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
 
   const checkOAuthAndLoadCredentials = async () => {
     try {
@@ -599,9 +571,6 @@ class MyStrategy(bt.Strategy):
       }
 
       setResults(result);
-      
-      // Refresh history after successful backtest
-      await loadHistory();
     } catch (err: any) {
       console.error('❌ Backtest error occurred');
       console.error('Error object:', err);
@@ -1723,73 +1692,6 @@ class MyStrategy(bt.Strategy):
             )}
           </div>
 
-          {/* Note: Job history is now shown on individual backtest detail pages */}
-
-          {/* History Section */}
-          <div className="bg-gray-800 rounded-lg p-6 mt-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold text-white">Recent Backtests</h2>
-              <button
-                onClick={loadHistory}
-                disabled={loadingHistory}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50"
-              >
-                {loadingHistory ? 'Loading...' : 'Refresh'}
-              </button>
-            </div>
-            
-            {loadingHistory ? (
-              <div className="text-gray-400 text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white mb-4"></div>
-                <p>Loading history...</p>
-              </div>
-            ) : history.length === 0 ? (
-              <div className="text-gray-400 text-center py-8">
-                <p>No backtest history yet.</p>
-                <p className="text-sm mt-2">Run a backtest to see it here.</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {history.map((item) => (
-                  <div key={item.id} className="bg-gray-700 rounded-lg p-4 border border-gray-600 hover:border-gray-500 transition-colors">
-                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="font-semibold text-white">{item.symbol}</p>
-                          <span className="text-gray-400 text-sm">({item.exchange})</span>
-                          {(item.data_bars_count || 0) > 0 && (
-                            <span className="px-2 py-0.5 bg-green-500/20 text-green-400 text-xs rounded">
-                              {item.data_bars_count} bars
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-400">
-                          {item.from_date} to {item.to_date}
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {formatDate(item.created_at)}
-                        </p>
-                      </div>
-                      <div className="flex flex-col sm:items-end gap-1">
-                        <p className={`font-semibold text-lg ${item.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {item.total_return >= 0 ? '+' : ''}{item.total_return.toFixed(2)}%
-                        </p>
-                        <div className="flex gap-4 text-sm text-gray-400">
-                          <span>{item.total_trades} trades</span>
-                          {item.win_rate !== null && (
-                            <span>{item.win_rate.toFixed(1)}% win rate</span>
-                          )}
-                        </div>
-                        <p className={`text-sm font-medium ${item.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ₹{item.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
       </main>
     </div>
