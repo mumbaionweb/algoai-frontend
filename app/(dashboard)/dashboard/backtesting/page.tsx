@@ -1235,6 +1235,27 @@ class MyStrategy(bt.Strategy):
                   <BacktestJobCard job={activeJob} onUpdate={() => {}} />
                 </div>
                 
+                {/* Real-time Historical Data Chart (for running jobs) */}
+                {activeJob.status === 'running' && activeJob.intervals && activeJob.intervals.length > 0 && (
+                  <div className="bg-gray-700 rounded-lg p-4 border border-blue-500/30">
+                    <h3 className="text-lg font-semibold text-white mb-3">
+                      📈 Real-Time Historical Data Chart
+                    </h3>
+                    <div className="text-xs text-gray-400 mb-3">
+                      Showing partial data as the backtest runs. Chart updates in real-time.
+                    </div>
+                    <DataBarsChart 
+                      backtestId={activeJobId || ''} // Use job_id for real-time data
+                      dataBarsCount={activeJob.current_bar || 0}
+                      fromDate={activeJob.from_date}
+                      toDate={activeJob.to_date}
+                      symbol={activeJob.symbol}
+                      intervals={activeJob.intervals}
+                      primaryInterval={activeJob.intervals[0]}
+                    />
+                  </div>
+                )}
+                
                 {/* Real-time Transaction Stream */}
                 {activeJob.status === 'running' && streamingTransactions.length > 0 && (
                   <div className="bg-gray-700 rounded-lg p-4 border border-blue-500/30">

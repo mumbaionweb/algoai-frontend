@@ -210,7 +210,11 @@ export async function getBacktestHistoricalData(
     }
 
     const url = `/api/backtesting/${id}/data${params.toString() ? `?${params.toString()}` : ''}`;
-    const response = await apiClient.get<HistoricalDataResponse>(url);
+    // Use extended timeout for historical data (90 seconds)
+    // Historical data can be large and may take time to fetch, especially for running jobs
+    const response = await apiClient.get<HistoricalDataResponse>(url, {
+      timeout: 90000, // 90 seconds
+    });
 
     logApiCall('Historical data fetched', undefined, {
       backtest_id: response.data.backtest_id,
