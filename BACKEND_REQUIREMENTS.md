@@ -396,12 +396,149 @@ The frontend automatically includes these headers in all requests.
 
 ---
 
+### 1.1. Support for Real-Time Historical Data During Job Execution
+
+**Priority: High**
+
+**Issue:** The current `GET /api/backtesting/{backtest_id}/data` endpoint only accepts `backtest_id` (which starts with `bt_`). However, during backtest job execution, only `job_id` is available until the job completes. This prevents the frontend from displaying real-time historical data charts while the backtest is running.
+
+**Current Behavior:**
+- Frontend receives `job_id` when a backtest job is created (e.g., `YLxQZ0f6KisUuLRjY0R8`)
+- Frontend attempts to fetch historical data using `GET /api/backtesting/{job_id}/data`
+- Backend returns `404 Not Found` because the endpoint only accepts `backtest_id` (starts with `bt_`)
+- Charts cannot display data until the job completes and `backtest_id` is available
+
+**Requested Enhancement:**
+
+The endpoint `GET /api/backtesting/{id}/data` should accept **both** `backtest_id` and `job_id`:
+
+1. **If `id` starts with `bt_`**: Treat it as a `backtest_id` and return historical data for the completed backtest (existing behavior)
+
+2. **If `id` does NOT start with `bt_`**: Treat it as a `job_id` and return:
+   - Historical data that has been processed so far (up to `current_bar` if available)
+   - Or all historical data that will be used for the backtest (if available from job configuration)
+   - The response should indicate this is partial/real-time data
+
+**Endpoint Specification:**
+
+**Endpoint:** `GET /api/backtesting/{id}/data`
+
+**Path Parameters:**
+- `id` (required): Either a `backtest_id` (starts with `bt_`) or a `job_id` (does not start with `bt_`)
+
+**Query Parameters:**
+- `limit` (optional, default: 1000, max: 5000): Maximum number of data points to return
+- `format` (optional, default: "json"): Response format - either "json" or "csv"
+- `interval` (optional): Specific interval to fetch data for (for multi-timeframe backtests)
+
+**Request Examples:**
+
+```http
+# Using backtest_id (existing behavior)
+GET /api/backtesting/bt_abc123/data
+Authorization: Bearer <firebase_token>
+```
+
+```http
+# Using job_id (new behavior - for real-time data during execution)
+GET /api/backtesting/YLxQZ0f6KisUuLRjY0R8/data
+Authorization: Bearer <firebase_token>
+```
+
+```http
+# Using job_id with interval parameter
+GET /api/backtesting/YLxQZ0f6KisUuLRjY0R8/data?interval=day&limit=100
+Authorization: Bearer <firebase_token>
+```
+
+**Response Format (when using job_id):**
+
+The response format should be identical to the existing format, but may include additional fields to indicate this is real-time/partial data:
+
+```json
+{
+  "backtest_id": null,  // null if job hasn't completed yet
+  "job_id": "YLxQZ0f6KisUuLRjY0R8",  // Include job_id in response
+  "symbol": "LTF",
+  "exchange": "NSE",
+  "interval": "day",
+  "from_date": "2025-04-01",
+  "to_date": "2025-08-31",
+  "data_points": [
+    {
+      "time": "2025-04-01T00:00:00Z",
+      "open": 1234.50,
+      "high": 1250.75,
+      "low": 1230.25,
+      "close": 1245.00,
+      "volume": 1000000
+    }
+    // ... data points available so far
+  ],
+  "total_points": 103,  // Total bars that will be processed
+  "returned_points": 50,  // Number of bars returned (may be less if job is still running)
+  "is_partial": true,  // Indicates this is partial data from a running job
+  "current_bar": 50,  // Current bar being processed (if available)
+  "job_status": "running"  // Status of the job (running, queued, completed, etc.)
+}
+```
+
+**Error Responses:**
+
+```json
+{
+  "detail": "Job not found"
+}
+```
+
+```json
+{
+  "detail": "Job does not have historical data available yet"
+}
+```
+
+**Implementation Notes:**
+
+1. **Job Data Access:** When a `job_id` is provided, the backend should:
+   - Look up the job configuration (symbol, exchange, from_date, to_date, intervals)
+   - Fetch the historical data that will be used for this backtest (from the data source)
+   - Return the data points that are available/processed so far
+
+2. **Real-Time Updates:** The frontend will poll this endpoint periodically during job execution to update charts in real-time
+
+3. **Data Consistency:** The historical data returned for a `job_id` should match the data that will be used when the job completes and becomes a `backtest_id`
+
+4. **Authorization:** Ensure the user can only access their own job/backtest data
+
+5. **Performance:** Consider caching historical data for jobs since the underlying data doesn't change during execution
+
+**Frontend Benefits:**
+
+- Charts can display real-time data during backtest execution
+- Users can see data verification progress as the job runs
+- Better user experience with live updates instead of waiting for completion
+- Enables real-time monitoring of backtest progress
+
+**Alternative Approach (if job_id support is complex):**
+
+If supporting `job_id` directly is too complex, an alternative would be to add a new endpoint:
+- `GET /api/backtesting/jobs/{job_id}/data` - Returns historical data for a specific job
+
+However, the unified endpoint approach (accepting both IDs) is preferred for consistency.
+
+---
+
 ## 🎯 Implementation Priority
 
 1. **High Priority:**
    - ✅ **Historical price data endpoint:** `GET /api/backtesting/{backtest_id}/data`
      - Returns OHLCV data with query parameters: `limit` (default: 1000, max: 5000) and `format` (default: "json")
      - Response includes: backtest_id, symbol, exchange, interval, from_date, to_date, data_points array, total_points, returned_points
+   - 🔴 **CRITICAL: Support job_id in historical data endpoint for real-time charts**
+     - **Issue:** Endpoint only accepts `backtest_id` (starts with `bt_`), but during job execution only `job_id` is available
+     - **Request:** `GET /api/backtesting/{id}/data` should accept both `backtest_id` and `job_id`
+     - **Benefit:** Enables real-time chart updates during backtest execution
+     - **Details:** See section 1.1 above for full specification
    - Fix Firestore index for backtest history
 
 2. **Medium Priority:**

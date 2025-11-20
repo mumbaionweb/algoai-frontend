@@ -160,7 +160,8 @@ export interface HistoricalDataPoint {
  * Historical data response
  */
 export interface HistoricalDataResponse {
-  backtest_id: string;
+  backtest_id: string | null;  // null for running jobs
+  job_id?: string | null;  // Only present for running jobs
   symbol: string;
   exchange: string;
   interval: string;
@@ -169,25 +170,29 @@ export interface HistoricalDataResponse {
   data_points: HistoricalDataPoint[];
   total_points: number;
   returned_points: number;
+  is_partial?: boolean;  // true for running jobs
+  current_bar?: number | null;  // Current bar index (for running jobs)
+  job_status?: string | null;  // Job status (for running jobs)
 }
 
 /**
- * Get historical OHLCV data for a backtest
- * @param backtestId Backtest ID
- * @param limit Maximum number of data points (default: 1000, max: 5000)
+ * Get historical OHLCV data for a backtest or job
+ * @param id Backtest ID (starts with 'bt_') or Job ID (does not start with 'bt_')
+ * @param limit Maximum number of data points (default: 1000, max: 50000)
  * @param format Response format: "json" or "csv" (default: "json")
  * @param interval Optional: Specific interval to fetch data for (for multi-timeframe backtests)
  * @returns Historical data response
  */
 export async function getBacktestHistoricalData(
-  backtestId: string,
+  id: string,
   limit: number = 1000,
   format: 'json' | 'csv' = 'json',
   interval?: string
 ): Promise<HistoricalDataResponse> {
   try {
     logApiCall('Fetching historical data', { 
-      backtest_id: backtestId,
+      id: id,
+      is_backtest_id: id.startsWith('bt_'),
       limit,
       format,
       interval: interval || 'default'
@@ -204,14 +209,18 @@ export async function getBacktestHistoricalData(
       params.append('interval', interval);
     }
 
-    const url = `/api/backtesting/${backtestId}/data${params.toString() ? `?${params.toString()}` : ''}`;
+    const url = `/api/backtesting/${id}/data${params.toString() ? `?${params.toString()}` : ''}`;
     const response = await apiClient.get<HistoricalDataResponse>(url);
 
     logApiCall('Historical data fetched', undefined, {
+      backtest_id: response.data.backtest_id,
+      job_id: response.data.job_id,
+      is_partial: response.data.is_partial,
       total_points: response.data.total_points,
       returned_points: response.data.returned_points,
       data_points_count: response.data.data_points.length,
       interval: response.data.interval,
+      job_status: response.data.job_status,
     });
 
     return response.data;

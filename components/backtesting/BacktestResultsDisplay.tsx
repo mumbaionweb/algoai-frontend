@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getBacktestHistoricalData, type HistoricalDataPoint } from '@/lib/api/backtesting';
 import type { BacktestResponse, Transaction, BacktestPosition, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
@@ -727,16 +727,24 @@ function DataBarsChart({
     error: string | null;
     historicalData: HistoricalDataPoint[] | null;
     dataInfo: { total_points: number; returned_points: number } | null;
+    isPartial?: boolean;
+    currentBar?: number | null;
+    jobStatus?: string | null;
   }>>(new Map());
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [historicalData, setHistoricalData] = useState<HistoricalDataPoint[] | null>(null);
   const [dataInfo, setDataInfo] = useState<{ total_points: number; returned_points: number } | null>(null);
+  const [isPartial, setIsPartial] = useState(false);
+  const [currentBar, setCurrentBar] = useState<number | null>(null);
+  const [jobStatus, setJobStatus] = useState<string | null>(null);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   
   const isMultiTimeframe = intervals && intervals.length > 1;
 
   useEffect(() => {
+    
     const fetchHistoricalData = async () => {
       if (!backtestId) {
         if (isMultiTimeframe) {
@@ -777,6 +785,7 @@ function DataBarsChart({
           } catch (err: any) {
             const errorDetail = err.response?.data?.detail || '';
             const errorMessage = err.message || '';
+            
             return {
               interval,
               data: null,
@@ -787,9 +796,23 @@ function DataBarsChart({
         
         const results = await Promise.all(fetchPromises);
         const updatedChartsData = new Map();
+        let hasPartialData = false;
+        let latestCurrentBar: number | null = null;
+        let latestJobStatus: string | null = null;
         
         results.forEach(({ interval, data, error: fetchError }) => {
           if (data && data.data_points && data.data_points.length > 0) {
+            // Track partial data status
+            if (data.is_partial) {
+              hasPartialData = true;
+              if (data.current_bar !== null && data.current_bar !== undefined) {
+                latestCurrentBar = data.current_bar;
+              }
+              if (data.job_status) {
+                latestJobStatus = data.job_status;
+              }
+            }
+            
             updatedChartsData.set(interval, {
               loading: false,
               error: data.interval !== interval ? `⚠️ Backend returned "${data.interval}" data instead of "${interval}"` : null,
@@ -798,6 +821,9 @@ function DataBarsChart({
                 total_points: data.total_points,
                 returned_points: data.returned_points,
               },
+              isPartial: data.is_partial,
+              currentBar: data.current_bar,
+              jobStatus: data.job_status,
             });
           } else {
             updatedChartsData.set(interval, {
@@ -809,6 +835,9 @@ function DataBarsChart({
           }
         });
         
+        setIsPartial(hasPartialData);
+        setCurrentBar(latestCurrentBar);
+        setJobStatus(latestJobStatus);
         setChartsData(updatedChartsData);
       } else {
         try {
@@ -822,6 +851,11 @@ function DataBarsChart({
             total_points: data.total_points,
             returned_points: data.returned_points,
           });
+          
+          const partialStatus = data.is_partial || false;
+          setIsPartial(partialStatus);
+          setCurrentBar(data.current_bar || null);
+          setJobStatus(data.job_status || null);
 
           if (data.data_points.length === 0) {
             setError('No historical data points returned from API');
@@ -840,8 +874,104 @@ function DataBarsChart({
       }
     };
 
+    // Initial fetch
     fetchHistoricalData();
+    
+    return () => {
+      // Cleanup is handled in the separate polling effect
+    };
   }, [backtestId, dataBarsCount, intervals, primaryInterval, isMultiTimeframe]);
+  
+  // Separate effect for polling when job is running
+  useEffect(() => {
+    // Clear existing interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    
+    // Set up polling if data is partial and job is running
+    if (isPartial && (jobStatus === 'running' || jobStatus === 'queued' || jobStatus === 'pending')) {
+      const fetchData = async () => {
+        if (!backtestId) return;
+        
+        try {
+          if (isMultiTimeframe && intervals) {
+            const fetchPromises = intervals.map(async (interval) => {
+              try {
+                const limit = dataBarsCount || 10000;
+                const data = await getBacktestHistoricalData(backtestId, limit, 'json', interval);
+                return { interval, data, error: null };
+              } catch (err: any) {
+                return { interval, data: null, error: null };
+              }
+            });
+            
+            const results = await Promise.all(fetchPromises);
+            const updatedChartsData = new Map();
+            
+            results.forEach(({ interval, data }) => {
+              if (data && data.data_points && data.data_points.length > 0) {
+                updatedChartsData.set(interval, {
+                  loading: false,
+                  error: null,
+                  historicalData: data.data_points.map(point => ({ ...point })),
+                  dataInfo: {
+                    total_points: data.total_points,
+                    returned_points: data.returned_points,
+                  },
+                  isPartial: data.is_partial,
+                  currentBar: data.current_bar,
+                  jobStatus: data.job_status,
+                });
+              }
+            });
+            
+            setChartsData(prev => {
+              const merged = new Map(prev);
+              updatedChartsData.forEach((value, key) => {
+                merged.set(key, value);
+              });
+              return merged;
+            });
+            
+            // Update partial status
+            const hasPartial = Array.from(updatedChartsData.values()).some(d => d.isPartial);
+            const latestStatus = Array.from(updatedChartsData.values()).find(d => d.jobStatus)?.jobStatus || null;
+            setIsPartial(hasPartial);
+            setJobStatus(latestStatus);
+          } else {
+            const limit = dataBarsCount || 10000;
+            const data = await getBacktestHistoricalData(backtestId, limit, 'json', primaryInterval);
+            
+            setDataInfo({
+              total_points: data.total_points,
+              returned_points: data.returned_points,
+            });
+            setIsPartial(data.is_partial || false);
+            setCurrentBar(data.current_bar || null);
+            setJobStatus(data.job_status || null);
+            
+            if (data.data_points.length > 0) {
+              setHistoricalData(data.data_points);
+            }
+          }
+        } catch (err) {
+          // Silently fail on polling errors
+          console.warn('Polling error:', err);
+        }
+      };
+      
+      pollingIntervalRef.current = setInterval(fetchData, 5000);
+    }
+    
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [isPartial, jobStatus, backtestId, dataBarsCount, intervals, primaryInterval, isMultiTimeframe]);
 
   const renderSingleChart = (
     intervalValue: string,
@@ -876,6 +1006,12 @@ function DataBarsChart({
 
     const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue;
 
+    // Get partial data status for this interval
+    const intervalData = chartsData.get(intervalValue);
+    const isIntervalPartial = intervalData?.isPartial || false;
+    const intervalCurrentBar = intervalData?.currentBar;
+    const intervalJobStatus = intervalData?.jobStatus;
+    
     return (
       <div key={intervalValue} className="mb-4 last:mb-0">
         <div className="flex items-center justify-between mb-2">
@@ -885,9 +1021,25 @@ function DataBarsChart({
              intervalValue === intervals?.[2] ? `datas[2]: ${intervalLabel}` :
              intervalLabel} ({symbol})
           </div>
-          {isLoading && (
-            <div className="text-xs text-gray-500">Loading...</div>
-          )}
+          <div className="flex items-center gap-2">
+            {isIntervalPartial && (
+              <div className="flex items-center gap-1 text-xs text-blue-400">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400"></span>
+                </span>
+                <span>Live</span>
+                {intervalCurrentBar !== null && intervalCurrentBar !== undefined && (
+                  <span className="text-gray-500">
+                    ({intervalCurrentBar} / {intervalData?.dataInfo?.total_points || '?'})
+                  </span>
+                )}
+              </div>
+            )}
+            {isLoading && (
+              <div className="text-xs text-gray-500">Loading...</div>
+            )}
+          </div>
         </div>
         
         {isLoading && (
@@ -900,8 +1052,20 @@ function DataBarsChart({
         )}
         
         {hasError && (
-          <div className={`w-full p-4 border rounded text-xs ${hasError.includes('Backend returned') ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400' : 'bg-red-500/10 border-red-500 text-red-400'}`} style={{ minHeight: '75px' }}>
-            <p className="font-semibold mb-2">{hasError.includes('Backend returned') ? '⚠️ Interval Mismatch' : '⚠️ Failed to load historical data'}</p>
+          <div className={`w-full p-4 border rounded text-xs ${
+            hasError.includes('Backend returned') 
+              ? 'bg-yellow-500/10 border-yellow-500 text-yellow-400'
+              : hasError.includes('Charts will be available')
+              ? 'bg-blue-500/10 border-blue-500 text-blue-400'
+              : 'bg-red-500/10 border-red-500 text-red-400'
+          }`} style={{ minHeight: '75px' }}>
+            <p className="font-semibold mb-2">
+              {hasError.includes('Backend returned') 
+                ? '⚠️ Interval Mismatch'
+                : hasError.includes('Charts will be available')
+                ? 'ℹ️ Charts Pending'
+                : '⚠️ Failed to load historical data'}
+            </p>
             <p>{hasError}</p>
           </div>
         )}
@@ -1047,9 +1211,25 @@ function DataBarsChart({
         <>
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-gray-400">Price Trend ({symbol})</div>
-            {loading && (
-              <div className="text-xs text-gray-500">Loading...</div>
-            )}
+            <div className="flex items-center gap-2">
+              {isPartial && (
+                <div className="flex items-center gap-1 text-xs text-blue-400">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-400"></span>
+                  </span>
+                  <span>Live</span>
+                  {currentBar !== null && currentBar !== undefined && dataInfo && (
+                    <span className="text-gray-500">
+                      ({currentBar} / {dataInfo.total_points})
+                    </span>
+                  )}
+                </div>
+              )}
+              {loading && (
+                <div className="text-xs text-gray-500">Loading...</div>
+              )}
+            </div>
           </div>
           
           {loading && (
