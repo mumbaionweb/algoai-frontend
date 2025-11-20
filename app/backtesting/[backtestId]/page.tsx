@@ -679,6 +679,7 @@ export default function BacktestDetailPage() {
                   results={results} 
                   hideTransactionDetails={job.status !== 'completed'}
                   jobId={job?.job_id} // Pass job_id so charts can use it as fallback if backtest_id not available
+                  jobStatus={job?.status || null} // Pass job status to prevent multi-interval SSE for running jobs
                 />
               ) : job.status === 'failed' ? (
                 <div className="space-y-4">

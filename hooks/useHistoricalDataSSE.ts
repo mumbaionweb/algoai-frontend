@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { HistoricalDataPoint } from '@/lib/api/backtesting';
+import { getBacktestHistoricalData } from '@/lib/api/backtesting';
 import {
   HistoricalDataSSEClient,
   MultiIntervalHistoricalDataSSEClient,
@@ -19,6 +20,7 @@ interface UseHistoricalDataSSEOptions {
   enabled?: boolean; // Whether to start streaming immediately
   useRestApiFallback?: boolean; // Fallback to REST API polling for running jobs
   pollInterval?: number; // Polling interval in ms (default: 5000) for REST API fallback
+  jobStatus?: string | null; // Job status: 'running', 'queued', 'paused', 'completed', etc. Used to determine if multi-interval SSE is allowed
 }
 
 interface UseHistoricalDataSSEReturn {
@@ -55,8 +57,19 @@ export function useHistoricalDataSSE({
   enabled = true,
   useRestApiFallback = false, // Use REST API polling as fallback for running jobs
   pollInterval = 5000, // Poll every 5 seconds for running jobs
+  jobStatus = null, // Job status to determine if multi-interval SSE is allowed
 }: UseHistoricalDataSSEOptions): UseHistoricalDataSSEReturn {
-  const isMultiInterval = intervals && intervals.length > 1;
+  // Check if this is a job_id (doesn't start with 'bt_')
+  const isJobId = id && !id.startsWith('bt_');
+  
+  // Multi-interval SSE is ONLY allowed for completed backtests (backtest_id)
+  // For running jobs, we must use single-interval SSE or REST API for each interval
+  const isRunningJob = isJobId && (jobStatus === 'running' || jobStatus === 'queued' || jobStatus === 'paused');
+  const canUseMultiIntervalSSE = intervals && intervals.length > 1 && !isRunningJob;
+  
+  // If it's a running job with multi-interval, we'll use single-interval SSE for each interval
+  // Otherwise, use multi-interval SSE if applicable
+  const isMultiInterval = canUseMultiIntervalSSE;
   
   // Single interval state
   const [data, setData] = useState<HistoricalDataPoint[]>([]);
@@ -149,9 +162,144 @@ export function useHistoricalDataSSE({
     };
   }, [id, token, interval, limit, chunkSize, enabled, isMultiInterval, resetState]);
 
+  // Multi-interval REST API fallback for running jobs
+  // For running jobs with multi-interval, we must use REST API for each interval separately
+  // Multi-interval SSE is ONLY available for completed backtests
+  useEffect(() => {
+    if (!enabled || !id || !token || !intervals || intervals.length <= 1) {
+      return;
+    }
+
+    // Only use REST API fallback for running jobs with multi-interval
+    if (!isJobId || !isRunningJob) {
+      return; // Let the multi-interval SSE effect handle it
+    }
+
+    console.log('⚠️ Running job with multi-interval detected. Using REST API for each interval separately (multi-interval SSE not available for running jobs).');
+
+    resetState();
+
+    // Initialize interval data structures
+    const initialData: Record<string, HistoricalDataPoint[]> = {};
+    const initialProgress: Record<string, number> = {};
+    intervals.forEach(interval => {
+      initialData[interval] = [];
+      initialProgress[interval] = 0;
+    });
+    setIntervalData(initialData);
+    setIntervalProgress(initialProgress);
+    setLoading(true);
+
+    // Fetch each interval separately via REST API
+    const fetchPromises = intervals.map(async (intervalValue) => {
+      try {
+        const dataLimit = limit || 10000;
+        const data = await getBacktestHistoricalData(id, dataLimit, 'json', intervalValue);
+        
+        return {
+          interval: intervalValue,
+          data,
+          error: null,
+        };
+      } catch (err: any) {
+        const errorDetail = err.response?.data?.detail || '';
+        const errorMessage = err.message || '';
+        console.error(`❌ Failed to fetch interval ${intervalValue} for running job:`, errorDetail || errorMessage);
+        
+        return {
+          interval: intervalValue,
+          data: null,
+          error: errorDetail || errorMessage || 'Failed to load historical data',
+        };
+      }
+    });
+
+    Promise.all(fetchPromises).then((results) => {
+      const updatedData: Record<string, HistoricalDataPoint[]> = {};
+      const updatedProgress: Record<string, number> = {};
+      const updatedMetadata: Record<string, IntervalStartEvent> = {};
+      let hasError = false;
+
+      results.forEach(({ interval, data, error: fetchError }) => {
+        if (data && data.data_points && data.data_points.length > 0) {
+          updatedData[interval] = data.data_points;
+          updatedProgress[interval] = 100;
+          updatedMetadata[interval] = {
+            interval: data.interval || interval,
+            total_points: data.total_points,
+            total_chunks: 1,
+            chunk_size: data.data_points.length,
+            backtest_id: data.backtest_id || id,
+            symbol: data.symbol || '',
+            exchange: data.exchange || '',
+          };
+        } else {
+          updatedData[interval] = [];
+          updatedProgress[interval] = 0;
+          hasError = true;
+          if (fetchError) {
+            setError(fetchError);
+          }
+        }
+      });
+
+      setIntervalData(updatedData);
+      setIntervalProgress(updatedProgress);
+      setIntervalMetadata(updatedMetadata);
+      setLoading(false);
+
+      if (hasError) {
+        console.warn('⚠️ Some intervals failed to load for running job');
+      } else {
+        console.log('✅ All intervals loaded for running job via REST API');
+      }
+    });
+
+    // Set up polling for running jobs (refresh every 5 seconds)
+    const pollInterval = setInterval(() => {
+      if (!isRunningJob) {
+        clearInterval(pollInterval);
+        return;
+      }
+
+      intervals.forEach(async (intervalValue) => {
+        try {
+          const dataLimit = limit || 10000;
+          const data = await getBacktestHistoricalData(id, dataLimit, 'json', intervalValue);
+          
+          if (data && data.data_points && data.data_points.length > 0) {
+            setIntervalData(prev => ({
+              ...prev,
+              [intervalValue]: data.data_points,
+            }));
+            setIntervalProgress(prev => ({
+              ...prev,
+              [intervalValue]: 100,
+            }));
+          }
+        } catch (err) {
+          // Silently fail on polling errors
+          console.warn(`Polling error for interval ${intervalValue}:`, err);
+        }
+      });
+    }, 5000);
+
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [id, token, intervals, limit, enabled, isJobId, isRunningJob, resetState]);
+
   // Multi-interval SSE connection
+  // IMPORTANT: Only use multi-interval SSE for completed backtests (backtest_id)
+  // For running jobs, the REST API effect above handles it
   useEffect(() => {
     if (!enabled || !id || !token || !isMultiInterval || !intervals || intervals.length === 0) {
+      return;
+    }
+
+    // Safety check: Don't use multi-interval SSE for running jobs
+    if (isJobId && isRunningJob) {
+      // This should be handled by the REST API effect above
       return;
     }
 
@@ -258,7 +406,7 @@ export function useHistoricalDataSSE({
       client.disconnect();
       multiClientRef.current = null;
     };
-  }, [id, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState]);
+  }, [id, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState, isJobId, isRunningJob]);
 
   const refresh = useCallback(() => {
     // Reset and reconnect

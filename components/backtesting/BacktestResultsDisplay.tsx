@@ -35,9 +35,10 @@ interface BacktestResultsDisplayProps {
   results: BacktestResponse;
   hideTransactionDetails?: boolean; // Hide transaction/position details (for real-time updates during job execution)
   jobId?: string; // Optional job_id to use as fallback for charts when backtest_id is not available yet
+  jobStatus?: string | null; // Optional job status to determine if multi-interval SSE is allowed
 }
 
-export default function BacktestResultsDisplay({ results, hideTransactionDetails = false, jobId }: BacktestResultsDisplayProps) {
+export default function BacktestResultsDisplay({ results, hideTransactionDetails = false, jobId, jobStatus }: BacktestResultsDisplayProps) {
   const [viewMode, setViewMode] = useState<'position' | 'transaction'>('position');
 
   return (
@@ -116,6 +117,7 @@ export default function BacktestResultsDisplay({ results, hideTransactionDetails
                   symbol={results.symbol}
                   intervals={results.intervals}
                   primaryInterval={results.interval}
+                  jobStatus={jobStatus || null} // Pass job status to prevent multi-interval SSE for running jobs
                 />
               </div>
             )}
@@ -713,7 +715,8 @@ function DataBarsChart({
   toDate, 
   symbol,
   intervals,
-  primaryInterval
+  primaryInterval,
+  jobStatus
 }: { 
   backtestId: string;
   dataBarsCount: number; 
@@ -722,6 +725,7 @@ function DataBarsChart({
   symbol: string;
   intervals?: string[];
   primaryInterval?: string;
+  jobStatus?: string | null; // Job status to determine if multi-interval SSE is allowed
 }) {
   // Get Firebase token for SSE
   const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
@@ -754,6 +758,7 @@ function DataBarsChart({
     chunkSize: 500,
     enabled: !!backtestId && !!token,
     useRestApiFallback: false, // Use SSE only, no REST API fallback
+    jobStatus: jobStatus || null, // Pass job status to prevent multi-interval SSE for running jobs
   });
   
   // For backward compatibility: map SSE data to old state structure

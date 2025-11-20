@@ -1252,6 +1252,7 @@ class MyStrategy(bt.Strategy):
                       symbol={activeJob.symbol}
                       intervals={activeJob.intervals}
                       primaryInterval={activeJob.intervals[0]}
+                      jobStatus={activeJob.status} // Pass job status to prevent multi-interval SSE for running jobs
                     />
                   </div>
                 )}
@@ -1441,6 +1442,7 @@ class MyStrategy(bt.Strategy):
                             symbol={results.symbol}
                             intervals={results.intervals}
                             primaryInterval={results.interval}
+                            jobStatus={null} // Completed backtest - can use multi-interval SSE
                           />
                         </div>
                       )}
@@ -2433,7 +2435,8 @@ function DataBarsChart({
   toDate, 
   symbol,
   intervals,
-  primaryInterval
+  primaryInterval,
+  jobStatus
 }: { 
   backtestId: string;
   dataBarsCount: number; 
@@ -2442,6 +2445,7 @@ function DataBarsChart({
   symbol: string;
   intervals?: string[];
   primaryInterval?: string;
+  jobStatus?: string | null; // Job status to determine if multi-interval SSE is allowed
 }) {
   // Get Firebase token for SSE
   const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
@@ -2475,6 +2479,7 @@ function DataBarsChart({
     chunkSize: 500,
     enabled: !!backtestId && !!token,
     useRestApiFallback: false, // Use SSE by default, can enable REST API fallback if needed
+    jobStatus: jobStatus || null, // Pass job status to prevent multi-interval SSE for running jobs
   });
   
   // For backward compatibility: map SSE data to old state structure
