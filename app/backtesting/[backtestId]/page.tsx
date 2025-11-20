@@ -46,35 +46,105 @@ export default function BacktestDetailPage() {
     }
   }, [isAuthenticated, isInitialized, router, id]);
 
+  // Helper function to create partial results from job data (for real-time chart display)
+  const createPartialResults = (job: BacktestJob): BacktestResponse => {
+    return {
+      backtest_id: job.result?.backtest_id || job.job_id, // Use job_id as fallback for charts
+      symbol: job.symbol,
+      exchange: job.exchange,
+      from_date: job.from_date,
+      to_date: job.to_date,
+      initial_cash: job.initial_cash,
+      intervals: job.intervals,
+      interval: job.intervals?.[0] || 'day',
+      // Use current_bar as data_bars_count if available, otherwise 0
+      data_bars_count: job.current_bar || 0,
+      // Required fields - set to defaults during execution
+      final_value: job.initial_cash, // Will update when job completes
+      total_return: 0,
+      total_return_pct: 0,
+      total_trades: 0,
+      winning_trades: 0,
+      losing_trades: 0,
+      win_rate: null,
+      total_pnl: 0,
+      sharpe_ratio: null,
+      max_drawdown: null,
+      max_drawdown_pct: null,
+      system_quality_number: null,
+      average_return: null,
+      annual_return: null,
+      // Optional fields
+      transactions: undefined,
+      positions: undefined,
+    };
+  };
+
   // Sync hook's job state to local state (only when hookJob changes meaningfully)
-  const prevHookJobRef = useRef<{ status?: string; progress?: number; hasResult?: boolean; error_message?: string } | null>(null);
+  const prevHookJobRef = useRef<{ status?: string; progress?: number; hasResult?: boolean; error_message?: string; current_bar?: number } | null>(null);
   useEffect(() => {
     if (hookJob) {
       const prev = prevHookJobRef.current;
-      // Only update if status, progress, result, or error_message changed
+      // Only update if status, progress, result, error_message, or current_bar changed
       const shouldUpdate = !prev || 
         prev.status !== hookJob.status ||
         prev.progress !== hookJob.progress ||
         prev.hasResult !== !!hookJob.result ||
-        prev.error_message !== hookJob.error_message;
+        prev.error_message !== hookJob.error_message ||
+        prev.current_bar !== hookJob.current_bar;
       
       if (shouldUpdate) {
+        const prevState = prevHookJobRef.current;
         prevHookJobRef.current = {
           status: hookJob.status,
           progress: hookJob.progress,
           hasResult: !!hookJob.result,
           error_message: hookJob.error_message,
+          current_bar: hookJob.current_bar,
         };
         setJob(hookJob);
         
-        // If job has result (completed), set results
+        // If job has result (completed), set full results
         if (hookJob.result) {
           setResults(hookJob.result);
+        } else if ((hookJob.status === 'running' || hookJob.status === 'queued' || hookJob.status === 'pending')) {
+          // During execution, create/update partial results for real-time chart display
+          // This allows Data Verification section and charts to show during execution
+          setResults(prevResults => {
+            // If we already have full results (with backtest_id that matches a completed backtest), don't overwrite
+            if (prevResults && prevResults.backtest_id && prevResults.backtest_id.startsWith('bt_') && hookJob.status !== 'completed') {
+              return prevResults; // Keep existing full results
+            }
+            // Create/update partial results
+            const partialResults = createPartialResults(hookJob);
+            // Preserve any existing data_bars_count if it's higher (in case we got updates)
+            if (prevResults && prevResults.data_bars_count && prevResults.data_bars_count > partialResults.data_bars_count) {
+              partialResults.data_bars_count = prevResults.data_bars_count;
+            }
+            // If we have a backtest_id from a previous update (maybe it became available), use it
+            if (prevResults && prevResults.backtest_id && prevResults.backtest_id.startsWith('bt_')) {
+              partialResults.backtest_id = prevResults.backtest_id;
+            }
+            return partialResults;
+          });
+          
+          // Log only on significant updates (every 10% progress or when current_bar changes)
+          if (!prevState || 
+              Math.abs((prevState.progress || 0) - (hookJob.progress || 0)) > 10 ||
+              (hookJob.current_bar !== undefined && hookJob.current_bar !== (prevState.current_bar || 0))) {
+            console.log('📊 Updated partial results for real-time display:', {
+              job_id: hookJob.job_id,
+              status: hookJob.status,
+              progress: hookJob.progress,
+              current_bar: hookJob.current_bar,
+              total_bars: hookJob.total_bars,
+              data_bars_count: hookJob.current_bar || 0,
+            });
+          }
         }
-        // Note: During execution, results will be set when available via SSE or when job completes
       }
     }
-  }, [hookJob?.status, hookJob?.progress, hookJob?.result, hookJob?.error_message]); // Use specific fields instead of entire object
+  }, [hookJob?.status, hookJob?.progress, hookJob?.result, hookJob?.error_message, hookJob?.current_bar, hookJob?.job_id, hookJob?.symbol, hookJob?.exchange, hookJob?.from_date, hookJob?.to_date, hookJob?.intervals, hookJob?.initial_cash]); // Include fields needed for partial results
 
   // When job completes, use the result (no redirect - user stays on job page)
   useEffect(() => {
@@ -111,6 +181,17 @@ export default function BacktestDetailPage() {
         } catch (err) {
           console.warn('Failed to load backtest history for completed job:', err);
         }
+      } else if (jobData.status === 'running' || jobData.status === 'queued' || jobData.status === 'pending') {
+        // During execution, create partial results immediately for real-time chart display
+        const partialResults = createPartialResults(jobData);
+        setResults(partialResults);
+        console.log('📊 Created initial partial results for real-time display:', {
+          job_id: jobData.job_id,
+          status: jobData.status,
+          progress: jobData.progress,
+          current_bar: jobData.current_bar,
+          data_bars_count: partialResults.data_bars_count,
+        });
       }
       
       setLoading(false);
