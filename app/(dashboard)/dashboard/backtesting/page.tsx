@@ -2446,13 +2446,14 @@ function DataBarsChart({
     isMultiInterval: sseIsMultiInterval,
     refresh: sseRefresh,
   } = useHistoricalDataSSE({
-    backtestId: backtestId || null,
+    id: backtestId || null, // Can be backtest_id or job_id
     token: token || null,
     interval: !isMultiTimeframe ? (primaryInterval || intervals?.[0]) : undefined,
     intervals: isMultiTimeframe ? intervals : undefined,
     limit: dataBarsCount || 10000,
     chunkSize: 500,
     enabled: !!backtestId && !!token,
+    useRestApiFallback: false, // Use SSE by default, can enable REST API fallback if needed
   });
   
   // For backward compatibility: map SSE data to old state structure

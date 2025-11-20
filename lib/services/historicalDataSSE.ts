@@ -91,10 +91,11 @@ export type ErrorCallback = (error: ErrorEvent) => void;
 
 /**
  * SSE Client for streaming historical data for a single interval
+ * Supports both backtest_id (starts with 'bt_') and job_id (does not start with 'bt_')
  */
 export class HistoricalDataSSEClient {
   private eventSource: EventSource | null = null;
-  private backtestId: string;
+  private id: string; // Can be backtest_id or job_id
   private token: string;
   private interval: string;
   private limit: number;
@@ -102,13 +103,13 @@ export class HistoricalDataSSEClient {
   private isIntentionallyClosed = false;
 
   constructor(
-    backtestId: string,
+    id: string, // backtest_id (starts with 'bt_') or job_id (does not start with 'bt_')
     token: string,
     interval: string,
     limit: number = 1000,
     chunkSize: number = 500
   ) {
-    this.backtestId = backtestId;
+    this.id = id;
     this.token = token;
     this.interval = interval;
     this.limit = limit;
@@ -242,7 +243,7 @@ export class HistoricalDataSSEClient {
       token: this.token,
     });
     
-    return `${baseUrl}/api/sse/backtest/${this.backtestId}/data?${params.toString()}`;
+    return `${baseUrl}/api/sse/backtest/${this.id}/data?${params.toString()}`;
   }
 
   disconnect(): void {
@@ -256,10 +257,11 @@ export class HistoricalDataSSEClient {
 
 /**
  * SSE Client for streaming historical data for multiple intervals
+ * Supports both backtest_id (starts with 'bt_') and job_id (does not start with 'bt_')
  */
 export class MultiIntervalHistoricalDataSSEClient {
   private eventSource: EventSource | null = null;
-  private backtestId: string;
+  private id: string; // Can be backtest_id or job_id
   private token: string;
   private intervals: string[];
   private limit: number;
@@ -267,13 +269,13 @@ export class MultiIntervalHistoricalDataSSEClient {
   private isIntentionallyClosed = false;
 
   constructor(
-    backtestId: string,
+    id: string, // backtest_id (starts with 'bt_') or job_id (does not start with 'bt_')
     token: string,
     intervals: string[],
     limit: number = 1000,
     chunkSize: number = 500
   ) {
-    this.backtestId = backtestId;
+    this.id = id;
     this.token = token;
     this.intervals = intervals;
     this.limit = limit;
@@ -423,7 +425,7 @@ export class MultiIntervalHistoricalDataSSEClient {
       token: this.token,
     });
     
-    return `${baseUrl}/api/sse/backtest/${this.backtestId}/data/multi?${params.toString()}`;
+    return `${baseUrl}/api/sse/backtest/${this.id}/data/multi?${params.toString()}`;
   }
 
   disconnect(): void {

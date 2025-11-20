@@ -10,13 +10,15 @@ import {
 } from '@/lib/services/historicalDataSSE';
 
 interface UseHistoricalDataSSEOptions {
-  backtestId: string | null;
+  id: string | null; // Can be backtest_id (starts with 'bt_') or job_id (does not start with 'bt_')
   token: string | null;
   interval?: string; // Single interval
   intervals?: string[]; // Multiple intervals
   limit?: number;
   chunkSize?: number;
   enabled?: boolean; // Whether to start streaming immediately
+  useRestApiFallback?: boolean; // Fallback to REST API polling for running jobs
+  pollInterval?: number; // Polling interval in ms (default: 5000) for REST API fallback
 }
 
 interface UseHistoricalDataSSEReturn {
@@ -44,13 +46,15 @@ interface UseHistoricalDataSSEReturn {
  * Supports both single and multi-interval backtests
  */
 export function useHistoricalDataSSE({
-  backtestId,
+  id, // Can be backtest_id or job_id
   token,
   interval,
   intervals,
   limit = 1000,
   chunkSize = 500,
   enabled = true,
+  useRestApiFallback = false, // Use REST API polling as fallback for running jobs
+  pollInterval = 5000, // Poll every 5 seconds for running jobs
 }: UseHistoricalDataSSEOptions): UseHistoricalDataSSEReturn {
   const isMultiInterval = intervals && intervals.length > 1;
   
@@ -89,13 +93,13 @@ export function useHistoricalDataSSE({
 
   // Single interval SSE connection
   useEffect(() => {
-    if (!enabled || !backtestId || !token || isMultiInterval || !interval) {
+    if (!enabled || !id || !token || isMultiInterval || !interval) {
       return;
     }
 
     resetState();
 
-    const client = new HistoricalDataSSEClient(backtestId, token, interval, limit, chunkSize);
+    const client = new HistoricalDataSSEClient(id, token, interval, limit, chunkSize);
     singleClientRef.current = client;
 
     client.connect(
@@ -143,11 +147,11 @@ export function useHistoricalDataSSE({
       client.disconnect();
       singleClientRef.current = null;
     };
-  }, [backtestId, token, interval, limit, chunkSize, enabled, isMultiInterval, resetState]);
+  }, [id, token, interval, limit, chunkSize, enabled, isMultiInterval, resetState]);
 
   // Multi-interval SSE connection
   useEffect(() => {
-    if (!enabled || !backtestId || !token || !isMultiInterval || !intervals || intervals.length === 0) {
+    if (!enabled || !id || !token || !isMultiInterval || !intervals || intervals.length === 0) {
       return;
     }
 
@@ -163,7 +167,7 @@ export function useHistoricalDataSSE({
     setIntervalData(initialData);
     setIntervalProgress(initialProgress);
 
-    const client = new MultiIntervalHistoricalDataSSEClient(backtestId, token, intervals, limit, chunkSize);
+    const client = new MultiIntervalHistoricalDataSSEClient(id, token, intervals, limit, chunkSize);
     multiClientRef.current = client;
 
     client.connect(
@@ -254,7 +258,7 @@ export function useHistoricalDataSSE({
       client.disconnect();
       multiClientRef.current = null;
     };
-  }, [backtestId, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState]);
+  }, [id, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState]);
 
   const refresh = useCallback(() => {
     // Reset and reconnect
