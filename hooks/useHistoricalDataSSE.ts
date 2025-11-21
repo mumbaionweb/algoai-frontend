@@ -165,18 +165,48 @@ export function useHistoricalDataSSE({
   // Multi-interval REST API fallback for running jobs
   // For running jobs with multi-interval, we must use REST API for each interval separately
   // Multi-interval SSE is ONLY available for completed backtests
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isRunningJobRef = useRef<boolean>(false);
+  const initializedForJobRef = useRef<string | null>(null); // Track which job we've initialized for
+  
   useEffect(() => {
     if (!enabled || !id || !token || !intervals || intervals.length <= 1) {
+      // Clean up if conditions not met
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      isRunningJobRef.current = false;
+      initializedForJobRef.current = null;
       return;
     }
 
     // Only use REST API fallback for running jobs with multi-interval
     if (!isJobId || !isRunningJob) {
+      // Clean up polling if job is no longer running
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      isRunningJobRef.current = false;
+      // Reset initialization if job changed or completed
+      if (initializedForJobRef.current !== id) {
+        initializedForJobRef.current = null;
+      }
       return; // Let the multi-interval SSE effect handle it
+    }
+
+    // Prevent multiple initializations for the same job
+    if (initializedForJobRef.current === id && pollIntervalRef.current) {
+      // Update the running job ref but don't re-initialize
+      isRunningJobRef.current = true;
+      return; // Already initialized for this job
     }
 
     console.log('⚠️ Running job with multi-interval detected. Using REST API for each interval separately (multi-interval SSE not available for running jobs).');
 
+    initializedForJobRef.current = id;
+    isRunningJobRef.current = true;
     resetState();
 
     // Initialize interval data structures
@@ -234,11 +264,20 @@ export function useHistoricalDataSSE({
             exchange: data.exchange || '',
           };
         } else {
+          // For running jobs, it's normal for some intervals to not have data yet
+          // Don't set error state, just log it
           updatedData[interval] = [];
           updatedProgress[interval] = 0;
           hasError = true;
           if (fetchError) {
-            setError(fetchError);
+            // Only set error if it's a critical error (not just "no data yet")
+            const isServerError = fetchError.includes('500') || fetchError.includes('Internal Server Error');
+            if (isServerError) {
+              console.error(`❌ Server error fetching interval ${interval}:`, fetchError);
+              // Don't set global error - let other intervals continue
+            } else {
+              console.warn(`⚠️ No data yet for interval ${interval} (job still running)`);
+            }
           }
         }
       });
@@ -256,9 +295,19 @@ export function useHistoricalDataSSE({
     });
 
     // Set up polling for running jobs (refresh every 5 seconds)
-    const pollInterval = setInterval(() => {
-      if (!isRunningJob) {
-        clearInterval(pollInterval);
+    // Only poll if job is still running
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+    
+    pollIntervalRef.current = setInterval(() => {
+      // Check if job is still running (use ref to avoid stale closure)
+      if (!isRunningJobRef.current || !isJobId || !isRunningJob) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        isRunningJobRef.current = false;
         return;
       }
 
@@ -278,16 +327,28 @@ export function useHistoricalDataSSE({
             }));
           }
         } catch (err) {
-          // Silently fail on polling errors
-          console.warn(`Polling error for interval ${intervalValue}:`, err);
+          // Silently fail on polling errors (backend might not have data yet)
+          // Only log if it's not a 500 error (which indicates backend issue)
+          const isServerError = (err as any)?.response?.status === 500;
+          if (!isServerError) {
+            console.warn(`Polling error for interval ${intervalValue}:`, err);
+          }
         }
       });
     }, 5000);
 
     return () => {
-      clearInterval(pollInterval);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+      isRunningJobRef.current = false;
+      // Reset initialization flag when job ID changes (new job)
+      if (initializedForJobRef.current === id) {
+        initializedForJobRef.current = null;
+      }
     };
-  }, [id, token, intervals, limit, enabled, isJobId, isRunningJob, resetState]);
+  }, [id, token, intervals, limit, enabled, isJobId, isRunningJob]);
 
   // Multi-interval SSE connection
   // IMPORTANT: Only use multi-interval SSE for completed backtests (backtest_id)

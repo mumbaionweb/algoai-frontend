@@ -108,8 +108,13 @@ export async function getBacktestHistory(limit: number = 50): Promise<BacktestHi
   try {
     logApiCall('Fetching backtest history', { limit });
 
+    // Use extended timeout for history (30 seconds)
+    // Should be fast, but may need time if Firestore is slow or index is missing
     const response = await apiClient.get<BacktestHistoryResponse>(
-      `/api/backtesting/history?limit=${limit}`
+      `/api/backtesting/history?limit=${limit}`,
+      {
+        timeout: 30000, // 30 seconds
+      }
     );
 
     logApiCall('Backtest history fetched', undefined, {
