@@ -212,8 +212,11 @@ export async function getBacktestHistoricalData(
     const url = `/api/backtesting/${id}/data${params.toString() ? `?${params.toString()}` : ''}`;
     // Use extended timeout for historical data (90 seconds)
     // Historical data can be large and may take time to fetch, especially for running jobs
+    // For completed jobs: BigQuery retries can take up to 30 seconds (2s + 4s + 8s + 16s = 30s total)
+    // For running jobs: Fetches directly from broker API (can take 20-40 seconds for multi-timeframe data)
+    // BigQuery streaming inserts can have delays before data is queryable
     const response = await apiClient.get<HistoricalDataResponse>(url, {
-      timeout: 90000, // 90 seconds
+      timeout: 90000, // 90 seconds (minimum recommended: 60 seconds)
     });
 
     logApiCall('Historical data fetched', undefined, {
@@ -322,8 +325,13 @@ export async function getBacktestJob(jobId: string): Promise<BacktestJob> {
   try {
     logApiCall('Fetching backtest job', { job_id: jobId });
 
+    // Use extended timeout for fetching job (20 seconds)
+    // Should be fast, but may need time if Firestore is slow
     const response = await apiClient.get<BacktestJob>(
-      `/api/backtesting/jobs/${jobId}`
+      `/api/backtesting/jobs/${jobId}`,
+      {
+        timeout: 20000, // 20 seconds
+      }
     );
 
     logApiCall('Backtest job fetched', undefined, {
@@ -359,7 +367,11 @@ export async function listBacktestJobs(
     params.append('limit', limit.toString());
 
     const url = `/api/backtesting/jobs?${params.toString()}`;
-    const response = await apiClient.get<BacktestJob[]>(url);
+    // Use extended timeout for listing jobs (20 seconds)
+    // Should be fast, but may need time if Firestore index is missing or large dataset
+    const response = await apiClient.get<BacktestJob[]>(url, {
+      timeout: 20000, // 20 seconds
+    });
 
     logApiCall('Backtest jobs listed', undefined, {
       count: response.data.length,

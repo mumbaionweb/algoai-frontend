@@ -163,14 +163,19 @@ apiClient.interceptors.response.use(
     
     // Log timeout errors
     if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout')) {
+      const timeoutMs = axiosError.config?.timeout || 30000;
+      const timeoutSeconds = timeoutMs / 1000;
+      
       console.error('⏱️ Request Timeout Error:', {
         message: axiosError.message,
         code: axiosError.code,
         baseURL: API_URL,
         url: axiosError.config?.url,
         fullUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
-        timeout: '30 seconds',
-        suggestion: 'Backend is taking too long to respond. Check backend logs or increase timeout.',
+        timeout: `${timeoutSeconds} seconds (${timeoutMs}ms)`,
+        suggestion: axiosError.config?.url?.includes('/data') 
+          ? 'Historical data fetch timed out. This can happen if BigQuery is retrying (up to 30s) or broker API is slow. The request may still succeed - check backend logs.'
+          : 'Backend is taking too long to respond. Check backend logs or increase timeout.',
       });
     }
     
