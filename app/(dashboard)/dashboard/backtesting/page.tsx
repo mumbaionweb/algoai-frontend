@@ -1874,17 +1874,17 @@ class MyStrategy(bt.Strategy):
                         </p>
                       </div>
                       <div className="flex flex-col sm:items-end gap-1">
-                        <p className={`font-semibold text-lg ${item.total_return >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          {item.total_return >= 0 ? '+' : ''}{item.total_return.toFixed(2)}%
+                        <p className={`font-semibold text-lg ${(item.total_return ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {item.total_return != null ? `${item.total_return >= 0 ? '+' : ''}${item.total_return.toFixed(2)}%` : 'N/A'}
                         </p>
                         <div className="flex gap-4 text-sm text-gray-400">
-                          <span>{item.total_trades} trades</span>
-                          {item.win_rate !== null && (
+                          <span>{item.total_trades ?? 0} trades</span>
+                          {item.win_rate != null && (
                             <span>{item.win_rate.toFixed(1)}% win rate</span>
                           )}
                         </div>
-                        <p className={`text-sm font-medium ${item.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ₹{item.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <p className={`text-sm font-medium ${(item.total_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {item.total_pnl != null ? `₹${item.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                         </p>
                       </div>
                     </div>
