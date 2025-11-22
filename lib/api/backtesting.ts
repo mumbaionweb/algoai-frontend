@@ -215,13 +215,16 @@ export async function getBacktestHistoricalData(
     }
 
     const url = `/api/backtesting/${id}/data${params.toString() ? `?${params.toString()}` : ''}`;
-    // Use extended timeout for historical data (90 seconds)
-    // Historical data can be large and may take time to fetch, especially for running jobs
+    // Use extended timeout for historical data
     // For completed jobs: BigQuery retries can take up to 30 seconds (2s + 4s + 8s + 16s = 30s total)
-    // For running jobs: Fetches directly from broker API (can take 20-40 seconds for multi-timeframe data)
+    // For running jobs: Fetches directly from broker API (can take 40-60+ seconds for large datasets like minute interval)
     // BigQuery streaming inserts can have delays before data is queryable
+    // Large datasets (5000+ points) may require more time, especially for minute/3minute intervals
+    const isJobId = !id.startsWith('bt_');
+    const timeout = isJobId ? 120000 : 90000; // 120 seconds for running jobs, 90 seconds for completed backtests
+    
     const response = await apiClient.get<HistoricalDataResponse>(url, {
-      timeout: 90000, // 90 seconds (minimum recommended: 60 seconds)
+      timeout: timeout,
     });
 
     logApiCall('Historical data fetched', undefined, {

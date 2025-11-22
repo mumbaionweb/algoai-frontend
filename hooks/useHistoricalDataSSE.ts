@@ -234,12 +234,19 @@ export function useHistoricalDataSSE({
       } catch (err: any) {
         const errorDetail = err.response?.data?.detail || '';
         const errorMessage = err.message || '';
-        console.error(`❌ Failed to fetch interval ${intervalValue} for running job:`, errorDetail || errorMessage);
+        const isTimeout = err.code === 'ECONNABORTED' || errorMessage.includes('timeout');
+        
+        if (isTimeout) {
+          // Timeout is expected for large datasets - provide helpful message
+          console.warn(`⏱️ Timeout fetching interval ${intervalValue} for running job (large dataset, will retry). This is normal for minute/3minute intervals with many data points.`);
+        } else {
+          console.error(`❌ Failed to fetch interval ${intervalValue} for running job:`, errorDetail || errorMessage);
+        }
         
         return {
           interval: intervalValue,
           data: null,
-          error: errorDetail || errorMessage || 'Failed to load historical data',
+          error: isTimeout ? 'Request timeout (large dataset)' : (errorDetail || errorMessage || 'Failed to load historical data'),
         };
       }
     });
@@ -326,13 +333,19 @@ export function useHistoricalDataSSE({
               [intervalValue]: 100,
             }));
           }
-        } catch (err) {
-          // Silently fail on polling errors (backend might not have data yet)
-          // Only log if it's not a 500 error (which indicates backend issue)
-          const isServerError = (err as any)?.response?.status === 500;
-          if (!isServerError) {
-            console.warn(`Polling error for interval ${intervalValue}:`, err);
+        } catch (err: any) {
+          // Handle timeout errors specifically
+          const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout');
+          const isServerError = err.response?.status === 500;
+          
+          if (isTimeout) {
+            // Timeout is expected for large datasets - log but don't spam console
+            console.warn(`⏱️ Timeout fetching interval ${intervalValue} for running job (this is normal for large datasets). Will retry on next poll.`);
+          } else if (!isServerError) {
+            // Log other errors (but not 500 server errors)
+            console.warn(`Polling error for interval ${intervalValue}:`, err.message || err);
           }
+          // Silently continue - will retry on next poll
         }
       });
     }, 5000);
