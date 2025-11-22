@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { HistoricalDataPoint } from '@/lib/api/backtesting';
 import {
   HistoricalDataSSEClient,
@@ -61,6 +61,12 @@ export function useHistoricalDataSSE({
   // Determine if we have multiple intervals
   const isMultiInterval = intervals && intervals.length > 1;
   
+  // Create stable intervals key for dependency comparison
+  const intervalsKey = useMemo(() => {
+    if (!intervals || intervals.length === 0) return '';
+    return [...intervals].sort().join(',');
+  }, [intervals]);
+  
   // Single interval state
   const [data, setData] = useState<HistoricalDataPoint[]>([]);
   const [progress, setProgress] = useState(0);
@@ -78,7 +84,7 @@ export function useHistoricalDataSSE({
   // Refs to track clients for cleanup
   const singleClientRef = useRef<HistoricalDataSSEClient | null>(null);
   const multiClientsRef = useRef<Map<string, HistoricalDataSSEClient>>(new Map());
-  const lastEffectKeyRef = useRef<string | null>(null);
+  const connectionConfigRef = useRef<{ id: string; intervals: string[] } | null>(null);
 
   const resetState = useCallback(() => {
     if (isMultiInterval) {
@@ -162,65 +168,52 @@ export function useHistoricalDataSSE({
       return;
     }
 
-    // Check if we already have active connections for all these intervals
-    const existingClients = Array.from(multiClientsRef.current.keys());
-    const expectedIntervals = [...intervals].sort();
-    const existingIntervals = [...existingClients].sort();
+    // Normalize intervals for comparison
+    const normalizedIntervals = [...intervals].sort();
+    const intervalsKey = normalizedIntervals.join(',');
     
-    // If we already have the same connections for the same id, don't recreate them
-    const intervalsKey = [...intervals].sort().join(',');
-    const effectKey = `${id}-${intervalsKey}`;
-    
-    if (lastEffectKeyRef.current === effectKey && 
-        existingIntervals.length === expectedIntervals.length &&
-        existingIntervals.every((interval, idx) => interval === expectedIntervals[idx])) {
-      // All connections already exist for this exact configuration
+    // Check if we already have connections for this exact configuration
+    const currentConfig = connectionConfigRef.current;
+    if (currentConfig && 
+        currentConfig.id === id && 
+        currentConfig.intervals.join(',') === intervalsKey) {
+      // Configuration hasn't changed, don't recreate connections
       return;
     }
-    
-    lastEffectKeyRef.current = effectKey;
 
-    // Clean up existing connections that are no longer needed
+    // Configuration changed - clean up old connections
     multiClientsRef.current.forEach((client, intervalValue) => {
-      if (!intervals.includes(intervalValue)) {
-        console.log(`🔌 Disconnecting SSE for interval ${intervalValue} (no longer needed)`);
-        client.disconnect();
-        multiClientsRef.current.delete(intervalValue);
-      }
+      client.disconnect();
+      multiClientsRef.current.delete(intervalValue);
     });
 
-    // Check which intervals need new connections
-    const intervalsNeedingConnections = intervals.filter(intervalValue => {
-      const existingClient = multiClientsRef.current.get(intervalValue);
-      return !existingClient; // Only create if it doesn't exist
-    });
+    // Update connection config
+    connectionConfigRef.current = { id, intervals: normalizedIntervals };
 
-    // If no intervals need connections, we're done
-    if (intervalsNeedingConnections.length === 0) {
-      return;
-    }
-
-    // Initialize interval data structures (only for new intervals that don't have data yet)
-    intervalsNeedingConnections.forEach(interval => {
-      setIntervalData(prev => {
-        if (prev[interval] && prev[interval].length > 0) {
-          return prev; // Don't reset if we already have data
-        }
-        return { ...prev, [interval]: [] };
-      });
-      setIntervalProgress(prev => ({ ...prev, [interval]: prev[interval] ?? 0 }));
-      setIntervalLoading(prev => ({ ...prev, [interval]: true }));
+    // Initialize interval data structures
+    const initialData: Record<string, HistoricalDataPoint[]> = {};
+    const initialProgress: Record<string, number> = {};
+    const initialLoading: Record<string, boolean> = {};
+    const initialMetadata: Record<string, IntervalStartEvent> = {};
+    intervals.forEach(interval => {
+      initialData[interval] = [];
+      initialProgress[interval] = 0;
+      initialLoading[interval] = true;
     });
+    setIntervalData(initialData);
+    setIntervalProgress(initialProgress);
+    setIntervalLoading(initialLoading);
+    setIntervalMetadata(initialMetadata);
 
     // Track loading state per interval (for internal state management)
     const intervalLoadingState = new Map<string, boolean>();
-    intervalsNeedingConnections.forEach(interval => {
+    intervals.forEach(interval => {
       intervalLoadingState.set(interval, true);
     });
 
-    // Create one SSE client per interval that needs it
+    // Create one SSE client per interval for parallel loading
     const clients = new Map<string, HistoricalDataSSEClient>();
-    intervalsNeedingConnections.forEach(intervalValue => {
+    intervals.forEach(intervalValue => {
       const client = new HistoricalDataSSEClient(id, token, intervalValue, limit, chunkSize);
       clients.set(intervalValue, client);
       multiClientsRef.current.set(intervalValue, client);
@@ -326,15 +319,24 @@ export function useHistoricalDataSSE({
       );
     });
 
-    // Cleanup: disconnect only the clients we created in this effect
+    // Cleanup: disconnect all clients when effect dependencies change
     return () => {
-      clients.forEach((client, intervalValue) => {
+      // Only cleanup if the configuration actually changed
+      const currentConfig = connectionConfigRef.current;
+      if (currentConfig && currentConfig.id === id && 
+          currentConfig.intervals.join(',') === [...intervals].sort().join(',')) {
+        // Configuration is the same, don't cleanup (might be a false positive re-run)
+        return;
+      }
+      
+      // Configuration changed, cleanup all connections
+      multiClientsRef.current.forEach((client) => {
         client.disconnect();
-        multiClientsRef.current.delete(intervalValue);
       });
-      clients.clear();
+      multiClientsRef.current.clear();
+      connectionConfigRef.current = null;
     };
-  }, [id, token, intervals?.join(','), limit, chunkSize, enabled, isMultiInterval, jobStatus]);
+  }, [id, token, intervalsKey, limit, chunkSize, enabled, isMultiInterval]);
 
   const refresh = useCallback(() => {
     // Reset and reconnect
