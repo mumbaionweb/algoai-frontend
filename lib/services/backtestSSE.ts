@@ -123,6 +123,16 @@ export class BacktestSSEClient {
           const resultSummary = data.result_summary || data.result;
           
           console.log('✅ Job completed, result_summary received via SSE:', resultSummary);
+          
+          // Mark as intentionally closed BEFORE disconnecting to prevent auto-reconnect
+          this.isIntentionallyClosed = true;
+          
+          // Disconnect immediately to prevent reconnection
+          if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+          }
+          
           console.log('📊 Fetching full result via REST API...');
           
           // IMPORTANT: Fetch full result immediately via REST API
@@ -145,8 +155,6 @@ export class BacktestSSEClient {
             console.warn('⚠️ Falling back to result_summary');
             onComplete(resultSummary);
           }
-          
-          this.disconnect();
         } catch (error) {
           console.error('Error parsing completed event:', error);
           onError('Failed to parse completion data');
@@ -180,6 +188,11 @@ export class BacktestSSEClient {
       });
 
       this.eventSource.addEventListener('error', (event) => {
+        // Don't reconnect if we intentionally closed the connection
+        if (this.isIntentionallyClosed) {
+          return; // Ignore errors after intentional disconnect
+        }
+        
         // SSE automatically reconnects, but we can handle errors here
         if (this.eventSource?.readyState === EventSource.CONNECTING) {
           console.log('🔄 SSE reconnecting...');

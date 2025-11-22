@@ -108,12 +108,13 @@ export async function getBacktestHistory(limit: number = 50): Promise<BacktestHi
   try {
     logApiCall('Fetching backtest history', { limit });
 
-    // Use extended timeout for history (30 seconds)
-    // Should be fast, but may need time if Firestore is slow or index is missing
+    // Use extended timeout for history (45 seconds)
+    // Should be fast, but may need time if Firestore is slow, index is missing, or large dataset
+    // Backend timeout is 15s for Firestore, but Cloud Run gateway timeout is 60s
     const response = await apiClient.get<BacktestHistoryResponse>(
       `/api/backtesting/history?limit=${limit}`,
       {
-        timeout: 30000, // 30 seconds
+        timeout: 45000, // 45 seconds (backend Firestore timeout is 15s, but gateway can take longer)
       }
     );
 
@@ -350,12 +351,13 @@ export async function getBacktestJob(jobId: string): Promise<BacktestJob> {
   try {
     logApiCall('Fetching backtest job', { job_id: jobId });
 
-    // Use extended timeout for fetching job (20 seconds)
-    // Should be fast, but may need time if Firestore is slow
+    // Use extended timeout for fetching job (30 seconds)
+    // Should be fast, but may need time if Firestore is slow or job result is large
+    // Backend timeout is 15s for Firestore, but Cloud Run gateway timeout is 60s
     const response = await apiClient.get<BacktestJob>(
       `/api/backtesting/jobs/${jobId}`,
       {
-        timeout: 20000, // 20 seconds
+        timeout: 30000, // 30 seconds (increased from 20s to handle slow Firestore queries)
       }
     );
 
@@ -392,10 +394,11 @@ export async function listBacktestJobs(
     params.append('limit', limit.toString());
 
     const url = `/api/backtesting/jobs?${params.toString()}`;
-    // Use extended timeout for listing jobs (20 seconds)
+    // Use extended timeout for listing jobs (30 seconds)
     // Should be fast, but may need time if Firestore index is missing or large dataset
+    // Backend timeout is 15s for Firestore, but Cloud Run gateway timeout is 60s
     const response = await apiClient.get<BacktestJob[]>(url, {
-      timeout: 20000, // 20 seconds
+      timeout: 30000, // 30 seconds (increased from 20s to handle slow Firestore queries)
     });
 
     logApiCall('Backtest jobs listed', undefined, {

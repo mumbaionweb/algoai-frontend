@@ -1606,19 +1606,19 @@ class MyStrategy(bt.Strategy):
                               <span className="text-white ml-2 font-semibold">{results.closed_positions_count}</span>
                             </div>
                           )}
-                          {results.total_invested_capital !== undefined && (
+                          {results.total_invested_capital !== undefined && results.total_invested_capital !== null && (
                             <div>
                               <span className="text-gray-400">Total Invested:</span>
                               <span className="text-white ml-2 font-semibold">₹{results.total_invested_capital.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                           )}
-                          {results.available_capital !== undefined && (
+                          {results.available_capital !== undefined && results.available_capital !== null && (
                             <div>
                               <span className="text-gray-400">Available Capital:</span>
                               <span className="text-white ml-2 font-semibold">₹{results.available_capital.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                           )}
-                          {results.total_open_positions_value !== undefined && (
+                          {results.total_open_positions_value !== undefined && results.total_open_positions_value !== null && (
                             <div>
                               <span className="text-gray-400">Open Positions Value:</span>
                               <span className="text-white ml-2 font-semibold">₹{results.total_open_positions_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
