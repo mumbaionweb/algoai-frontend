@@ -744,6 +744,7 @@ function DataBarsChart({
     // Multi-interval
     intervalData: sseIntervalData,
     intervalProgress: sseIntervalProgress,
+    intervalLoading: sseIntervalLoading,
     intervalMetadata: sseIntervalMetadata,
     currentInterval: sseCurrentInterval,
     completedIntervals: sseCompletedIntervals,
@@ -757,8 +758,7 @@ function DataBarsChart({
     limit: dataBarsCount || 10000,
     chunkSize: 500,
     enabled: !!backtestId && !!token,
-    useRestApiFallback: false, // Use SSE only, no REST API fallback
-    jobStatus: jobStatus || null, // Pass job status to prevent multi-interval SSE for running jobs
+    jobStatus: jobStatus || null,
   });
   
   // For backward compatibility: map SSE data to old state structure
@@ -776,17 +776,19 @@ function DataBarsChart({
     intervals.forEach(interval => {
       const intervalData = sseIntervalData[interval] || [];
       const intervalMeta = sseIntervalMetadata[interval];
+      // Use per-interval loading state for parallel loading
+      const isLoading = sseIntervalLoading[interval] ?? sseLoading;
       chartsData.set(interval, {
-        loading: sseLoading && sseCurrentInterval === interval,
+        loading: isLoading,
         error: sseError,
         historicalData: intervalData.length > 0 ? intervalData : null,
         dataInfo: intervalMeta ? {
           total_points: intervalMeta.total_points,
           returned_points: intervalData.length,
         } : null,
-        isPartial: false, // TODO: Get from SSE metadata if available
-        currentBar: null, // TODO: Get from SSE metadata if available
-        jobStatus: null, // TODO: Get from SSE metadata if available
+        isPartial: intervalMeta?.is_partial || false,
+        currentBar: intervalMeta?.current_bar || null,
+        jobStatus: intervalMeta?.job_status || jobStatus || null,
       });
     });
   }

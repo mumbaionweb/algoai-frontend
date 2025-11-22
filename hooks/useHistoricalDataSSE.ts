@@ -1,13 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { HistoricalDataPoint } from '@/lib/api/backtesting';
-import { getBacktestHistoricalData } from '@/lib/api/backtesting';
 import {
   HistoricalDataSSEClient,
-  MultiIntervalHistoricalDataSSEClient,
   type IntervalStartEvent,
-  type MultiIntervalStartEvent,
   type DataChunkEvent,
-  type MultiIntervalDataChunkEvent,
 } from '@/lib/services/historicalDataSSE';
 
 interface UseHistoricalDataSSEOptions {
@@ -18,9 +14,7 @@ interface UseHistoricalDataSSEOptions {
   limit?: number;
   chunkSize?: number;
   enabled?: boolean; // Whether to start streaming immediately
-  useRestApiFallback?: boolean; // Fallback to REST API polling for running jobs
-  pollInterval?: number; // Polling interval in ms (default: 5000) for REST API fallback
-  jobStatus?: string | null; // Job status: 'running', 'queued', 'paused', 'completed', etc. Used to determine if multi-interval SSE is allowed
+  jobStatus?: string | null; // Job status: 'running', 'queued', 'paused', 'completed', etc. (for logging/debugging)
 }
 
 interface UseHistoricalDataSSEReturn {
@@ -31,11 +25,12 @@ interface UseHistoricalDataSSEReturn {
   error: string | null;
   metadata: IntervalStartEvent | null;
   
-  // Multi-interval state
+  // Multi-interval state (now using multiple single-interval SSE connections)
   intervalData: Record<string, HistoricalDataPoint[]>;
   intervalProgress: Record<string, number>; // Progress per interval (0-100)
-  intervalMetadata: Record<string, IntervalStartEvent | MultiIntervalStartEvent>;
-  currentInterval: string | null;
+  intervalLoading: Record<string, boolean>; // Loading state per interval
+  intervalMetadata: Record<string, IntervalStartEvent>;
+  currentInterval: string | null; // Not used anymore, but kept for backward compatibility
   completedIntervals: string[];
   
   // Common
@@ -45,7 +40,13 @@ interface UseHistoricalDataSSEReturn {
 
 /**
  * React hook for streaming historical data via SSE
+ * Uses multiple single-interval SSE connections for parallel loading
  * Supports both single and multi-interval backtests
+ * 
+ * Strategy: Multiple Single-Interval SSE Connections (Parallel Loading)
+ * - For multiple intervals, creates one SSE connection per interval
+ * - All connections run in parallel for independent and faster loading
+ * - Works for both running jobs and completed backtests
  */
 export function useHistoricalDataSSE({
   id, // Can be backtest_id or job_id
@@ -55,20 +56,10 @@ export function useHistoricalDataSSE({
   limit = 1000,
   chunkSize = 500,
   enabled = true,
-  useRestApiFallback = false, // Use REST API polling as fallback for running jobs
-  pollInterval = 5000, // Poll every 5 seconds for running jobs
-  jobStatus = null, // Job status to determine if multi-interval SSE is allowed
+  jobStatus = null, // For logging/debugging only
 }: UseHistoricalDataSSEOptions): UseHistoricalDataSSEReturn {
-  // Check if this is a job_id (doesn't start with 'bt_')
-  const isJobId = id && !id.startsWith('bt_');
-  
-  // Multi-interval SSE now works for BOTH running jobs and completed backtests!
-  // Backend supports progressive streaming for running jobs via multi-interval SSE
-  const isRunningJob = isJobId && (jobStatus === 'running' || jobStatus === 'queued' || jobStatus === 'paused');
-  const canUseMultiIntervalSSE = intervals && intervals.length > 1; // No restriction - works for both running and completed
-  
-  // Use multi-interval SSE if we have multiple intervals
-  const isMultiInterval = canUseMultiIntervalSSE;
+  // Determine if we have multiple intervals
+  const isMultiInterval = intervals && intervals.length > 1;
   
   // Single interval state
   const [data, setData] = useState<HistoricalDataPoint[]>([]);
@@ -77,22 +68,23 @@ export function useHistoricalDataSSE({
   const [error, setError] = useState<string | null>(null);
   const [metadata, setMetadata] = useState<IntervalStartEvent | null>(null);
   
-  // Multi-interval state
+  // Multi-interval state (using multiple single-interval SSE connections)
   const [intervalData, setIntervalData] = useState<Record<string, HistoricalDataPoint[]>>({});
   const [intervalProgress, setIntervalProgress] = useState<Record<string, number>>({});
-  const [intervalMetadata, setIntervalMetadata] = useState<Record<string, IntervalStartEvent | MultiIntervalStartEvent>>({});
-  const [currentInterval, setCurrentInterval] = useState<string | null>(null);
+  const [intervalLoading, setIntervalLoading] = useState<Record<string, boolean>>({});
+  const [intervalMetadata, setIntervalMetadata] = useState<Record<string, IntervalStartEvent>>({});
   const [completedIntervals, setCompletedIntervals] = useState<string[]>([]);
   
+  // Refs to track clients for cleanup
   const singleClientRef = useRef<HistoricalDataSSEClient | null>(null);
-  const multiClientRef = useRef<MultiIntervalHistoricalDataSSEClient | null>(null);
+  const multiClientsRef = useRef<Map<string, HistoricalDataSSEClient>>(new Map());
 
   const resetState = useCallback(() => {
     if (isMultiInterval) {
       setIntervalData({});
       setIntervalProgress({});
+      setIntervalLoading({});
       setIntervalMetadata({});
-      setCurrentInterval(null);
       setCompletedIntervals([]);
     } else {
       setData([]);
@@ -161,13 +153,9 @@ export function useHistoricalDataSSE({
     };
   }, [id, token, interval, limit, chunkSize, enabled, isMultiInterval, resetState]);
 
-  // Multi-interval SSE now works for BOTH running jobs and completed backtests!
-  // Backend supports progressive streaming for running jobs via multi-interval SSE
-  // No need for REST API fallback anymore
-
-  // Multi-interval SSE connection
-  // ✅ NOW WORKS FOR BOTH RUNNING JOBS AND COMPLETED BACKTESTS!
-  // Backend supports progressive streaming for running jobs via multi-interval SSE
+  // Multiple single-interval SSE connections for parallel loading
+  // ✅ Strategy: Create one SSE connection per interval, all running in parallel
+  // ✅ Works for both running jobs and completed backtests
   useEffect(() => {
     if (!enabled || !id || !token || !isMultiInterval || !intervals || intervals.length === 0) {
       return;
@@ -178,108 +166,141 @@ export function useHistoricalDataSSE({
     // Initialize interval data structures
     const initialData: Record<string, HistoricalDataPoint[]> = {};
     const initialProgress: Record<string, number> = {};
+    const initialLoading: Record<string, boolean> = {};
+    const initialMetadata: Record<string, IntervalStartEvent> = {};
     intervals.forEach(interval => {
       initialData[interval] = [];
       initialProgress[interval] = 0;
+      initialLoading[interval] = true;
     });
     setIntervalData(initialData);
     setIntervalProgress(initialProgress);
+    setIntervalLoading(initialLoading);
+    setIntervalMetadata(initialMetadata);
 
-    const client = new MultiIntervalHistoricalDataSSEClient(id, token, intervals, limit, chunkSize);
-    multiClientRef.current = client;
+    // Track loading state per interval (for internal state management)
+    const intervalLoadingState = new Map<string, boolean>();
+    intervals.forEach(interval => {
+      intervalLoadingState.set(interval, true);
+    });
 
-    client.connect(
-      (meta) => {
-        const multiMeta = meta as MultiIntervalStartEvent;
-        const isPartial = multiMeta.is_partial || false;
-        const jobStatus = multiMeta.job_status || 'unknown';
-        const statusInfo = isPartial ? ` (${jobStatus}, partial data)` : '';
-        console.log(`📊 SSE: Starting interval ${multiMeta.interval_index + 1}/${multiMeta.total_intervals}: ${multiMeta.interval}${statusInfo}`);
-        setCurrentInterval(multiMeta.interval);
-        setIntervalMetadata(prev => ({
-          ...prev,
-          [multiMeta.interval]: multiMeta,
-        }));
-        setLoading(true);
-      },
-      (chunk) => {
-        const multiChunk = chunk as MultiIntervalDataChunkEvent;
-        const interval = multiChunk.interval;
-        
-        setIntervalData(prev => {
-          const existingPoints = new Set(
-            (prev[interval] || []).map(p => p.time)
-          );
-          const newPoints = multiChunk.data_points.filter(
-            p => !existingPoints.has(p.time)
-          );
-          return {
+    // Create one SSE client per interval for parallel loading
+    const clients = new Map<string, HistoricalDataSSEClient>();
+    intervals.forEach(intervalValue => {
+      const client = new HistoricalDataSSEClient(id, token, intervalValue, limit, chunkSize);
+      clients.set(intervalValue, client);
+      multiClientsRef.current.set(intervalValue, client);
+
+      // Connect each client independently
+      client.connect(
+        (meta) => {
+          const isPartial = meta.is_partial || false;
+          const status = meta.job_status || jobStatus || 'unknown';
+          const statusInfo = isPartial ? ` (${status}, partial data)` : '';
+          console.log(`📊 SSE [${intervalValue}]: Starting: ${meta.total_points} points${statusInfo}`);
+          
+          setIntervalMetadata(prev => ({
             ...prev,
-            [interval]: [...(prev[interval] || []), ...newPoints],
-          };
-        });
-        
-        const progressPercent = (multiChunk.points_sent / multiChunk.total_points) * 100;
-        setIntervalProgress(prev => ({
-          ...prev,
-          [interval]: progressPercent,
-        }));
-        
-        // Update overall loading state
-        const allCompleted = multiChunk.progress.completed_intervals.length === multiChunk.total_intervals;
-        if (allCompleted) {
-          setLoading(false);
-        }
-      },
-      (result) => {
-        // Interval complete
-        console.log(`✅ SSE: Completed interval ${result.interval}: ${result.total_points} points`);
-        setCompletedIntervals(prev => {
-          if (!prev.includes(result.interval)) {
-            return [...prev, result.interval];
-          }
-          return prev;
-        });
-        setIntervalProgress(prev => ({
-          ...prev,
-          [result.interval]: 100,
-        }));
-      },
-      (allComplete) => {
-        // All intervals complete
-        // Type guard: check if it's AllCompleteEvent (has completed_intervals property)
-        if ('completed_intervals' in allComplete && 'intervals' in allComplete) {
-          console.log(`✅ SSE: All intervals complete: ${allComplete.completed_intervals.join(', ')}`);
-          setLoading(false);
-          setCompletedIntervals(allComplete.completed_intervals);
-          // Set all progress to 100
-          const finalProgress: Record<string, number> = {};
-          allComplete.intervals.forEach(interval => {
-            finalProgress[interval] = 100;
+            [intervalValue]: meta,
+          }));
+          
+          intervalLoadingState.set(intervalValue, true);
+          setIntervalLoading(prev => ({
+            ...prev,
+            [intervalValue]: true,
+          }));
+          // Update overall loading state
+          const allLoading = Array.from(intervalLoadingState.values()).some(loading => loading);
+          setLoading(allLoading);
+        },
+        (chunk) => {
+          const chunkData = chunk as DataChunkEvent;
+          
+          setIntervalData(prev => {
+            const existingPoints = new Set(
+              (prev[intervalValue] || []).map(p => p.time)
+            );
+            const newPoints = chunkData.data_points.filter(
+              p => !existingPoints.has(p.time)
+            );
+            return {
+              ...prev,
+              [intervalValue]: [...(prev[intervalValue] || []), ...newPoints],
+            };
           });
-          setIntervalProgress(finalProgress);
-        } else {
-          // This shouldn't happen for multi-interval, but handle gracefully
-          console.log(`✅ SSE: All intervals complete`);
-          setLoading(false);
+          
+          const progressPercent = (chunkData.points_sent / chunkData.total_points) * 100;
+          setIntervalProgress(prev => ({
+            ...prev,
+            [intervalValue]: progressPercent,
+          }));
+          
+          if (chunkData.is_last_chunk) {
+            intervalLoadingState.set(intervalValue, false);
+            setIntervalLoading(prev => ({
+              ...prev,
+              [intervalValue]: false,
+            }));
+            // Update overall loading state
+            const allLoading = Array.from(intervalLoadingState.values()).some(loading => loading);
+            setLoading(allLoading);
+          }
+        },
+        (result) => {
+          // Interval complete
+          if ('interval' in result) {
+            console.log(`✅ SSE [${result.interval}]: Completed: ${result.total_points} points`);
+            setCompletedIntervals(prev => {
+              if (!prev.includes(result.interval)) {
+                return [...prev, result.interval];
+              }
+              return prev;
+            });
+            setIntervalProgress(prev => ({
+              ...prev,
+              [result.interval]: 100,
+            }));
+            intervalLoadingState.set(result.interval, false);
+            setIntervalLoading(prev => ({
+              ...prev,
+              [result.interval]: false,
+            }));
+            
+            // Update overall loading state
+            const allLoading = Array.from(intervalLoadingState.values()).some(loading => loading);
+            setLoading(allLoading);
+          }
+        },
+        (errorEvent) => {
+          console.error(`❌ SSE [${intervalValue}] error:`, errorEvent);
+          // Don't set global error - other intervals can continue
+          // Only set error if it's a critical connection error and this is the only interval
+          if (errorEvent.error === 'connection_error' && intervals.length === 1) {
+            setError(errorEvent.message || 'Failed to stream historical data');
+            setLoading(false);
+          }
+          intervalLoadingState.set(intervalValue, false);
+          setIntervalLoading(prev => ({
+            ...prev,
+            [intervalValue]: false,
+          }));
+          
+          // Update overall loading state
+          const allLoading = Array.from(intervalLoadingState.values()).some(loading => loading);
+          setLoading(allLoading);
         }
-      },
-      (errorEvent) => {
-        console.error('❌ SSE error:', errorEvent);
-        // Don't set error for multi-interval - continue with other intervals
-        // Only set error if it's a critical connection error
-        if (errorEvent.error === 'connection_error') {
-          setError(errorEvent.message || 'Failed to stream historical data');
-          setLoading(false);
-        }
-      }
-    );
+      );
+    });
 
+    // Cleanup: disconnect all clients
     return () => {
-      client.disconnect();
-      multiClientRef.current = null;
+      clients.forEach((client, intervalValue) => {
+        client.disconnect();
+        multiClientsRef.current.delete(intervalValue);
+      });
+      clients.clear();
     };
-  }, [id, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState]);
+  }, [id, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState, jobStatus]);
 
   const refresh = useCallback(() => {
     // Reset and reconnect
@@ -298,8 +319,9 @@ export function useHistoricalDataSSE({
     // Multi-interval
     intervalData,
     intervalProgress,
+    intervalLoading,
     intervalMetadata,
-    currentInterval,
+    currentInterval: null, // Not used anymore, but kept for backward compatibility
     completedIntervals,
     
     // Common

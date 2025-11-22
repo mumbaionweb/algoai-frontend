@@ -2468,6 +2468,7 @@ function DataBarsChart({
     // Multi-interval
     intervalData: sseIntervalData,
     intervalProgress: sseIntervalProgress,
+    intervalLoading: sseIntervalLoading,
     intervalMetadata: sseIntervalMetadata,
     currentInterval: sseCurrentInterval,
     completedIntervals: sseCompletedIntervals,
@@ -2482,8 +2483,7 @@ function DataBarsChart({
     limit: dataBarsCount || 10000,
     chunkSize: 500,
     enabled: !!backtestId && !!token,
-    useRestApiFallback: false, // Use SSE by default, can enable REST API fallback if needed
-    jobStatus: jobStatus || null, // Pass job status to prevent multi-interval SSE for running jobs
+    jobStatus: jobStatus || null,
   });
   
   // For backward compatibility: map SSE data to old state structure
@@ -2498,8 +2498,10 @@ function DataBarsChart({
     intervals.forEach(interval => {
       const intervalData = sseIntervalData[interval] || [];
       const intervalMeta = sseIntervalMetadata[interval];
+      // Use per-interval loading state for parallel loading
+      const isLoading = sseIntervalLoading[interval] ?? sseLoading;
       chartsData.set(interval, {
-        loading: sseLoading && sseCurrentInterval === interval,
+        loading: isLoading,
         error: sseError,
         historicalData: intervalData.length > 0 ? intervalData : null,
         dataInfo: intervalMeta ? {
