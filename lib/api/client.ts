@@ -161,21 +161,26 @@ apiClient.interceptors.response.use(
       }
     }
     
-    // Log timeout errors
-    if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout')) {
+    // Log timeout errors (both frontend timeout and gateway timeout)
+    if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout') || axiosError.response?.status === 504) {
       const timeoutMs = axiosError.config?.timeout || 30000;
       const timeoutSeconds = timeoutMs / 1000;
+      const isGatewayTimeout = axiosError.response?.status === 504;
       
-      console.error('⏱️ Request Timeout Error:', {
+      console.error(`⏱️ ${isGatewayTimeout ? 'Gateway' : 'Request'} Timeout Error:`, {
         message: axiosError.message,
         code: axiosError.code,
+        status: axiosError.response?.status,
         baseURL: API_URL,
         url: axiosError.config?.url,
         fullUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
         timeout: `${timeoutSeconds} seconds (${timeoutMs}ms)`,
-        suggestion: axiosError.config?.url?.includes('/data') 
-          ? 'Historical data fetch timed out. This can happen if BigQuery is retrying (up to 30s) or broker API is slow. The request may still succeed - check backend logs.'
-          : 'Backend is taking too long to respond. Check backend logs or increase timeout.',
+        isGatewayTimeout: isGatewayTimeout,
+        suggestion: isGatewayTimeout
+          ? '504 Gateway Timeout: Backend/gateway exceeded 60 seconds. This is a backend performance issue. The request may still succeed - check backend logs.'
+          : axiosError.config?.url?.includes('/data') 
+            ? 'Historical data fetch timed out. This can happen if BigQuery is retrying (up to 30s) or broker API is slow. The request may still succeed - check backend logs.'
+            : 'Backend is taking too long to respond. Check backend logs or increase timeout.',
       });
     }
     

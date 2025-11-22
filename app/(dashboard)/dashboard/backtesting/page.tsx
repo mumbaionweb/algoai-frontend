@@ -1488,7 +1488,9 @@ class MyStrategy(bt.Strategy):
                     </div>
                     <div>
                       <span className="text-gray-400">Initial Capital:</span>
-                      <span className="text-white ml-2">₹{results.initial_cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="text-white ml-2">
+                        {results.initial_cash != null ? `₹${results.initial_cash.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -1496,25 +1498,27 @@ class MyStrategy(bt.Strategy):
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-700 rounded-lg p-4">
                     <div className="text-gray-400 text-sm mb-1">Total Return</div>
-                    <div className={`text-2xl font-bold ${results.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      {results.total_return_pct.toFixed(2)}%
+                    <div className={`text-2xl font-bold ${(results.total_return_pct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {results.total_return_pct != null ? `${results.total_return_pct.toFixed(2)}%` : 'N/A'}
                     </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      ₹{results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </div>
+                    {results.total_return != null && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        ₹{results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    )}
                   </div>
 
                   <div className="bg-gray-700 rounded-lg p-4">
                     <div className="text-gray-400 text-sm mb-1">Final Value</div>
                     <div className="text-2xl font-bold text-white">
-                      ₹{results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {results.final_value != null ? `₹${results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                     </div>
                   </div>
 
                   <div className="bg-gray-700 rounded-lg p-4">
                     <div className="text-gray-400 text-sm mb-1">Total P&L</div>
-                    <div className={`text-2xl font-bold ${results.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      ₹{results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <div className={`text-2xl font-bold ${(results.total_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {results.total_pnl != null ? `₹${results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                     </div>
                   </div>
 
