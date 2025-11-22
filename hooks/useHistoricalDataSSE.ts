@@ -62,13 +62,12 @@ export function useHistoricalDataSSE({
   // Check if this is a job_id (doesn't start with 'bt_')
   const isJobId = id && !id.startsWith('bt_');
   
-  // Multi-interval SSE is ONLY allowed for completed backtests (backtest_id)
-  // For running jobs, we must use single-interval SSE or REST API for each interval
+  // Multi-interval SSE now works for BOTH running jobs and completed backtests!
+  // Backend supports progressive streaming for running jobs via multi-interval SSE
   const isRunningJob = isJobId && (jobStatus === 'running' || jobStatus === 'queued' || jobStatus === 'paused');
-  const canUseMultiIntervalSSE = intervals && intervals.length > 1 && !isRunningJob;
+  const canUseMultiIntervalSSE = intervals && intervals.length > 1; // No restriction - works for both running and completed
   
-  // If it's a running job with multi-interval, we'll use single-interval SSE for each interval
-  // Otherwise, use multi-interval SSE if applicable
+  // Use multi-interval SSE if we have multiple intervals
   const isMultiInterval = canUseMultiIntervalSSE;
   
   // Single interval state
@@ -162,363 +161,15 @@ export function useHistoricalDataSSE({
     };
   }, [id, token, interval, limit, chunkSize, enabled, isMultiInterval, resetState]);
 
-  // Multi-interval REST API fallback for running jobs
-  // For running jobs with multi-interval, we must use REST API for each interval separately
-  // Multi-interval SSE is ONLY available for completed backtests
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const isRunningJobRef = useRef<boolean>(false);
-  const initializedForJobRef = useRef<string | null>(null); // Track which job we've initialized for
-  const jobStatusRef = useRef<string | null>(null); // Track job status to detect changes
-  const allIntervalsCompleteRef = useRef<boolean>(false); // Track if all intervals have complete data
-  
-  // Update refs when jobStatus changes
-  useEffect(() => {
-    jobStatusRef.current = jobStatus;
-    if (jobStatus === 'completed' || jobStatus === 'failed' || jobStatus === 'cancelled') {
-      isRunningJobRef.current = false;
-      allIntervalsCompleteRef.current = true; // Job is done, no need to poll
-    }
-  }, [jobStatus]);
-  
-  useEffect(() => {
-    if (!enabled || !id || !token || !intervals || intervals.length <= 1) {
-      // Clean up if conditions not met
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      isRunningJobRef.current = false;
-      initializedForJobRef.current = null;
-      allIntervalsCompleteRef.current = false;
-      return;
-    }
-
-    // Only use REST API fallback for running jobs with multi-interval
-    if (!isJobId || !isRunningJob) {
-      // Clean up polling if job is no longer running
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      isRunningJobRef.current = false;
-      allIntervalsCompleteRef.current = true; // Job completed, stop polling
-      // Reset initialization if job changed or completed
-      if (initializedForJobRef.current !== id) {
-        initializedForJobRef.current = null;
-      }
-      return; // Let the multi-interval SSE effect handle it
-    }
-
-    // Prevent multiple initializations for the same job
-    if (initializedForJobRef.current === id && pollIntervalRef.current) {
-      // Update the running job ref but don't re-initialize
-      isRunningJobRef.current = true;
-      return; // Already initialized for this job
-    }
-
-    console.log('⚠️ Running job with multi-interval detected. Using REST API for each interval separately (multi-interval SSE not available for running jobs).');
-
-    initializedForJobRef.current = id;
-    isRunningJobRef.current = true;
-    allIntervalsCompleteRef.current = false;
-    resetState();
-
-    // Initialize interval data structures
-    const initialData: Record<string, HistoricalDataPoint[]> = {};
-    const initialProgress: Record<string, number> = {};
-    intervals.forEach(interval => {
-      initialData[interval] = [];
-      initialProgress[interval] = 0;
-    });
-    setIntervalData(initialData);
-    setIntervalProgress(initialProgress);
-    setLoading(true);
-
-    // Fetch each interval separately via REST API
-    const fetchPromises = intervals.map(async (intervalValue) => {
-      try {
-        const dataLimit = limit || 10000;
-        const data = await getBacktestHistoricalData(id, dataLimit, 'json', intervalValue);
-        
-        return {
-          interval: intervalValue,
-          data,
-          error: null,
-        };
-      } catch (err: any) {
-        const errorDetail = err.response?.data?.detail || '';
-        const errorMessage = err.message || '';
-        const isTimeout = err.code === 'ECONNABORTED' || errorMessage.includes('timeout');
-        
-        if (isTimeout) {
-          // Timeout is expected for large datasets - provide helpful message
-          console.warn(`⏱️ Timeout fetching interval ${intervalValue} for running job (large dataset, will retry). This is normal for minute/3minute intervals with many data points.`);
-        } else {
-          console.error(`❌ Failed to fetch interval ${intervalValue} for running job:`, errorDetail || errorMessage);
-        }
-        
-        return {
-          interval: intervalValue,
-          data: null,
-          error: isTimeout ? 'Request timeout (large dataset)' : (errorDetail || errorMessage || 'Failed to load historical data'),
-        };
-      }
-    });
-
-    Promise.all(fetchPromises).then((results) => {
-      const updatedData: Record<string, HistoricalDataPoint[]> = {};
-      const updatedProgress: Record<string, number> = {};
-      const updatedMetadata: Record<string, IntervalStartEvent> = {};
-      let hasError = false;
-
-      results.forEach(({ interval, data, error: fetchError }) => {
-        if (data && data.data_points && data.data_points.length > 0) {
-          updatedData[interval] = data.data_points;
-          updatedProgress[interval] = 100;
-          updatedMetadata[interval] = {
-            interval: data.interval || interval,
-            total_points: data.total_points,
-            total_chunks: 1,
-            chunk_size: data.data_points.length,
-            backtest_id: data.backtest_id || id,
-            symbol: data.symbol || '',
-            exchange: data.exchange || '',
-          };
-        } else {
-          // For running jobs, it's normal for some intervals to not have data yet
-          // Don't set error state, just log it
-          updatedData[interval] = [];
-          updatedProgress[interval] = 0;
-          hasError = true;
-          if (fetchError) {
-            // Only set error if it's a critical error (not just "no data yet")
-            const isServerError = fetchError.includes('500') || fetchError.includes('Internal Server Error');
-            if (isServerError) {
-              console.error(`❌ Server error fetching interval ${interval}:`, fetchError);
-              // Don't set global error - let other intervals continue
-            } else {
-              console.warn(`⚠️ No data yet for interval ${interval} (job still running)`);
-            }
-          }
-        }
-      });
-
-      setIntervalData(updatedData);
-      setIntervalProgress(updatedProgress);
-      setIntervalMetadata(updatedMetadata);
-      setLoading(false);
-
-      // Check if all intervals have complete data
-      const allComplete = intervals.every(interval => {
-        const data = updatedData[interval];
-        const meta = updatedMetadata[interval];
-        return data && data.length > 0 && meta && data.length >= meta.total_points;
-      });
-      
-      if (allComplete) {
-        allIntervalsCompleteRef.current = true;
-        console.log('✅ All intervals loaded completely for running job via REST API. Stopping polling.');
-        // Stop polling since we have all data
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-      }
-
-      if (hasError) {
-        console.warn('⚠️ Some intervals failed to load for running job');
-      } else {
-        console.log('✅ All intervals loaded for running job via REST API');
-      }
-    });
-
-    // Set up polling for running jobs (refresh every 5 seconds)
-    // Only poll if job is still running
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-    }
-    
-    pollIntervalRef.current = setInterval(() => {
-      // Check if job is still running (use refs to avoid stale closure)
-      const currentJobStatus = jobStatusRef.current;
-      const isJobStillRunning = currentJobStatus === 'running' || currentJobStatus === 'queued' || currentJobStatus === 'paused';
-      
-      if (!isRunningJobRef.current || !isJobId || !isJobStillRunning || allIntervalsCompleteRef.current) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        isRunningJobRef.current = false;
-        if (!isJobStillRunning) {
-          console.log('🛑 Stopping REST API polling: job status changed to', currentJobStatus);
-        } else if (allIntervalsCompleteRef.current) {
-          console.log('🛑 Stopping REST API polling: all intervals have complete data');
-        }
-        return;
-      }
-
-      // Check if all intervals already have complete data (before polling)
-      // Use functional updates to read current state
-      let shouldStopPolling = false;
-      setIntervalData(currentData => {
-        setIntervalMetadata(currentMeta => {
-          const allComplete = intervals.every(iv => {
-            const intervalData = currentData[iv] || [];
-            const intervalMeta = currentMeta[iv];
-            return intervalMeta && intervalData.length >= intervalMeta.total_points && intervalData.length > 0;
-          });
-          
-          if (allComplete) {
-            shouldStopPolling = true;
-            allIntervalsCompleteRef.current = true;
-          }
-          return currentMeta; // Don't modify, just check
-        });
-        return currentData; // Don't modify, just check
-      });
-      
-      if (shouldStopPolling) {
-        if (pollIntervalRef.current) {
-          clearInterval(pollIntervalRef.current);
-          pollIntervalRef.current = null;
-        }
-        console.log('🛑 Stopping REST API polling: all intervals already have complete data');
-        return;
-      }
-
-      // Poll each interval only if we don't have complete data yet
-      intervals.forEach(async (intervalValue) => {
-        try {
-          // Use a function to check current state
-          let shouldFetch = true;
-          setIntervalData(currentData => {
-            const existingData = currentData[intervalValue] || [];
-            setIntervalMetadata(currentMeta => {
-              const meta = currentMeta[intervalValue];
-              if (meta && existingData.length >= meta.total_points && existingData.length > 0) {
-                // Already have complete data for this interval, skip fetch
-                shouldFetch = false;
-              }
-              return currentMeta;
-            });
-            return currentData; // Don't modify, just check
-          });
-
-          if (!shouldFetch) {
-            return; // Skip this interval, already have complete data
-          }
-
-          const dataLimit = limit || 10000;
-          const data = await getBacktestHistoricalData(id, dataLimit, 'json', intervalValue);
-          
-          if (data && data.data_points && data.data_points.length > 0) {
-            setIntervalData(prev => {
-              const existing = prev[intervalValue] || [];
-              // Only update if we got more data
-              if (data.data_points.length > existing.length) {
-                return {
-                  ...prev,
-                  [intervalValue]: data.data_points,
-                };
-              }
-              return prev; // No new data, don't update
-            });
-            
-            setIntervalProgress(prev => ({
-              ...prev,
-              [intervalValue]: 100,
-            }));
-            
-            // Update metadata
-            setIntervalMetadata(prev => {
-              const newMeta = {
-                interval: data.interval || intervalValue,
-                total_points: data.total_points,
-                total_chunks: 1,
-                chunk_size: data.data_points.length,
-                backtest_id: data.backtest_id || id,
-                symbol: data.symbol || '',
-                exchange: data.exchange || '',
-              };
-              
-              return {
-                ...prev,
-                [intervalValue]: newMeta,
-              };
-            });
-            
-            // Check if all intervals are now complete (after updating both data and metadata)
-            // This check happens in the next polling cycle, but we can also check here
-            // by reading the updated state
-            if (data.data_points.length >= data.total_points) {
-              // This interval is complete, check if all are complete
-              setIntervalData(currentData => {
-                setIntervalMetadata(currentMeta => {
-                  const allComplete = intervals.every(iv => {
-                    const intervalData = currentData[iv] || [];
-                    const intervalMeta = currentMeta[iv];
-                    // For the current interval, use the data we just fetched
-                    if (iv === intervalValue) {
-                      return data.data_points.length >= data.total_points;
-                    }
-                    return intervalMeta && intervalData.length >= intervalMeta.total_points && intervalData.length > 0;
-                  });
-                  
-                  if (allComplete && !allIntervalsCompleteRef.current) {
-                    allIntervalsCompleteRef.current = true;
-                    if (pollIntervalRef.current) {
-                      clearInterval(pollIntervalRef.current);
-                      pollIntervalRef.current = null;
-                    }
-                    console.log('🛑 Stopping REST API polling: all intervals have complete data');
-                  }
-                  return currentMeta; // Don't modify, just check
-                });
-                return currentData; // Don't modify, just check
-              });
-            }
-          }
-        } catch (err: any) {
-          // Handle timeout errors specifically
-          const isTimeout = err.code === 'ECONNABORTED' || err.message?.includes('timeout');
-          const isServerError = err.response?.status === 500;
-          
-          if (isTimeout) {
-            // Timeout is expected for large datasets - log but don't spam console
-            console.warn(`⏱️ Timeout fetching interval ${intervalValue} for running job (this is normal for large datasets). Will retry on next poll.`);
-          } else if (!isServerError) {
-            // Log other errors (but not 500 server errors)
-            console.warn(`Polling error for interval ${intervalValue}:`, err.message || err);
-          }
-          // Silently continue - will retry on next poll
-        }
-      });
-    }, 5000);
-
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
-      isRunningJobRef.current = false;
-      // Reset initialization flag when job ID changes (new job)
-      if (initializedForJobRef.current === id) {
-        initializedForJobRef.current = null;
-      }
-    };
-  }, [id, token, intervals, limit, enabled, isJobId, isRunningJob]);
+  // Multi-interval SSE now works for BOTH running jobs and completed backtests!
+  // Backend supports progressive streaming for running jobs via multi-interval SSE
+  // No need for REST API fallback anymore
 
   // Multi-interval SSE connection
-  // IMPORTANT: Only use multi-interval SSE for completed backtests (backtest_id)
-  // For running jobs, the REST API effect above handles it
+  // ✅ NOW WORKS FOR BOTH RUNNING JOBS AND COMPLETED BACKTESTS!
+  // Backend supports progressive streaming for running jobs via multi-interval SSE
   useEffect(() => {
     if (!enabled || !id || !token || !isMultiInterval || !intervals || intervals.length === 0) {
-      return;
-    }
-
-    // Safety check: Don't use multi-interval SSE for running jobs
-    if (isJobId && isRunningJob) {
-      // This should be handled by the REST API effect above
       return;
     }
 
@@ -540,7 +191,10 @@ export function useHistoricalDataSSE({
     client.connect(
       (meta) => {
         const multiMeta = meta as MultiIntervalStartEvent;
-        console.log(`📊 SSE: Starting interval ${multiMeta.interval_index + 1}/${multiMeta.total_intervals}: ${multiMeta.interval}`);
+        const isPartial = multiMeta.is_partial || false;
+        const jobStatus = multiMeta.job_status || 'unknown';
+        const statusInfo = isPartial ? ` (${jobStatus}, partial data)` : '';
+        console.log(`📊 SSE: Starting interval ${multiMeta.interval_index + 1}/${multiMeta.total_intervals}: ${multiMeta.interval}${statusInfo}`);
         setCurrentInterval(multiMeta.interval);
         setIntervalMetadata(prev => ({
           ...prev,
@@ -625,7 +279,7 @@ export function useHistoricalDataSSE({
       client.disconnect();
       multiClientRef.current = null;
     };
-  }, [id, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState, isJobId, isRunningJob]);
+  }, [id, token, intervals, limit, chunkSize, enabled, isMultiInterval, resetState]);
 
   const refresh = useCallback(() => {
     // Reset and reconnect

@@ -5,21 +5,29 @@ export interface IntervalStartEvent {
   total_points: number;
   total_chunks: number;
   chunk_size: number;
-  backtest_id: string;
+  backtest_id: string | null; // null for running jobs
+  job_id?: string | null; // For running jobs
   symbol: string;
   exchange: string;
+  is_partial?: boolean; // true for running jobs
+  current_bar?: number | null; // Current bar being processed (for running jobs)
+  job_status?: string; // 'running', 'queued', 'paused', 'completed', etc.
 }
 
 export interface DataChunkEvent {
   chunk_id: number;
   interval: string;
-  backtest_id: string;
+  backtest_id: string | null; // null for running jobs
+  job_id?: string | null; // For running jobs
   data_points: HistoricalDataPoint[];
   total_chunks: number;
   chunk_size: number;
   points_sent: number;
   total_points: number;
   is_last_chunk: boolean;
+  is_partial?: boolean; // true for running jobs
+  current_bar?: number | null; // Current bar being processed (for running jobs)
+  job_status?: string; // 'running', 'queued', 'paused', 'completed', etc.
 }
 
 export interface CompleteEvent {
@@ -27,7 +35,8 @@ export interface CompleteEvent {
   total_points: number;
   total_chunks: number;
   status: 'completed';
-  backtest_id: string;
+  backtest_id: string | null; // null for running jobs
+  job_id?: string | null; // For running jobs
 }
 
 // Multi-interval types
@@ -55,24 +64,30 @@ export interface IntervalCompleteEvent {
   total_points: number;
   total_chunks: number;
   status: 'completed';
-  backtest_id: string;
+  backtest_id: string | null; // null for running jobs
+  job_id?: string | null; // For running jobs
   interval_index: number;
   total_intervals: number;
   progress: {
     intervals: Record<string, any>;
     completed_intervals: string[];
   };
+  is_partial?: boolean; // true for running jobs
+  job_status?: string; // 'running', 'queued', 'paused', 'completed', etc.
 }
 
 export interface AllCompleteEvent {
   intervals: string[];
   completed_intervals: string[];
   status: 'completed';
-  backtest_id: string;
+  backtest_id: string | null; // null for running jobs (until job completes)
+  job_id?: string | null; // For running jobs
   progress: {
     intervals: Record<string, any>;
     completed_intervals: string[];
   };
+  is_partial?: boolean; // true for running jobs until job completes
+  job_status?: string; // 'running', 'queued', 'paused', 'completed', etc.
 }
 
 export interface ErrorEvent {
