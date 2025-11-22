@@ -332,8 +332,17 @@ export default function BacktestDetailPage() {
 
   const handleSaveAsStrategy = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!job || !results || !job.strategy_code) {
+    // Use hookJob if available, otherwise use job
+    const currentJob = hookJob || job;
+    if (!currentJob || !results || !currentJob.strategy_code) {
       setError('Cannot save strategy: Missing job data or strategy code');
+      console.error('❌ Cannot save strategy - missing data:', {
+        hasJob: !!currentJob,
+        hasResults: !!results,
+        hasStrategyCode: !!currentJob?.strategy_code,
+        job_id: currentJob?.job_id,
+        status: currentJob?.status,
+      });
       return;
     }
 
@@ -344,14 +353,14 @@ export default function BacktestDetailPage() {
       const strategyData: StrategyCreate = {
         name: strategyFormData.name.trim(),
         description: strategyFormData.description.trim() || undefined,
-        strategy_code: job.strategy_code,
+        strategy_code: currentJob.strategy_code,
         parameters: {
           symbol: results.symbol,
           exchange: results.exchange,
           from_date: results.from_date,
           to_date: results.to_date,
           initial_cash: results.initial_cash,
-          commission: job.commission || 0.001,
+          commission: currentJob.commission || 0.001,
           interval: results.interval || results.intervals?.[0] || 'day',
         },
       };
@@ -714,26 +723,46 @@ export default function BacktestDetailPage() {
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-white">Backtest Results</h2>
-                {job && job.status === 'completed' && results && job.strategy_code && (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('🖱️ Save as Strategy button clicked');
-                      // Pre-fill form with default name based on symbol
-                      setStrategyFormData({
-                        name: `${results.symbol} Strategy`,
-                        description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
-                      });
-                      setShowSaveModal(true);
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
-                    type="button"
-                    style={{ pointerEvents: 'auto' }}
-                  >
-                    Save as Strategy
-                  </button>
-                )}
+                {(() => {
+                  // Use hookJob if available, otherwise use job
+                  const currentJob = hookJob || job;
+                  const isCompleted = currentJob?.status === 'completed';
+                  const hasStrategyCode = !!(currentJob?.strategy_code);
+                  
+                  // Debug log to help troubleshoot
+                  if (process.env.NODE_ENV === 'development' && currentJob) {
+                    console.log('🔍 Save as Strategy button check:', {
+                      job_id: currentJob.job_id,
+                      status: currentJob.status,
+                      isCompleted,
+                      hasResults: !!results,
+                      hasStrategyCode,
+                      strategy_code_length: currentJob.strategy_code?.length || 0,
+                      shouldShow: isCompleted && !!results && hasStrategyCode,
+                    });
+                  }
+                  
+                  return isCompleted && results && hasStrategyCode ? (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🖱️ Save as Strategy button clicked');
+                        // Pre-fill form with default name based on symbol
+                        setStrategyFormData({
+                          name: `${results.symbol} Strategy`,
+                          description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
+                        });
+                        setShowSaveModal(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
+                      type="button"
+                      style={{ pointerEvents: 'auto' }}
+                    >
+                      Save as Strategy
+                    </button>
+                  ) : null;
+                })()}
               </div>
               
               {/* Active Job Progress */}
@@ -1088,26 +1117,33 @@ export default function BacktestDetailPage() {
             <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-white">Backtest Results</h2>
-                {job && job.status === 'completed' && results && job.strategy_code && (
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      console.log('🖱️ Save as Strategy button clicked (associated job)');
-                      // Pre-fill form with default name based on symbol
-                      setStrategyFormData({
-                        name: `${results.symbol} Strategy`,
-                        description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
-                      });
-                      setShowSaveModal(true);
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
-                    type="button"
-                    style={{ pointerEvents: 'auto' }}
-                  >
-                    Save as Strategy
-                  </button>
-                )}
+                {(() => {
+                  // Use hookJob if available, otherwise use job
+                  const currentJob = hookJob || job;
+                  const isCompleted = currentJob?.status === 'completed';
+                  const hasStrategyCode = !!(currentJob?.strategy_code);
+                  
+                  return isCompleted && results && hasStrategyCode ? (
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🖱️ Save as Strategy button clicked (associated job)');
+                        // Pre-fill form with default name based on symbol
+                        setStrategyFormData({
+                          name: `${results.symbol} Strategy`,
+                          description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
+                        });
+                        setShowSaveModal(true);
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
+                      type="button"
+                      style={{ pointerEvents: 'auto' }}
+                    >
+                      Save as Strategy
+                    </button>
+                  ) : null;
+                })()}
               </div>
               
               {/* Show full results if available */}
