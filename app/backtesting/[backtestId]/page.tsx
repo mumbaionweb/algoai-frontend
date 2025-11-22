@@ -176,6 +176,8 @@ export default function BacktestDetailPage() {
       setError('');
       setLoadingJob(true);
       
+      // Try to fetch job, but don't block UI if it times out
+      // SSE will provide the job data in real-time anyway
       const jobData = await getBacktestJob(id);
       setJob(jobData);
       setIsJobId(true);
@@ -207,6 +209,26 @@ export default function BacktestDetailPage() {
       setLoadingJob(false);
       return;
     } catch (jobErr: any) {
+      // Handle timeout gracefully - SSE will provide the job data
+      if (jobErr.code === 'ECONNABORTED' || jobErr.message?.includes('timeout')) {
+        console.warn('⏱️ Initial job fetch timed out, relying on SSE for updates:', {
+          job_id: id,
+          error: jobErr.message,
+        });
+        // Mark as job_id and let SSE provide the data
+        setIsJobId(true);
+        // Create a minimal job object so SSE hook can connect
+        setJob({
+          job_id: id,
+          status: 'pending',
+          progress: 0,
+        } as BacktestJob);
+        setLoading(false);
+        setLoadingJob(false);
+        // Don't show error - SSE will handle it
+        return;
+      }
+      
       // If it's not a job (404), try to load as backtest_id
       if (jobErr.response?.status === 404) {
         try {
