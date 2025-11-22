@@ -36,6 +36,11 @@ export default function BacktestDetailPage() {
     description: '',
   });
 
+  // Debug: Log when showSaveModal changes
+  useEffect(() => {
+    console.log('🔔 showSaveModal state changed:', showSaveModal);
+  }, [showSaveModal]);
+
   // Use progress hook if we have a job
   // Note: We maintain local job state for initial load, but use hook's job for real-time updates
   const { job: hookJob, completed, result, progress } = useBacktestProgress({
@@ -266,13 +271,13 @@ export default function BacktestDetailPage() {
           console.error('Failed to load backtest:', backtestErr);
           const errorDetail = backtestErr.response?.data?.detail || '';
           const status = backtestErr.response?.status;
-          
-          if (status === 404) {
+      
+      if (status === 404) {
             setError('Backtest or job not found.');
-          } else if (status === 401) {
-            setError('Authentication failed. Please log in again.');
-          } else {
-            setError(errorDetail || 'Failed to load backtest. Please try again.');
+      } else if (status === 401) {
+        setError('Authentication failed. Please log in again.');
+      } else {
+        setError(errorDetail || 'Failed to load backtest. Please try again.');
           }
         }
       } else {
@@ -360,8 +365,8 @@ export default function BacktestDetailPage() {
         }
       } catch (err: any) {
         console.error('Failed to refresh job:', err);
-      } finally {
-        setLoadingJob(false);
+    } finally {
+      setLoadingJob(false);
       }
     } else {
       console.warn('⚠️ refreshJob called but no job_id available');
@@ -795,11 +800,15 @@ export default function BacktestDetailPage() {
                         e.stopPropagation();
                         console.log('🖱️ Save as Strategy button clicked');
                         // Pre-fill form with default name based on symbol
-                        setStrategyFormData({
+                        const formData = {
                           name: `${results.symbol} Strategy`,
                           description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
-                        });
+                        };
+                        console.log('📝 Setting form data:', formData);
+                        setStrategyFormData(formData);
+                        console.log('🔓 Setting showSaveModal to true');
                         setShowSaveModal(true);
+                        console.log('✅ showSaveModal state should now be true');
                       }}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
                       type="button"
@@ -869,28 +878,116 @@ export default function BacktestDetailPage() {
             </div>
           </div>
         </main>
+
+        {/* Save as Strategy Modal */}
+        {showSaveModal && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+            onClick={() => {
+              console.log('🖱️ Modal backdrop clicked, closing modal');
+              setShowSaveModal(false);
+            }}
+            style={{ zIndex: 9999 }}
+          >
+            <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-white">Save as Strategy</h3>
+                <button
+                  onClick={() => {
+                    setShowSaveModal(false);
+                    setError('');
+                    setStrategyFormData({ name: '', description: '' });
+                  }}
+                  className="text-gray-400 hover:text-white"
+                  type="button"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAsStrategy} className="space-y-4">
+                <div>
+                  <label htmlFor="strategy_name" className="block text-sm font-medium text-gray-300 mb-2">
+                    Strategy Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    id="strategy_name"
+                    type="text"
+                    value={strategyFormData.name}
+                    onChange={(e) => setStrategyFormData({ ...strategyFormData, name: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter strategy name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="strategy_description" className="block text-sm font-medium text-gray-300 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    id="strategy_description"
+                    value={strategyFormData.description}
+                    onChange={(e) => setStrategyFormData({ ...strategyFormData, description: e.target.value })}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter strategy description"
+                  />
+                </div>
+
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSaveModal(false);
+                      setError('');
+                      setStrategyFormData({ name: '', description: '' });
+                    }}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
+                    disabled={savingStrategy}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingStrategy || !strategyFormData.name.trim()}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingStrategy ? 'Saving...' : 'Save Strategy'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   // If we have a completed backtest (viewed by backtest_id), show backtest details with same layout
   if (backtest && !isJobId) {
-    return (
-      <div className="min-h-screen bg-gray-900">
-        <DashboardNavigation />
+  return (
+    <div className="min-h-screen bg-gray-900">
+      <DashboardNavigation />
 
-        <main className="container mx-auto px-4 py-8">
+      <main className="container mx-auto px-4 py-8">
           {/* Header with back link */}
           <div className="mb-6">
-            <Link
+              <Link
               href="/backtesting"
               className="text-blue-400 hover:text-blue-300 text-sm mb-2 inline-block cursor-pointer"
               onClick={(e) => {
                 console.log('🖱️ Back link clicked (backtest view)');
               }}
-            >
-              ← Back to Backtesting
-            </Link>
+              >
+                ← Back to Backtesting
+              </Link>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -961,12 +1058,12 @@ export default function BacktestDetailPage() {
                     <span className="text-gray-400">Created:</span>
                     <span className="text-white ml-2 text-xs">
                       {new Date(backtest.created_at).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                     </span>
                   </div>
                 </div>
@@ -1051,11 +1148,11 @@ export default function BacktestDetailPage() {
                       <div className="text-gray-400 text-xs mb-1">Total Return</div>
                       <div className={`text-xl font-bold ${(results.total_return_pct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
                         {results.total_return_pct != null ? `${results.total_return_pct.toFixed(2)}%` : 'N/A'}
-                      </div>
+              </div>
                       <div className="text-xs text-gray-500 mt-1">
                         {results.total_return != null ? `₹${results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
-                      </div>
-                    </div>
+            </div>
+          </div>
 
                     <div className="bg-gray-800 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1">Final Value</div>
@@ -1136,31 +1233,31 @@ export default function BacktestDetailPage() {
               )}
 
               {/* Job Status Section (if available) */}
-              {job && (
+          {job && (
                 <div className="bg-gray-700 rounded-lg p-4 mt-4">
                   <div className="flex justify-between items-center mb-3">
                     <h3 className="text-sm font-semibold text-gray-300">Associated Job</h3>
-                    <button
+                <button
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         console.log('🖱️ Refresh button clicked (associated job)');
                         refreshJob();
                       }}
-                      disabled={loadingJob}
+                  disabled={loadingJob}
                       className="px-3 py-1 bg-gray-600 hover:bg-gray-500 text-white rounded text-xs disabled:opacity-50 cursor-pointer"
                       type="button"
-                    >
-                      {loadingJob ? 'Loading...' : 'Refresh'}
-                    </button>
-                  </div>
-                  <BacktestJobCard job={job} onUpdate={refreshJob} />
-                </div>
-              )}
+                >
+                  {loadingJob ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+              <BacktestJobCard job={job} onUpdate={refreshJob} />
+            </div>
+          )}
             </div>
 
             {/* Right Side - Results Section (same as main page) */}
-            <div className="bg-gray-800 rounded-lg p-6">
+          <div className="bg-gray-800 rounded-lg p-6">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-semibold text-white">Backtest Results</h2>
                 {(() => {
@@ -1176,11 +1273,15 @@ export default function BacktestDetailPage() {
                         e.stopPropagation();
                         console.log('🖱️ Save as Strategy button clicked (associated job)');
                         // Pre-fill form with default name based on symbol
-                        setStrategyFormData({
+                        const formData = {
                           name: `${results.symbol} Strategy`,
                           description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
-                        });
+                        };
+                        console.log('📝 Setting form data:', formData);
+                        setStrategyFormData(formData);
+                        console.log('🔓 Setting showSaveModal to true');
                         setShowSaveModal(true);
+                        console.log('✅ showSaveModal state should now be true');
                       }}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
                       type="button"
@@ -1250,7 +1351,14 @@ export default function BacktestDetailPage() {
 
         {/* Save as Strategy Modal */}
         {showSaveModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSaveModal(false)}>
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" 
+            onClick={() => {
+              console.log('🖱️ Modal backdrop clicked, closing modal');
+              setShowSaveModal(false);
+            }}
+            style={{ zIndex: 9999 }}
+          >
             <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-semibold text-white">Save as Strategy</h3>
@@ -1328,7 +1436,7 @@ export default function BacktestDetailPage() {
             </div>
           </div>
         )}
-      </div>
+          </div>
     );
   }
 
