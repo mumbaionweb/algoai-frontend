@@ -6,10 +6,11 @@ import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { getBacktest, getBacktestJob, listBacktestJobs } from '@/lib/api/backtesting';
+import { createStrategy } from '@/lib/api/strategies';
 import { BacktestJobCard } from '@/components/backtesting/BacktestJobCard';
 import BacktestResultsDisplay from '@/components/backtesting/BacktestResultsDisplay';
 import { useBacktestProgress } from '@/hooks/useBacktestProgress';
-import type { BacktestHistoryItem, BacktestJob, BacktestResponse } from '@/types';
+import type { BacktestHistoryItem, BacktestJob, BacktestResponse, StrategyCreate } from '@/types';
 
 export default function BacktestDetailPage() {
   const { isAuthenticated, isInitialized, token } = useAuthStore();
@@ -26,6 +27,14 @@ export default function BacktestDetailPage() {
   const [results, setResults] = useState<BacktestResponse | null>(null);
   const redirectingRef = useRef(false);
   const renderCountRef = useRef(0); // Debug: Track render count (must be at top level)
+  
+  // Save as Strategy modal state
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [savingStrategy, setSavingStrategy] = useState(false);
+  const [strategyFormData, setStrategyFormData] = useState({
+    name: '',
+    description: '',
+  });
 
   // Use progress hook if we have a job
   // Note: We maintain local job state for initial load, but use hook's job for real-time updates
@@ -318,6 +327,46 @@ export default function BacktestDetailPage() {
       }
     } else {
       console.warn('⚠️ refreshJob called but no job_id available');
+    }
+  };
+
+  const handleSaveAsStrategy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!job || !results || !job.strategy_code) {
+      setError('Cannot save strategy: Missing job data or strategy code');
+      return;
+    }
+
+    try {
+      setSavingStrategy(true);
+      setError('');
+
+      const strategyData: StrategyCreate = {
+        name: strategyFormData.name.trim(),
+        description: strategyFormData.description.trim() || undefined,
+        strategy_code: job.strategy_code,
+        parameters: {
+          symbol: results.symbol,
+          exchange: results.exchange,
+          from_date: results.from_date,
+          to_date: results.to_date,
+          initial_cash: results.initial_cash,
+          commission: job.commission || 0.001,
+          interval: results.interval || results.intervals?.[0] || 'day',
+        },
+      };
+
+      await createStrategy(strategyData);
+      
+      // Redirect to strategies list page
+      router.push('/dashboard/strategies');
+    } catch (err: any) {
+      console.error('Failed to save strategy:', err);
+      const errorDetail = err.response?.data?.detail || '';
+      const errorMessage = err.message || '';
+      setError(errorDetail || errorMessage || 'Failed to save strategy. Please try again.');
+    } finally {
+      setSavingStrategy(false);
     }
   };
 
@@ -663,7 +712,29 @@ export default function BacktestDetailPage() {
 
             {/* Right Side - Results Section (same as main page) */}
             <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-white">Backtest Results</h2>
+                {job && job.status === 'completed' && results && job.strategy_code && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('🖱️ Save as Strategy button clicked');
+                      // Pre-fill form with default name based on symbol
+                      setStrategyFormData({
+                        name: `${results.symbol} Strategy`,
+                        description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
+                      });
+                      setShowSaveModal(true);
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
+                    type="button"
+                    style={{ pointerEvents: 'auto' }}
+                  >
+                    Save as Strategy
+                  </button>
+                )}
+              </div>
               
               {/* Active Job Progress */}
               {job && (
@@ -1015,7 +1086,29 @@ export default function BacktestDetailPage() {
 
             {/* Right Side - Results Section (same as main page) */}
             <div className="bg-gray-800 rounded-lg p-6">
-              <h2 className="text-xl font-semibold text-white mb-4">Backtest Results</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-white">Backtest Results</h2>
+                {job && job.status === 'completed' && results && job.strategy_code && (
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('🖱️ Save as Strategy button clicked (associated job)');
+                      // Pre-fill form with default name based on symbol
+                      setStrategyFormData({
+                        name: `${results.symbol} Strategy`,
+                        description: `Strategy for ${results.symbol} (${results.exchange}) - Backtested from ${results.from_date} to ${results.to_date}`,
+                      });
+                      setShowSaveModal(true);
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm cursor-pointer"
+                    type="button"
+                    style={{ pointerEvents: 'auto' }}
+                  >
+                    Save as Strategy
+                  </button>
+                )}
+              </div>
               
               {/* Show full results if available */}
               {results ? (
@@ -1072,6 +1165,87 @@ export default function BacktestDetailPage() {
             </div>
           </div>
         </main>
+
+        {/* Save as Strategy Modal */}
+        {showSaveModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={() => setShowSaveModal(false)}>
+            <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-xl font-semibold text-white">Save as Strategy</h3>
+                <button
+                  onClick={() => {
+                    setShowSaveModal(false);
+                    setError('');
+                    setStrategyFormData({ name: '', description: '' });
+                  }}
+                  className="text-gray-400 hover:text-white"
+                  type="button"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveAsStrategy} className="space-y-4">
+                <div>
+                  <label htmlFor="strategy_name" className="block text-sm font-medium text-gray-300 mb-2">
+                    Strategy Name <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    id="strategy_name"
+                    type="text"
+                    value={strategyFormData.name}
+                    onChange={(e) => setStrategyFormData({ ...strategyFormData, name: e.target.value })}
+                    required
+                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter strategy name"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="strategy_description" className="block text-sm font-medium text-gray-300 mb-2">
+                    Description (Optional)
+                  </label>
+                  <textarea
+                    id="strategy_description"
+                    value={strategyFormData.description}
+                    onChange={(e) => setStrategyFormData({ ...strategyFormData, description: e.target.value })}
+                    rows={4}
+                    className="w-full px-3 py-2 border border-gray-600 rounded-md bg-gray-700 text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter strategy description"
+                  />
+                </div>
+
+                {error && (
+                  <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowSaveModal(false);
+                      setError('');
+                      setStrategyFormData({ name: '', description: '' });
+                    }}
+                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
+                    disabled={savingStrategy}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingStrategy || !strategyFormData.name.trim()}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {savingStrategy ? 'Saving...' : 'Save Strategy'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
