@@ -162,31 +162,25 @@ export function useHistoricalDataSSE({
       return;
     }
 
-    // Create a stable key for this effect to prevent unnecessary re-runs
-    const intervalsKey = [...intervals].sort().join(',');
-    const effectKey = `${id}-${intervalsKey}-${limit}-${chunkSize}`;
-    
-    // If this is the same configuration as the last run, skip
-    if (lastEffectKeyRef.current === effectKey) {
-      console.log('🔄 SSE effect key unchanged, skipping recreation:', effectKey);
-      return;
-    }
-    
-    lastEffectKeyRef.current = effectKey;
-    
-    // Check if we already have connections for these intervals
+    // Check if we already have active connections for all these intervals
     const existingClients = Array.from(multiClientsRef.current.keys());
     const expectedIntervals = [...intervals].sort();
     const existingIntervals = [...existingClients].sort();
     
-    // If we already have the same connections, don't recreate them
-    if (existingIntervals.length === expectedIntervals.length &&
+    // If we already have the same connections for the same id, don't recreate them
+    const intervalsKey = [...intervals].sort().join(',');
+    const effectKey = `${id}-${intervalsKey}`;
+    
+    if (lastEffectKeyRef.current === effectKey && 
+        existingIntervals.length === expectedIntervals.length &&
         existingIntervals.every((interval, idx) => interval === expectedIntervals[idx])) {
-      console.log('🔄 SSE connections already exist for these intervals, skipping recreation');
+      // All connections already exist for this exact configuration
       return;
     }
+    
+    lastEffectKeyRef.current = effectKey;
 
-    // Clean up existing connections first
+    // Clean up existing connections that are no longer needed
     multiClientsRef.current.forEach((client, intervalValue) => {
       if (!intervals.includes(intervalValue)) {
         console.log(`🔌 Disconnecting SSE for interval ${intervalValue} (no longer needed)`);
@@ -195,38 +189,38 @@ export function useHistoricalDataSSE({
       }
     });
 
-    resetState();
-
-    // Initialize interval data structures
-    const initialData: Record<string, HistoricalDataPoint[]> = {};
-    const initialProgress: Record<string, number> = {};
-    const initialLoading: Record<string, boolean> = {};
-    const initialMetadata: Record<string, IntervalStartEvent> = {};
-    intervals.forEach(interval => {
-      initialData[interval] = [];
-      initialProgress[interval] = 0;
-      initialLoading[interval] = true;
+    // Check which intervals need new connections
+    const intervalsNeedingConnections = intervals.filter(intervalValue => {
+      const existingClient = multiClientsRef.current.get(intervalValue);
+      return !existingClient; // Only create if it doesn't exist
     });
-    setIntervalData(initialData);
-    setIntervalProgress(initialProgress);
-    setIntervalLoading(initialLoading);
-    setIntervalMetadata(initialMetadata);
+
+    // If no intervals need connections, we're done
+    if (intervalsNeedingConnections.length === 0) {
+      return;
+    }
+
+    // Initialize interval data structures (only for new intervals that don't have data yet)
+    intervalsNeedingConnections.forEach(interval => {
+      setIntervalData(prev => {
+        if (prev[interval] && prev[interval].length > 0) {
+          return prev; // Don't reset if we already have data
+        }
+        return { ...prev, [interval]: [] };
+      });
+      setIntervalProgress(prev => ({ ...prev, [interval]: prev[interval] ?? 0 }));
+      setIntervalLoading(prev => ({ ...prev, [interval]: true }));
+    });
 
     // Track loading state per interval (for internal state management)
     const intervalLoadingState = new Map<string, boolean>();
-    intervals.forEach(interval => {
+    intervalsNeedingConnections.forEach(interval => {
       intervalLoadingState.set(interval, true);
     });
 
-    // Create one SSE client per interval for parallel loading
+    // Create one SSE client per interval that needs it
     const clients = new Map<string, HistoricalDataSSEClient>();
-    intervals.forEach(intervalValue => {
-      // Skip if we already have a connection for this interval
-      if (multiClientsRef.current.has(intervalValue)) {
-        console.log(`⏭️ Skipping SSE connection for ${intervalValue} (already exists)`);
-        return;
-      }
-      
+    intervalsNeedingConnections.forEach(intervalValue => {
       const client = new HistoricalDataSSEClient(id, token, intervalValue, limit, chunkSize);
       clients.set(intervalValue, client);
       multiClientsRef.current.set(intervalValue, client);

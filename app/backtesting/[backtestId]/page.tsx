@@ -574,25 +574,25 @@ export default function BacktestDetailPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gray-800 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1">Total Return</div>
-                      <div className={`text-xl font-bold ${results.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {results.total_return_pct.toFixed(2)}%
+                      <div className={`text-xl font-bold ${(results.total_return_pct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {results.total_return_pct != null ? `${results.total_return_pct.toFixed(2)}%` : 'N/A'}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        ₹{results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {results.total_return != null ? `₹${results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                       </div>
                     </div>
 
                     <div className="bg-gray-800 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1">Final Value</div>
                       <div className="text-xl font-bold text-white">
-                        ₹{results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {results.final_value != null ? `₹${results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                       </div>
                     </div>
 
                     <div className="bg-gray-800 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1">Total P&L</div>
-                      <div className={`text-xl font-bold ${results.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        ₹{results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className={`text-xl font-bold ${(results.total_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {results.total_pnl != null ? `₹${results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                       </div>
                     </div>
 
@@ -803,8 +803,8 @@ export default function BacktestDetailPage() {
                   )}
                   <div>
                     <span className="text-gray-400">Total P&L:</span>
-                    <span className={`ml-2 font-semibold ${backtest.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                      ₹{backtest.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    <span className={`ml-2 font-semibold ${(backtest.total_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {backtest.total_pnl != null ? `₹${backtest.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                     </span>
                   </div>
                   <div>
@@ -903,25 +903,25 @@ export default function BacktestDetailPage() {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="bg-gray-800 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1">Total Return</div>
-                      <div className={`text-xl font-bold ${results.total_return_pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {results.total_return_pct.toFixed(2)}%
+                      <div className={`text-xl font-bold ${(results.total_return_pct ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {results.total_return_pct != null ? `${results.total_return_pct.toFixed(2)}%` : 'N/A'}
                       </div>
                       <div className="text-xs text-gray-500 mt-1">
-                        ₹{results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {results.total_return != null ? `₹${results.total_return.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                       </div>
                     </div>
 
                     <div className="bg-gray-800 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1">Final Value</div>
                       <div className="text-xl font-bold text-white">
-                        ₹{results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {results.final_value != null ? `₹${results.final_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                       </div>
                     </div>
 
                     <div className="bg-gray-800 rounded-lg p-3">
                       <div className="text-gray-400 text-xs mb-1">Total P&L</div>
-                      <div className={`text-xl font-bold ${results.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        ₹{results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <div className={`text-xl font-bold ${(results.total_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {results.total_pnl != null ? `₹${results.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                       </div>
                     </div>
 

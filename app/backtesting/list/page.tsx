@@ -197,8 +197,8 @@ export default function BacktestListPage() {
                             <span>{item.win_rate.toFixed(1)}% win rate</span>
                           )}
                         </div>
-                        <p className={`text-sm font-medium ${item.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ₹{item.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <p className={`text-sm font-medium ${(item.total_pnl ?? 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {item.total_pnl != null ? `₹${item.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : 'N/A'}
                         </p>
                         <p className="text-xs text-gray-500 font-mono mt-1">
                           ID: {item.backtest_id.slice(0, 8)}...
