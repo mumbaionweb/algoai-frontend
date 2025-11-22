@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { getBacktestHistory, listBacktestJobs } from '@/lib/api/backtesting';
+import { useBacktestJobsSSE } from '@/hooks/useBacktestJobsSSE';
+import { useBacktestHistorySSE } from '@/hooks/useBacktestHistorySSE';
 import type { BacktestHistoryItem, BacktestJob, BacktestJobStatus } from '@/types';
 
 interface DashboardNavigationProps {
@@ -19,91 +20,32 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
   const [backtestMenuOpen, setBacktestMenuOpen] = useState(false);
   const [strategiesMenuOpen, setStrategiesMenuOpen] = useState(false);
   const [ordersMenuOpen, setOrdersMenuOpen] = useState(false);
-  const [backtestHistory, setBacktestHistory] = useState<BacktestHistoryItem[]>([]);
-  const [backtestJobs, setBacktestJobs] = useState<BacktestJob[]>([]);
-  const [loadingBacktests, setLoadingBacktests] = useState(false);
   
   const menuRef = useRef<HTMLDivElement>(null);
   const backtestMenuRef = useRef<HTMLDivElement>(null);
 
-  // Load backtest history for dropdown
-  useEffect(() => {
-    let consecutiveErrors = 0;
-    let isMounted = true;
-    
-    const loadBacktestData = async () => {
-      // Stop polling if we've had too many consecutive errors (especially 504 Gateway Timeout)
-      if (consecutiveErrors >= 3) {
-        console.warn('⚠️ Stopping navigation polling due to consecutive errors (likely backend timeout issues)');
-        return;
-      }
-      
-      try {
-        setLoadingBacktests(true);
-        // Fetch last 5 completed backtests from history
-        const historyData = await getBacktestHistory(5);
-        if (isMounted) {
-          setBacktestHistory(historyData.backtests || []);
-          consecutiveErrors = 0; // Reset error count on success
-        }
-      } catch (err: any) {
-        // Check if it's a 504 Gateway Timeout (backend is too slow)
-        if (err.response?.status === 504 || err.code === 'ERR_BAD_RESPONSE') {
-          consecutiveErrors++;
-          console.warn(`⚠️ Gateway Timeout (504) - Backend is taking longer than 60s. Error count: ${consecutiveErrors}/3`);
-          // Don't set history if it fails, but don't block the UI
-          if (isMounted) {
-            setBacktestHistory([]);
-          }
-        } else {
-          console.error('Failed to load backtest history for navigation:', err);
-          if (isMounted) {
-            setBacktestHistory([]);
-          }
-        }
-      }
-      
-      // Fetch active/running jobs separately - make it optional so it doesn't break navigation
-      try {
-        const jobs = await listBacktestJobs(undefined, 10);
-        if (isMounted) {
-          // Filter to show only active jobs (running, pending, queued)
-          const activeJobs = jobs.filter(job => 
-            ['running', 'pending', 'queued', 'paused', 'resuming'].includes(job.status)
-          );
-          setBacktestJobs(activeJobs);
-          consecutiveErrors = 0; // Reset error count on success
-        }
-      } catch (err: any) {
-        // Check if it's a 504 Gateway Timeout (backend is too slow)
-        if (err.response?.status === 504 || err.code === 'ERR_BAD_RESPONSE') {
-          consecutiveErrors++;
-          console.warn(`⚠️ Gateway Timeout (504) - Backend is taking longer than 60s. Error count: ${consecutiveErrors}/3`);
-        } else if (err.response?.status !== 500) {
-          // Only log if it's not a 500 error (which indicates backend issue)
-          console.error('Failed to load backtest jobs for navigation:', err);
-        }
-        // Don't set jobs if it fails - just show history
-        if (isMounted) {
-          setBacktestJobs([]);
-        }
-      } finally {
-        if (isMounted) {
-          setLoadingBacktests(false);
-        }
-      }
-    };
+  // Get Firebase token for SSE
+  const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
 
-    loadBacktestData();
-    // Refresh every 30 seconds to update job statuses
-    // If backend is slow (504 errors), polling will stop after 3 consecutive errors
-    const interval = setInterval(loadBacktestData, 30000);
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+  // Use SSE hooks for real-time updates (replaces REST polling)
+  const { backtests: backtestHistory, loading: loadingHistory } = useBacktestHistorySSE({
+    token,
+    limit: 5,
+    enabled: !!token,
+  });
+
+  const { jobs: allJobs, loading: loadingJobs } = useBacktestJobsSSE({
+    token,
+    limit: 10,
+    enabled: !!token,
+  });
+
+  // Filter to show only active jobs (running, pending, queued, paused, resuming)
+  const backtestJobs = allJobs.filter(job => 
+    ['running', 'pending', 'queued', 'paused', 'resuming'].includes(job.status)
+  );
+
+  const loadingBacktests = loadingHistory || loadingJobs;
 
   // Close menus when clicking outside
   useEffect(() => {
