@@ -168,6 +168,17 @@ export function useHistoricalDataSSE({
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const isRunningJobRef = useRef<boolean>(false);
   const initializedForJobRef = useRef<string | null>(null); // Track which job we've initialized for
+  const jobStatusRef = useRef<string | null>(null); // Track job status to detect changes
+  const allIntervalsCompleteRef = useRef<boolean>(false); // Track if all intervals have complete data
+  
+  // Update refs when jobStatus changes
+  useEffect(() => {
+    jobStatusRef.current = jobStatus;
+    if (jobStatus === 'completed' || jobStatus === 'failed' || jobStatus === 'cancelled') {
+      isRunningJobRef.current = false;
+      allIntervalsCompleteRef.current = true; // Job is done, no need to poll
+    }
+  }, [jobStatus]);
   
   useEffect(() => {
     if (!enabled || !id || !token || !intervals || intervals.length <= 1) {
@@ -178,6 +189,7 @@ export function useHistoricalDataSSE({
       }
       isRunningJobRef.current = false;
       initializedForJobRef.current = null;
+      allIntervalsCompleteRef.current = false;
       return;
     }
 
@@ -189,6 +201,7 @@ export function useHistoricalDataSSE({
         pollIntervalRef.current = null;
       }
       isRunningJobRef.current = false;
+      allIntervalsCompleteRef.current = true; // Job completed, stop polling
       // Reset initialization if job changed or completed
       if (initializedForJobRef.current !== id) {
         initializedForJobRef.current = null;
@@ -207,6 +220,7 @@ export function useHistoricalDataSSE({
 
     initializedForJobRef.current = id;
     isRunningJobRef.current = true;
+    allIntervalsCompleteRef.current = false;
     resetState();
 
     // Initialize interval data structures
@@ -294,6 +308,23 @@ export function useHistoricalDataSSE({
       setIntervalMetadata(updatedMetadata);
       setLoading(false);
 
+      // Check if all intervals have complete data
+      const allComplete = intervals.every(interval => {
+        const data = updatedData[interval];
+        const meta = updatedMetadata[interval];
+        return data && data.length > 0 && meta && data.length >= meta.total_points;
+      });
+      
+      if (allComplete) {
+        allIntervalsCompleteRef.current = true;
+        console.log('✅ All intervals loaded completely for running job via REST API. Stopping polling.');
+        // Stop polling since we have all data
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+      }
+
       if (hasError) {
         console.warn('⚠️ Some intervals failed to load for running job');
       } else {
@@ -308,30 +339,144 @@ export function useHistoricalDataSSE({
     }
     
     pollIntervalRef.current = setInterval(() => {
-      // Check if job is still running (use ref to avoid stale closure)
-      if (!isRunningJobRef.current || !isJobId || !isRunningJob) {
+      // Check if job is still running (use refs to avoid stale closure)
+      const currentJobStatus = jobStatusRef.current;
+      const isJobStillRunning = currentJobStatus === 'running' || currentJobStatus === 'queued' || currentJobStatus === 'paused';
+      
+      if (!isRunningJobRef.current || !isJobId || !isJobStillRunning || allIntervalsCompleteRef.current) {
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current);
           pollIntervalRef.current = null;
         }
         isRunningJobRef.current = false;
+        if (!isJobStillRunning) {
+          console.log('🛑 Stopping REST API polling: job status changed to', currentJobStatus);
+        } else if (allIntervalsCompleteRef.current) {
+          console.log('🛑 Stopping REST API polling: all intervals have complete data');
+        }
         return;
       }
 
+      // Check if all intervals already have complete data (before polling)
+      // Use functional updates to read current state
+      let shouldStopPolling = false;
+      setIntervalData(currentData => {
+        setIntervalMetadata(currentMeta => {
+          const allComplete = intervals.every(iv => {
+            const intervalData = currentData[iv] || [];
+            const intervalMeta = currentMeta[iv];
+            return intervalMeta && intervalData.length >= intervalMeta.total_points && intervalData.length > 0;
+          });
+          
+          if (allComplete) {
+            shouldStopPolling = true;
+            allIntervalsCompleteRef.current = true;
+          }
+          return currentMeta; // Don't modify, just check
+        });
+        return currentData; // Don't modify, just check
+      });
+      
+      if (shouldStopPolling) {
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        console.log('🛑 Stopping REST API polling: all intervals already have complete data');
+        return;
+      }
+
+      // Poll each interval only if we don't have complete data yet
       intervals.forEach(async (intervalValue) => {
         try {
+          // Use a function to check current state
+          let shouldFetch = true;
+          setIntervalData(currentData => {
+            const existingData = currentData[intervalValue] || [];
+            setIntervalMetadata(currentMeta => {
+              const meta = currentMeta[intervalValue];
+              if (meta && existingData.length >= meta.total_points && existingData.length > 0) {
+                // Already have complete data for this interval, skip fetch
+                shouldFetch = false;
+              }
+              return currentMeta;
+            });
+            return currentData; // Don't modify, just check
+          });
+
+          if (!shouldFetch) {
+            return; // Skip this interval, already have complete data
+          }
+
           const dataLimit = limit || 10000;
           const data = await getBacktestHistoricalData(id, dataLimit, 'json', intervalValue);
           
           if (data && data.data_points && data.data_points.length > 0) {
-            setIntervalData(prev => ({
-              ...prev,
-              [intervalValue]: data.data_points,
-            }));
+            setIntervalData(prev => {
+              const existing = prev[intervalValue] || [];
+              // Only update if we got more data
+              if (data.data_points.length > existing.length) {
+                return {
+                  ...prev,
+                  [intervalValue]: data.data_points,
+                };
+              }
+              return prev; // No new data, don't update
+            });
+            
             setIntervalProgress(prev => ({
               ...prev,
               [intervalValue]: 100,
             }));
+            
+            // Update metadata
+            setIntervalMetadata(prev => {
+              const newMeta = {
+                interval: data.interval || intervalValue,
+                total_points: data.total_points,
+                total_chunks: 1,
+                chunk_size: data.data_points.length,
+                backtest_id: data.backtest_id || id,
+                symbol: data.symbol || '',
+                exchange: data.exchange || '',
+              };
+              
+              return {
+                ...prev,
+                [intervalValue]: newMeta,
+              };
+            });
+            
+            // Check if all intervals are now complete (after updating both data and metadata)
+            // This check happens in the next polling cycle, but we can also check here
+            // by reading the updated state
+            if (data.data_points.length >= data.total_points) {
+              // This interval is complete, check if all are complete
+              setIntervalData(currentData => {
+                setIntervalMetadata(currentMeta => {
+                  const allComplete = intervals.every(iv => {
+                    const intervalData = currentData[iv] || [];
+                    const intervalMeta = currentMeta[iv];
+                    // For the current interval, use the data we just fetched
+                    if (iv === intervalValue) {
+                      return data.data_points.length >= data.total_points;
+                    }
+                    return intervalMeta && intervalData.length >= intervalMeta.total_points && intervalData.length > 0;
+                  });
+                  
+                  if (allComplete && !allIntervalsCompleteRef.current) {
+                    allIntervalsCompleteRef.current = true;
+                    if (pollIntervalRef.current) {
+                      clearInterval(pollIntervalRef.current);
+                      pollIntervalRef.current = null;
+                    }
+                    console.log('🛑 Stopping REST API polling: all intervals have complete data');
+                  }
+                  return currentMeta; // Don't modify, just check
+                });
+                return currentData; // Don't modify, just check
+              });
+            }
           }
         } catch (err: any) {
           // Handle timeout errors specifically
