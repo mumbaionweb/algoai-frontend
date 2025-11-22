@@ -218,10 +218,26 @@ export default function BacktestDetailPage() {
         // Mark as job_id and let SSE provide the data
         setIsJobId(true);
         // Create a minimal job object so SSE hook can connect
+        // Include required fields to prevent render errors
         setJob({
           job_id: id,
+          user_id: '',
+          strategy_code: '',
+          symbol: '',
+          exchange: '',
+          from_date: '',
+          to_date: '',
+          intervals: [],
+          initial_cash: 0,
+          commission: 0,
+          broker_type: 'zerodha',
           status: 'pending',
           progress: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          can_resume: false,
+          can_pause: false,
+          can_cancel: false,
         } as BacktestJob);
         setLoading(false);
         setLoadingJob(false);
@@ -507,22 +523,30 @@ export default function BacktestDetailPage() {
                     <span className="text-gray-400">Job ID:</span>
                     <span className="text-white ml-2 font-mono text-xs break-all">{job.job_id}</span>
                   </div>
-                  <div>
-                    <span className="text-gray-400">Symbol:</span>
-                    <span className="text-white ml-2">{job.symbol}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Exchange:</span>
-                    <span className="text-white ml-2">{job.exchange}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Period:</span>
-                    <span className="text-white ml-2">{job.from_date} to {job.to_date}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-400">Intervals:</span>
-                    <span className="text-white ml-2">{job.intervals.join(', ')}</span>
-                  </div>
+                  {job.symbol && (
+                    <div>
+                      <span className="text-gray-400">Symbol:</span>
+                      <span className="text-white ml-2">{job.symbol}</span>
+                    </div>
+                  )}
+                  {job.exchange && (
+                    <div>
+                      <span className="text-gray-400">Exchange:</span>
+                      <span className="text-white ml-2">{job.exchange}</span>
+                    </div>
+                  )}
+                  {job.from_date && job.to_date && (
+                    <div>
+                      <span className="text-gray-400">Period:</span>
+                      <span className="text-white ml-2">{job.from_date} to {job.to_date}</span>
+                    </div>
+                  )}
+                  {job.intervals && job.intervals.length > 0 && (
+                    <div>
+                      <span className="text-gray-400">Intervals:</span>
+                      <span className="text-white ml-2">{job.intervals.join(', ')}</span>
+                    </div>
+                  )}
                   <div>
                     <span className="text-gray-400">Status:</span>
                     <span className={`ml-2 font-semibold ${
