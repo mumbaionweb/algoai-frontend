@@ -241,6 +241,20 @@ export async function getBacktestHistoricalData(
     return response.data;
   } catch (error: any) {
     logError('Failed to fetch historical data', error);
+    
+    // Handle timeout errors specifically
+    if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+      const timeoutSeconds = (error.config?.timeout || 90000) / 1000;
+      const timeoutError = new Error(
+        `Historical data fetch timed out after ${timeoutSeconds} seconds. ` +
+        `For completed backtests, BigQuery retries can take up to 30 seconds. ` +
+        `For running jobs, broker API can take 40-60+ seconds for large datasets. ` +
+        `The request may still succeed - please check backend logs or try again.`
+      );
+      timeoutError.name = 'HistoricalDataTimeoutError';
+      throw timeoutError;
+    }
+    
     throw error;
   }
 }
@@ -271,11 +285,14 @@ export async function quickBacktest(
   }
 
   const url = `/api/backtesting/quick?${params.toString()}`;
+  // Use extended timeout for quick backtest (120 seconds, same as regular backtest)
   const response = await apiClient.post<BacktestResponse>(url, {
     strategy_code: strategyCode,
     symbol: symbol,
     from_date: fromDate,
     to_date: toDate,
+  }, {
+    timeout: 120000, // 120 seconds (2 minutes) - same as regular backtest
   });
   return response.data;
 }
