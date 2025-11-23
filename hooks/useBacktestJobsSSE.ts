@@ -18,6 +18,8 @@ export function useBacktestJobsSSE({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const isIntentionallyClosedRef = useRef(false);
+  const hasReceivedConnectionRef = useRef(false);
 
   useEffect(() => {
     if (!enabled || !token) {
@@ -44,12 +46,31 @@ export function useBacktestJobsSSE({
     }
     const url = `${baseUrl}/api/sse/backtest/jobs?${params.toString()}`;
 
+    // Reset flags
+    isIntentionallyClosedRef.current = false;
+    hasReceivedConnectionRef.current = false;
+
     // Create SSE connection
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
 
+    // Track connection timeout to detect 401 errors
+    const connectionTimeout = setTimeout(() => {
+      // If we haven't received a connection event after 5 seconds and connection is closed,
+      // it's likely a 401 error
+      if (!hasReceivedConnectionRef.current && eventSource.readyState === EventSource.CLOSED) {
+        console.error('❌ SSE connection failed - likely 401 Unauthorized (token expired)');
+        setError('Authentication failed. Please refresh the page.');
+        setLoading(false);
+        isIntentionallyClosedRef.current = true;
+        eventSource.close();
+      }
+    }, 5000);
+
     // Handle connection
     eventSource.addEventListener('connection', () => {
+      hasReceivedConnectionRef.current = true;
+      clearTimeout(connectionTimeout);
       console.log('✅ Connected to job listings SSE');
       setLoading(false);
       setError(null);
@@ -57,6 +78,8 @@ export function useBacktestJobsSSE({
 
     // Handle initial snapshot
     eventSource.addEventListener('snapshot', (e) => {
+      hasReceivedConnectionRef.current = true;
+      clearTimeout(connectionTimeout);
       try {
         const data = JSON.parse(e.data);
         setJobs(data.jobs || []);
@@ -108,6 +131,17 @@ export function useBacktestJobsSSE({
         try {
           const data = JSON.parse(e.data);
           console.error('SSE error event:', data);
+          
+          // Check if it's an authentication error
+          if (data.error === 'Unauthorized' || data.status === 401 || data.message?.includes('401') || data.message?.includes('Unauthorized')) {
+            console.error('❌ SSE 401 Unauthorized - stopping reconnection');
+            setError('Authentication failed. Please refresh the page.');
+            setLoading(false);
+            isIntentionallyClosedRef.current = true;
+            eventSource.close();
+            return;
+          }
+          
           setError(data.message || 'Connection error');
           setLoading(false);
         } catch (err) {
@@ -118,10 +152,28 @@ export function useBacktestJobsSSE({
 
     // Handle connection errors
     eventSource.onerror = (err) => {
+      // Don't reconnect if intentionally closed (e.g., due to 401)
+      if (isIntentionallyClosedRef.current) {
+        console.log('🔌 SSE connection error (intentionally closed, not reconnecting)');
+        return;
+      }
+      
       console.error('EventSource error:', err);
-      if (eventSource.readyState === EventSource.CLOSED) {
-        setError('Connection closed. Attempting to reconnect...');
+      
+      // If connection closes immediately without receiving connection event, likely 401
+      if (eventSource.readyState === EventSource.CLOSED && !hasReceivedConnectionRef.current) {
+        console.error('❌ SSE connection closed immediately - likely 401 Unauthorized');
+        setError('Authentication failed. Please refresh the page.');
         setLoading(false);
+        isIntentionallyClosedRef.current = true;
+        return;
+      }
+      
+      if (eventSource.readyState === EventSource.CLOSED) {
+        if (!isIntentionallyClosedRef.current) {
+          setError('Connection closed. Attempting to reconnect...');
+          setLoading(false);
+        }
       } else if (eventSource.readyState === EventSource.CONNECTING) {
         console.log('🔄 SSE reconnecting...');
       } else {
@@ -132,7 +184,9 @@ export function useBacktestJobsSSE({
 
     // Cleanup
     return () => {
+      clearTimeout(connectionTimeout);
       if (eventSourceRef.current) {
+        isIntentionallyClosedRef.current = true;
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
