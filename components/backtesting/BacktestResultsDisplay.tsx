@@ -41,6 +41,19 @@ interface BacktestResultsDisplayProps {
 
 export default function BacktestResultsDisplay({ results, hideTransactionDetails = false, jobId, jobStatus }: BacktestResultsDisplayProps) {
   const [viewMode, setViewMode] = useState<'position' | 'transaction'>('position');
+  
+  // IMPORTANT: results.intervals array order must match strategy code's datas[X] indexing
+  // Backend is responsible for parsing strategy code and providing intervals in the correct order:
+  // - datas[0] should be the first interval in results.intervals[0]
+  // - datas[1] should be the second interval in results.intervals[1]
+  // - etc.
+  // Frontend preserves this order exactly - no sorting or reordering is performed
+  if (process.env.NODE_ENV === 'development' && results.intervals && results.intervals.length > 1) {
+    console.log('📊 BacktestResultsDisplay - Intervals order from backend:', 
+      results.intervals.map((iv, idx) => `datas[${idx}]: ${iv}`).join(', '),
+      '\nExpected: Backend should provide intervals in the exact order matching strategy code\'s datas[X] indexing'
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -68,14 +81,22 @@ export default function BacktestResultsDisplay({ results, hideTransactionDetails
                 Multi-Timeframe Strategy:
               </p>
               <div className="flex flex-wrap gap-2">
-                {results.intervals.map((intervalValue, idx) => (
-                  <span
-                    key={intervalValue}
-                    className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs"
-                  >
-                    datas[{idx}]: {INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}
-                  </span>
-                ))}
+                {(() => {
+                  // Log intervals order for debugging (only in development)
+                  if (process.env.NODE_ENV === 'development' && results.intervals) {
+                    console.log('📊 Intervals order from backend:', results.intervals.map((iv, idx) => `datas[${idx}]: ${iv}`).join(', '));
+                  }
+                  // IMPORTANT: Preserve exact order from backend - this should match strategy code's datas[X] order
+                  // Backend is responsible for providing intervals in the correct order matching datas[0], datas[1], etc.
+                  return results.intervals.map((intervalValue, idx) => (
+                    <span
+                      key={`${intervalValue}-${idx}`} // Include index in key to preserve order
+                      className="px-2 py-1 bg-purple-500/20 text-purple-300 rounded text-xs"
+                    >
+                      datas[{idx}]: {INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}
+                    </span>
+                  ));
+                })()}
               </div>
             </div>
           )}
@@ -88,7 +109,7 @@ export default function BacktestResultsDisplay({ results, hideTransactionDetails
                 fromDate={results.from_date}
                 toDate={results.to_date}
                 symbol={results.symbol}
-                intervals={results.intervals}
+                intervals={results.intervals} // IMPORTANT: Use intervals in exact order from backend (should match datas[X] order)
                 primaryInterval={results.interval}
                 jobStatus={jobStatus || null} // Pass job status to prevent multi-interval SSE for running jobs
               />
@@ -1063,35 +1084,43 @@ function DataBarsChart({
     <div className="w-full">
       {isMultiTimeframe && intervals ? (
         <div className="space-y-4">
-          {intervals.map((intervalValue, idx) => {
-            const chartState = chartsData.get(intervalValue);
-            
-            if (!chartState) {
-              const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue;
-              return (
-                <div key={intervalValue} className="mb-4">
-                  <div className="text-xs text-gray-400 mb-2">
-                    datas[{idx}]: {intervalLabel}
-                  </div>
-                  <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
-                    <div className="text-center">
-                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
-                      <p className="text-xs text-gray-400">Loading...</p>
+          {(() => {
+            // IMPORTANT: Preserve exact order from backend - intervals array should match strategy code's datas[X] order
+            // Backend is responsible for providing intervals in the correct order: datas[0], datas[1], datas[2], etc.
+            if (process.env.NODE_ENV === 'development' && intervals.length > 0) {
+              console.log('📊 Rendering charts in order:', intervals.map((iv, idx) => `datas[${idx}]: ${iv}`).join(', '));
+            }
+            // Use intervals array in exact order - do not sort or reorder
+            return intervals.map((intervalValue, idx) => {
+              const chartState = chartsData.get(intervalValue);
+              
+              if (!chartState) {
+                const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue;
+                return (
+                  <div key={`${intervalValue}-${idx}`} className="mb-4">
+                    <div className="text-xs text-gray-400 mb-2">
+                      datas[{idx}]: {intervalLabel}
+                    </div>
+                    <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
+                      <div className="text-center">
+                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gray-400 mb-2"></div>
+                        <p className="text-xs text-gray-400">Loading...</p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                );
+              }
+              
+              return renderSingleChart(
+                intervalValue,
+                chartState.historicalData,
+                chartState.dataInfo,
+                chartState.loading,
+                chartState.error,
+                idx // Pass index for dynamic datas[X] label - this should match strategy code's datas[X] order
               );
-            }
-            
-            return renderSingleChart(
-              intervalValue,
-              chartState.historicalData,
-              chartState.dataInfo,
-              chartState.loading,
-              chartState.error,
-              idx // Pass index for dynamic datas[X] label
-            );
-          })}
+            });
+          })()}
         </div>
       ) : (
         <>
