@@ -557,3 +557,42 @@ export interface ZerodhaUserProfile {
   };
 }
 
+// Marketplace API Types
+export type MarketplaceApiType = 'yahoo_finance' | string;
+
+export interface MarketplaceApiInfo {
+  api_type: MarketplaceApiType;
+  name: string;
+  description?: string;
+  logo_url?: string;
+  website?: string;
+  requires_credentials: boolean;
+  credential_fields?: {
+    name: string;
+    label: string;
+    type: 'text' | 'password' | 'email';
+    required: boolean;
+  }[];
+}
+
+export interface MarketplaceApiStatus {
+  id: string;
+  user_id: string;
+  api_type: MarketplaceApiType;
+  is_enabled: boolean;
+  credentials?: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MarketplaceApiStatusCreate {
+  api_type: MarketplaceApiType;
+  is_enabled: boolean;
+  credentials?: Record<string, string>;
+}
+
+export interface MarketplaceApiStatusUpdate {
+  is_enabled?: boolean;
+  credentials?: Record<string, string>;
+}
+

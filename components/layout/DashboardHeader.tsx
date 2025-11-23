@@ -139,6 +139,27 @@ export default function DashboardHeader({ title = 'AlgoAI Dashboard', backButton
                     </svg>
                     Broker
                   </Link>
+
+                  <Link
+                    href="/dashboard/marketplace"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+                  >
+                    <svg
+                      className="w-5 h-5 mr-3 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+                      />
+                    </svg>
+                    Marketplace
+                  </Link>
                 </div>
 
                 {/* Logout */}
