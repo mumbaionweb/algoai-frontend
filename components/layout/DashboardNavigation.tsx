@@ -408,6 +408,13 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     >
                       Create New Strategy
                     </Link>
+                    <Link
+                      href="/dashboard/strategies/v2"
+                      onClick={() => setStrategiesMenuOpen(false)}
+                      className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+                    >
+                      Add Strategy v2
+                    </Link>
                   </div>
                 )}
               </div>
