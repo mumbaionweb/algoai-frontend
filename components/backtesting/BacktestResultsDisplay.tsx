@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import type { HistoricalDataPoint } from '@/lib/api/backtesting';
+import { getBacktestHistoricalData } from '@/lib/api/backtesting';
 import { useHistoricalDataSSE } from '@/hooks/useHistoricalDataSSE';
 import type { BacktestResponse, Transaction, BacktestPosition, IntervalOption } from '@/types';
 import { INTERVAL_OPTIONS } from '@/types';
@@ -744,6 +745,63 @@ function DataBarsChart({
     jobStatus: jobStatus || null,
   });
   
+  // State for REST API fallback data
+  const [fallbackData, setFallbackData] = useState<Record<string, {
+    historicalData: HistoricalDataPoint[];
+    dataInfo: { total_points: number; returned_points: number };
+    actualInterval: string;
+    isPartial: boolean;
+    currentBar: number | null;
+    jobStatus: string | null;
+  }>>({});
+  
+  // Track REST API fallback attempts to prevent infinite loops
+  const fallbackAttemptedRef = useRef<Set<string>>(new Set());
+  
+  // Fallback to REST API when SSE fails for an interval
+  useEffect(() => {
+    if (!isMultiTimeframe || !intervals || !backtestId) return;
+    
+    intervals.forEach((interval) => {
+      const intervalData = sseIntervalData[interval] || [];
+      const isLoading = sseIntervalLoading[interval] ?? sseLoading;
+      const hasError = sseError && intervalData.length === 0;
+      const fallbackKey = `${backtestId}-${interval}`;
+      
+      // If SSE failed, loading is done, and we haven't tried REST API fallback yet, try it
+      if (hasError && !isLoading && !fallbackAttemptedRef.current.has(fallbackKey) && intervalData.length === 0) {
+        fallbackAttemptedRef.current.add(fallbackKey);
+        
+        console.log(`🔄 Attempting REST API fallback for interval ${interval} (SSE failed)`);
+        
+        // Fetch via REST API as fallback
+        getBacktestHistoricalData(backtestId, dataBarsCount || 10000, 'json', interval)
+          .then((restData) => {
+            if (restData.data_points && restData.data_points.length > 0) {
+              console.log(`✅ REST API fallback successful for interval ${interval}: ${restData.data_points.length} points`);
+              setFallbackData(prev => ({
+                ...prev,
+                [interval]: {
+                  historicalData: restData.data_points,
+                  dataInfo: {
+                    total_points: restData.total_points,
+                    returned_points: restData.returned_points,
+                  },
+                  actualInterval: restData.interval || interval, // Use actual interval from response
+                  isPartial: restData.is_partial || false,
+                  currentBar: restData.current_bar || null,
+                  jobStatus: restData.job_status || jobStatus || null,
+                }
+              }));
+            }
+          })
+          .catch((err) => {
+            console.error(`❌ REST API fallback failed for interval ${interval}:`, err);
+          });
+      }
+    });
+  }, [isMultiTimeframe, intervals, backtestId, sseIntervalData, sseIntervalLoading, sseError, sseLoading, dataBarsCount, jobStatus]);
+  
   // For backward compatibility: map SSE data to old state structure
   const chartsData = new Map<string, {
     loading: boolean;
@@ -753,25 +811,35 @@ function DataBarsChart({
     isPartial?: boolean;
     currentBar?: number | null;
     jobStatus?: string | null;
+    actualInterval?: string | null; // Store actual interval from API response
   }>();
   
   if (isMultiTimeframe && intervals) {
-    intervals.forEach(interval => {
+    intervals.forEach((interval) => {
       const intervalData = sseIntervalData[interval] || [];
       const intervalMeta = sseIntervalMetadata[interval];
-      // Use per-interval loading state for parallel loading
       const isLoading = sseIntervalLoading[interval] ?? sseLoading;
+      
+      // Check if we have fallback data for this interval
+      const fallback = fallbackData[interval];
+      
+      // Prefer SSE data if available, otherwise use fallback data
+      const finalData = intervalData.length > 0 ? intervalData : (fallback?.historicalData || null);
+      const finalDataInfo = intervalMeta ? {
+        total_points: intervalMeta.total_points,
+        returned_points: intervalData.length,
+      } : fallback?.dataInfo || null;
+      const finalActualInterval = intervalMeta?.interval || fallback?.actualInterval || interval;
+      
       chartsData.set(interval, {
-        loading: isLoading,
-        error: sseError,
-        historicalData: intervalData.length > 0 ? intervalData : null,
-        dataInfo: intervalMeta ? {
-          total_points: intervalMeta.total_points,
-          returned_points: intervalData.length,
-        } : null,
-        isPartial: intervalMeta?.is_partial || false,
-        currentBar: intervalMeta?.current_bar || null,
-        jobStatus: intervalMeta?.job_status || jobStatus || null,
+        loading: isLoading && !fallback, // Don't show loading if we have fallback data
+        error: (sseError && intervalData.length === 0 && !fallback) ? sseError : null, // Only show error if no fallback
+        historicalData: finalData,
+        dataInfo: finalDataInfo,
+        isPartial: intervalMeta?.is_partial || fallback?.isPartial || false,
+        currentBar: intervalMeta?.current_bar || fallback?.currentBar || null,
+        jobStatus: intervalMeta?.job_status || fallback?.jobStatus || jobStatus || null,
+        actualInterval: finalActualInterval,
       });
     });
   }
@@ -792,7 +860,8 @@ function DataBarsChart({
     intervalData: HistoricalDataPoint[] | null,
     intervalDataInfo: { total_points: number; returned_points: number } | null,
     isLoading: boolean,
-    hasError: string | null
+    hasError: string | null,
+    intervalIndex?: number // Add index parameter
   ) => {
     const chartData = intervalData
       ? {
@@ -818,22 +887,26 @@ function DataBarsChart({
         }
       : null;
 
-    const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue;
+    // Get actual interval from chart data (may differ from requested interval)
+    const intervalChartData = chartsData.get(intervalValue);
+    const actualInterval = intervalChartData?.actualInterval || intervalValue;
+    const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === actualInterval)?.label || actualInterval;
 
     // Get partial data status for this interval
-    const intervalChartData = chartsData.get(intervalValue);
     const isIntervalPartial = intervalChartData?.isPartial || false;
     const intervalCurrentBar = intervalChartData?.currentBar;
     const intervalJobStatus = intervalChartData?.jobStatus;
+    
+    // Dynamic datas[X] label based on index in intervals array
+    const datasLabel = intervalIndex !== undefined && intervals 
+      ? `datas[${intervalIndex}]: ${intervalLabel}`
+      : intervalLabel;
     
     return (
       <div key={intervalValue} className="mb-4 last:mb-0">
         <div className="flex items-center justify-between mb-2">
           <div className="text-xs text-gray-400 font-medium">
-            {intervalValue === intervals?.[0] ? `datas[0]: ${intervalLabel}` : 
-             intervalValue === intervals?.[1] ? `datas[1]: ${intervalLabel}` :
-             intervalValue === intervals?.[2] ? `datas[2]: ${intervalLabel}` :
-             intervalLabel} ({symbol})
+            {datasLabel} ({symbol})
           </div>
           <div className="flex items-center gap-2">
             {isIntervalPartial && (
@@ -994,13 +1067,11 @@ function DataBarsChart({
             const chartState = chartsData.get(intervalValue);
             
             if (!chartState) {
+              const intervalLabel = INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue;
               return (
                 <div key={intervalValue} className="mb-4">
                   <div className="text-xs text-gray-400 mb-2">
-                    {idx === 0 ? `datas[0]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
-                     idx === 1 ? `datas[1]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
-                     idx === 2 ? `datas[2]: ${INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}` :
-                     INTERVAL_OPTIONS.find(opt => opt.value === intervalValue)?.label || intervalValue}
+                    datas[{idx}]: {intervalLabel}
                   </div>
                   <div className="w-full flex items-center justify-center" style={{ height: '75px' }}>
                     <div className="text-center">
@@ -1017,7 +1088,8 @@ function DataBarsChart({
               chartState.historicalData,
               chartState.dataInfo,
               chartState.loading,
-              chartState.error
+              chartState.error,
+              idx // Pass index for dynamic datas[X] label
             );
           })}
         </div>
