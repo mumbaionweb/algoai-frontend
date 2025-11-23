@@ -78,50 +78,33 @@ export default function BacktestResultsDisplay({ results, hideTransactionDetails
               </div>
             </div>
           )}
-          <div className="flex flex-col lg:flex-row gap-4">
-            {/* Left side - Data info */}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-sm text-gray-400">Historical Data Bars:</span>
-                <span className={`font-bold text-sm ${(results.data_bars_count || 0) === 0 ? 'text-red-400' : 'text-green-400'}`}>
-                  {results.data_bars_count || 0}
-                </span>
-              </div>
-              
-              {(results.data_bars_count || 0) === 0 && (
-                <div className="mt-2 p-2 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs">
-                  ⚠️ No historical data found for this symbol/date range. Please check:
-                  <ul className="list-disc list-inside mt-1 space-y-1">
-                    <li>Symbol is correct (e.g., "RELIANCE" not "RELI")</li>
-                    <li>Date range is valid</li>
-                    <li>Exchange is correct</li>
-                  </ul>
-                </div>
-              )}
-              
-              {(results.data_bars_count || 0) > 0 && results.total_trades === 0 && (
-                <div className="mt-2 p-2 bg-yellow-500/10 border border-yellow-500 rounded text-yellow-400 text-xs">
-                  ℹ️ Data found but no trades generated. Your strategy didn't produce any buy/sell signals in this period.
-                </div>
-              )}
+          {/* Timeseries Charts - Full Width */}
+          {(results.data_bars_count || 0) > 0 && (
+            <div className="w-full">
+              <DataBarsChart 
+                backtestId={results.backtest_id || jobId || ''} // Use job_id as fallback if backtest_id not available
+                dataBarsCount={results.data_bars_count || 0}
+                fromDate={results.from_date}
+                toDate={results.to_date}
+                symbol={results.symbol}
+                intervals={results.intervals}
+                primaryInterval={results.interval}
+                jobStatus={jobStatus || null} // Pass job status to prevent multi-interval SSE for running jobs
+              />
             </div>
-            
-            {/* Right side - Timeseries Charts */}
-            {(results.data_bars_count || 0) > 0 && (
-              <div className="flex-1 min-w-0 lg:min-w-[300px]">
-                <DataBarsChart 
-                  backtestId={results.backtest_id || jobId || ''} // Use job_id as fallback if backtest_id not available
-                  dataBarsCount={results.data_bars_count || 0}
-                  fromDate={results.from_date}
-                  toDate={results.to_date}
-                  symbol={results.symbol}
-                  intervals={results.intervals}
-                  primaryInterval={results.interval}
-                  jobStatus={jobStatus || null} // Pass job status to prevent multi-interval SSE for running jobs
-                />
-              </div>
-            )}
-          </div>
+          )}
+          
+          {/* Show warning only if no data at all */}
+          {(results.data_bars_count || 0) === 0 && (
+            <div className="mt-2 p-2 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs">
+              ⚠️ No historical data found for this symbol/date range. Please check:
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                <li>Symbol is correct (e.g., "RELIANCE" not "RELI")</li>
+                <li>Date range is valid</li>
+                <li>Exchange is correct</li>
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
