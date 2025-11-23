@@ -97,6 +97,7 @@ export interface ErrorEvent {
   backtest_id?: string;
   interval?: string;
   chunk_id?: number;
+  available_intervals?: string[]; // Intervals that are available when requested interval is not found
 }
 
 export type IntervalStartCallback = (meta: IntervalStartEvent | MultiIntervalStartEvent) => void;
@@ -116,6 +117,7 @@ export class HistoricalDataSSEClient {
   private limit: number;
   private chunkSize: number;
   private isIntentionallyClosed = false;
+  private isStreamComplete = false; // Track if stream is complete (even after error)
 
   constructor(
     id: string, // backtest_id (starts with 'bt_') or job_id (does not start with 'bt_')
@@ -143,6 +145,7 @@ export class HistoricalDataSSEClient {
     }
 
     this.isIntentionallyClosed = false;
+    this.isStreamComplete = false; // Reset stream complete flag
     const sseUrl = this.getSSEUrl();
 
     try {
@@ -181,8 +184,9 @@ export class HistoricalDataSSEClient {
         try {
           const data = JSON.parse(event.data) as CompleteEvent;
           console.log(`✅ Completed streaming ${data.interval}: ${data.total_points} points in ${data.total_chunks} chunks`);
+          this.isStreamComplete = true; // Mark stream as complete
           onComplete(data);
-          this.disconnect();
+          this.disconnect(); // Stop reconnecting
         } catch (error) {
           console.error('Error parsing complete event:', error);
           onError({
@@ -197,8 +201,18 @@ export class HistoricalDataSSEClient {
         if (event instanceof MessageEvent && event.data) {
           try {
             const data = JSON.parse(event.data) as ErrorEvent;
-            console.error('❌ SSE error event:', data);
+            console.error(`❌ SSE [${this.interval}] error:`, data);
+            
+            // Log available intervals if provided
+            if (data.available_intervals && data.available_intervals.length > 0) {
+              console.warn(`⚠️ Available intervals: ${data.available_intervals.join(', ')}`);
+            }
+            
             onError(data);
+            
+            // After error, wait for complete event to stop reconnecting
+            // The backend will send a complete event after error to signal stream is done
+            // We'll handle it in the complete event listener above
           } catch (error) {
             console.error('❌ SSE error parsing failed:', error);
             onError({
@@ -208,25 +222,40 @@ export class HistoricalDataSSEClient {
           }
         } else {
           // Standard EventSource connection error (no data)
+          // Only reconnect if stream is not complete
+          if (this.isStreamComplete) {
+            console.log('🔌 SSE stream already complete, not reconnecting');
+            return;
+          }
+          
           if (this.eventSource?.readyState === EventSource.CONNECTING) {
             console.log('🔄 SSE reconnecting...');
           } else if (this.eventSource?.readyState === EventSource.CLOSED) {
-            if (!this.isIntentionallyClosed) {
+            if (!this.isIntentionallyClosed && !this.isStreamComplete) {
               console.log('🔌 SSE connection closed (will auto-reconnect)');
+            } else if (this.isStreamComplete) {
+              console.log('🔌 SSE connection closed (stream complete, not reconnecting)');
             }
           } else {
             console.error('❌ SSE connection error');
-            onError({
-              error: 'connection_error',
-              message: 'SSE connection error',
-            });
+            if (!this.isStreamComplete) {
+              onError({
+                error: 'connection_error',
+                message: 'SSE connection error',
+              });
+            }
           }
         }
       });
 
       this.eventSource.onerror = (error) => {
-        console.error('❌ SSE onerror:', error);
-        // SSE will auto-reconnect
+        // Only log if stream is not complete
+        if (!this.isStreamComplete) {
+          console.error('❌ SSE onerror:', error);
+          // SSE will auto-reconnect unless stream is complete
+        } else {
+          console.log('🔌 SSE onerror (stream complete, ignoring):', error);
+        }
       };
 
     } catch (error) {
@@ -282,6 +311,7 @@ export class MultiIntervalHistoricalDataSSEClient {
   private limit: number;
   private chunkSize: number;
   private isIntentionallyClosed = false;
+  private isStreamComplete = false; // Track if stream is complete (even after error)
 
   constructor(
     id: string, // backtest_id (starts with 'bt_') or job_id (does not start with 'bt_')
@@ -310,6 +340,7 @@ export class MultiIntervalHistoricalDataSSEClient {
     }
 
     this.isIntentionallyClosed = false;
+    this.isStreamComplete = false; // Reset stream complete flag
     const sseUrl = this.getSSEUrl();
 
     try {
@@ -362,8 +393,9 @@ export class MultiIntervalHistoricalDataSSEClient {
         try {
           const data = JSON.parse(event.data) as AllCompleteEvent;
           console.log(`✅ All intervals complete: ${data.completed_intervals.join(', ')}`);
+          this.isStreamComplete = true; // Mark stream as complete
           onAllComplete(data);
-          this.disconnect();
+          this.disconnect(); // Stop reconnecting
         } catch (error) {
           console.error('Error parsing all_complete event:', error);
           onError({
@@ -379,7 +411,14 @@ export class MultiIntervalHistoricalDataSSEClient {
           try {
             const data = JSON.parse(event.data) as ErrorEvent;
             console.error('❌ SSE error event:', data);
+            
+            // Log available intervals if provided
+            if (data.available_intervals && data.available_intervals.length > 0) {
+              console.warn(`⚠️ Available intervals: ${data.available_intervals.join(', ')}`);
+            }
+            
             // Don't close on error - continue with other intervals
+            // But wait for complete event to stop reconnecting
             onError(data);
           } catch (error) {
             console.error('❌ SSE error parsing failed:', error);
@@ -390,25 +429,40 @@ export class MultiIntervalHistoricalDataSSEClient {
           }
         } else {
           // Standard EventSource connection error (no data)
+          // Only reconnect if stream is not complete
+          if (this.isStreamComplete) {
+            console.log('🔌 SSE stream already complete, not reconnecting');
+            return;
+          }
+          
           if (this.eventSource?.readyState === EventSource.CONNECTING) {
             console.log('🔄 SSE reconnecting...');
           } else if (this.eventSource?.readyState === EventSource.CLOSED) {
-            if (!this.isIntentionallyClosed) {
+            if (!this.isIntentionallyClosed && !this.isStreamComplete) {
               console.log('🔌 SSE connection closed (will auto-reconnect)');
+            } else if (this.isStreamComplete) {
+              console.log('🔌 SSE connection closed (stream complete, not reconnecting)');
             }
           } else {
             console.error('❌ SSE connection error');
-            onError({
-              error: 'connection_error',
-              message: 'SSE connection error',
-            });
+            if (!this.isStreamComplete) {
+              onError({
+                error: 'connection_error',
+                message: 'SSE connection error',
+              });
+            }
           }
         }
       });
 
       this.eventSource.onerror = (error) => {
-        console.error('❌ SSE onerror:', error);
-        // SSE will auto-reconnect
+        // Only log if stream is not complete
+        if (!this.isStreamComplete) {
+          console.error('❌ SSE onerror:', error);
+          // SSE will auto-reconnect unless stream is complete
+        } else {
+          console.log('🔌 SSE onerror (stream complete, ignoring):', error);
+        }
       };
 
     } catch (error) {

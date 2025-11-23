@@ -149,6 +149,12 @@ export function useHistoricalDataSSE({
       },
       (errorEvent) => {
         console.error('❌ SSE error:', errorEvent);
+        
+        // Log available intervals if provided
+        if (errorEvent.available_intervals && errorEvent.available_intervals.length > 0) {
+          console.warn(`⚠️ SSE: Available intervals: ${errorEvent.available_intervals.join(', ')}`);
+        }
+        
         setError(errorEvent.message || 'Failed to stream historical data');
         setLoading(false);
       }
@@ -300,12 +306,21 @@ export function useHistoricalDataSSE({
         },
         (errorEvent) => {
           console.error(`❌ SSE [${intervalValue}] error:`, errorEvent);
+          
+          // Log available intervals if provided
+          if (errorEvent.available_intervals && errorEvent.available_intervals.length > 0) {
+            console.warn(`⚠️ SSE [${intervalValue}]: Available intervals: ${errorEvent.available_intervals.join(', ')}`);
+          }
+          
           // Don't set global error - other intervals can continue
           // Only set error if it's a critical connection error and this is the only interval
           if (errorEvent.error === 'connection_error' && intervals.length === 1) {
             setError(errorEvent.message || 'Failed to stream historical data');
             setLoading(false);
           }
+          
+          // Mark interval as complete (even if error) - the complete event will follow
+          // This prevents reconnection attempts
           intervalLoadingState.set(intervalValue, false);
           setIntervalLoading(prev => ({
             ...prev,
