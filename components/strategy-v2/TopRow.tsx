@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import type { Strategy } from '@/types';
 
 interface TopRowProps {
   currentStrategy: Strategy | null;
+  marketType: 'equity' | 'commodity' | 'currency' | 'futures';
+  onMarketTypeChange: (marketType: 'equity' | 'commodity' | 'currency' | 'futures') => void;
 }
 
-export default function TopRow({ currentStrategy }: TopRowProps) {
-  const [marketType, setMarketType] = useState<'equity' | 'commodity' | 'currency' | 'futures'>('equity');
+export default function TopRow({ currentStrategy, marketType, onMarketTypeChange }: TopRowProps) {
 
   return (
     <div className="bg-gray-800 border-b border-gray-700 px-4 py-3 flex items-center justify-between">
@@ -27,7 +27,7 @@ export default function TopRow({ currentStrategy }: TopRowProps) {
           <label className="text-sm text-gray-400">Market Type:</label>
           <select
             value={marketType}
-            onChange={(e) => setMarketType(e.target.value as typeof marketType)}
+            onChange={(e) => onMarketTypeChange(e.target.value as typeof marketType)}
             className="bg-gray-700 border border-gray-600 rounded px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="equity">Equity</option>

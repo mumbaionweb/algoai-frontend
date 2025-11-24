@@ -11,6 +11,7 @@ interface RightColumnProps {
   bottomPaneCollapsed: boolean;
   onBottomPaneToggle: () => void;
   onStrategyUpdate: () => void;
+  marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
 }
 
 export default function RightColumn({
@@ -18,6 +19,7 @@ export default function RightColumn({
   bottomPaneCollapsed,
   onBottomPaneToggle,
   onStrategyUpdate,
+  marketType = 'equity',
 }: RightColumnProps) {
   const [activeTab, setActiveTab] = useState<'code' | 'visual'>('code');
 
@@ -67,7 +69,11 @@ export default function RightColumn({
       <PanelGroup direction="vertical">
         <Panel defaultSize={bottomPaneCollapsed ? 100 : 70} minSize={30}>
           {activeTab === 'code' ? (
-            <CodeEditor currentStrategy={currentStrategy} onStrategyUpdate={onStrategyUpdate} />
+            <CodeEditor 
+              currentStrategy={currentStrategy} 
+              onStrategyUpdate={onStrategyUpdate}
+              marketType={marketType}
+            />
           ) : (
             <VisualBuilder currentStrategy={currentStrategy} onStrategyUpdate={onStrategyUpdate} />
           )}

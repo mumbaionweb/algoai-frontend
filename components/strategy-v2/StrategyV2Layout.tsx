@@ -27,11 +27,12 @@ export default function StrategyV2Layout({
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
   const [bottomPaneCollapsed, setBottomPaneCollapsed] = useState(true);
   const [rightBottomPaneCollapsed, setRightBottomPaneCollapsed] = useState(true);
+  const [marketType, setMarketType] = useState<'equity' | 'commodity' | 'currency' | 'futures'>('equity');
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
       {/* Top Row */}
-      <TopRow currentStrategy={currentStrategy} />
+      <TopRow currentStrategy={currentStrategy} marketType={marketType} onMarketTypeChange={setMarketType} />
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -85,6 +86,7 @@ export default function StrategyV2Layout({
                 <LeftColumn
                   currentStrategy={currentStrategy}
                   onStrategyUpdate={onStrategiesUpdate}
+                  marketType={marketType}
                 />
               </Panel>
 
@@ -97,6 +99,7 @@ export default function StrategyV2Layout({
                   bottomPaneCollapsed={bottomPaneCollapsed}
                   onBottomPaneToggle={() => setBottomPaneCollapsed(!bottomPaneCollapsed)}
                   onStrategyUpdate={onStrategiesUpdate}
+                  marketType={marketType}
                 />
               </Panel>
             </PanelGroup>

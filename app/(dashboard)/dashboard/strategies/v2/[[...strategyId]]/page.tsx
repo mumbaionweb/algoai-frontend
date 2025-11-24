@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter, useParams } from 'next/navigation';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { getStrategies } from '@/lib/api/strategies';
 import type { Strategy } from '@/types';
 import StrategyV2Layout from '@/components/strategy-v2/StrategyV2Layout';
@@ -39,7 +40,11 @@ function StrategyV2PageContent() {
   const loadStrategies = async () => {
     try {
       setLoading(true);
-      const response = await getStrategies();
+      const response = await getStrategies({
+        sort_by: 'updated_at',
+        order: 'desc',
+        limit: 100
+      });
       setStrategies(response.strategies);
     } catch (err: any) {
       console.error('Failed to load strategies:', err);
@@ -74,18 +79,20 @@ function StrategyV2PageContent() {
   return (
     <div className="min-h-screen bg-gray-900">
       <DashboardNavigation />
-      <StrategyV2Layout
-        strategies={strategies}
-        currentStrategy={currentStrategy}
-        onStrategyChange={(strategy) => {
-          if (strategy) {
-            router.push(`/dashboard/strategies/v2/${strategy.id}`);
-          } else {
-            router.push('/dashboard/strategies/v2');
-          }
-        }}
-        onStrategiesUpdate={loadStrategies}
-      />
+      <ErrorBoundary>
+        <StrategyV2Layout
+          strategies={strategies}
+          currentStrategy={currentStrategy}
+          onStrategyChange={(strategy) => {
+            if (strategy) {
+              router.push(`/dashboard/strategies/v2/${strategy.id}`);
+            } else {
+              router.push('/dashboard/strategies/v2');
+            }
+          }}
+          onStrategiesUpdate={loadStrategies}
+        />
+      </ErrorBoundary>
     </div>
   );
 }

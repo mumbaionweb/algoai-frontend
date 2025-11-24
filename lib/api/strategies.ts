@@ -11,15 +11,33 @@ import type {
 
 /**
  * Get all strategies for the current user
- * @param statusFilter Optional status filter (draft, active, paused, stopped)
+ * @param params Optional parameters (status_filter, limit, offset, sort_by, order)
  * @returns List of strategies with total count
  */
-export async function getStrategies(statusFilter?: string): Promise<StrategiesListResponse> {
-  const params = new URLSearchParams();
-  if (statusFilter) {
-    params.append('status_filter', statusFilter);
+export async function getStrategies(params?: {
+  status_filter?: string;
+  limit?: number;
+  offset?: number;
+  sort_by?: 'created_at' | 'updated_at' | 'name' | 'status';
+  order?: 'asc' | 'desc';
+}): Promise<StrategiesListResponse> {
+  const queryParams = new URLSearchParams();
+  if (params?.status_filter) {
+    queryParams.append('status_filter', params.status_filter);
   }
-  const queryString = params.toString();
+  if (params?.limit) {
+    queryParams.append('limit', params.limit.toString());
+  }
+  if (params?.offset) {
+    queryParams.append('offset', params.offset.toString());
+  }
+  if (params?.sort_by) {
+    queryParams.append('sort_by', params.sort_by);
+  }
+  if (params?.order) {
+    queryParams.append('order', params.order);
+  }
+  const queryString = queryParams.toString();
   const url = `/api/strategies${queryString ? `?${queryString}` : ''}`;
 
   const response = await apiClient.get<StrategiesListResponse>(url);
@@ -50,13 +68,16 @@ export async function createStrategy(strategy: StrategyCreate): Promise<Strategy
  * Update an existing strategy
  * @param strategyId Strategy ID
  * @param updates Strategy update data
+ * @param autoSave Whether this is an auto-save (default: false)
  * @returns Updated strategy
  */
 export async function updateStrategy(
   strategyId: string,
-  updates: StrategyUpdate
+  updates: StrategyUpdate,
+  autoSave: boolean = false
 ): Promise<Strategy> {
-  const response = await apiClient.put<Strategy>(`/api/strategies/${strategyId}`, updates);
+  const payload = { ...updates, auto_save: autoSave };
+  const response = await apiClient.put<Strategy>(`/api/strategies/${strategyId}`, payload);
   return response.data;
 }
 

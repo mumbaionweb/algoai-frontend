@@ -54,7 +54,11 @@ export async function placeOrder(
  * @param params Optional parameters (broker_type, credentials_id, limit, status_filter, sync)
  * @returns List of orders with total count
  */
-export async function getOrders(params?: OrderParams): Promise<OrdersListResponse> {
+export async function getOrders(params?: OrderParams & {
+  strategy_id?: string;
+  sort_by?: 'created_at' | 'updated_at';
+  order?: 'asc' | 'desc';
+}): Promise<OrdersListResponse> {
   const queryParams = new URLSearchParams();
   
   if (params?.broker_type) {
@@ -71,6 +75,15 @@ export async function getOrders(params?: OrderParams): Promise<OrdersListRespons
   }
   if (params?.sync !== undefined) {
     queryParams.append('sync', params.sync.toString());
+  }
+  if (params?.strategy_id) {
+    queryParams.append('strategy_id', params.strategy_id);
+  }
+  if (params?.sort_by) {
+    queryParams.append('sort_by', params.sort_by);
+  }
+  if (params?.order) {
+    queryParams.append('order', params.order);
   }
 
   const url = `/api/orders${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;

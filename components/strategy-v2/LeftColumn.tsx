@@ -2,22 +2,25 @@
 
 import { useState, useRef, useEffect } from 'react';
 import type { Strategy } from '@/types';
+import { useAIChat } from '@/hooks/useAIChat';
 
 interface LeftColumnProps {
   currentStrategy: Strategy | null;
   onStrategyUpdate: () => void;
+  marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
 }
 
-export default function LeftColumn({ currentStrategy, onStrategyUpdate }: LeftColumnProps) {
-  const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([
-    {
-      role: 'assistant',
-      content: 'Hello! I\'m your AI strategy assistant. I can help you create and optimize trading strategies. What would you like to build?',
-    },
-  ]);
+export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketType = 'equity' }: LeftColumnProps) {
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { messages, loading, error, sendMessage, generateStrategyCode } = useAIChat();
+
+  // Initialize with welcome message if no messages
+  useEffect(() => {
+    if (messages.length === 0) {
+      // Welcome message will be added by the hook or we can add it here
+    }
+  }, []);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -32,20 +35,41 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate }: LeftCo
 
     const userMessage = input.trim();
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: userMessage }]);
-    setLoading(true);
 
-    // Simulate AI response (replace with actual API call)
-    setTimeout(() => {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: `I understand you want to: ${userMessage}. This is a placeholder response. In the future, this will connect to an AI API to help create strategies based on your requirements.`,
-        },
-      ]);
-      setLoading(false);
-    }, 1000);
+    try {
+      await sendMessage(userMessage, {
+        strategy_id: currentStrategy?.id,
+        market_type: marketType,
+        current_code: currentStrategy?.strategy_code || currentStrategy?.code
+      });
+    } catch (err) {
+      console.error('Chat error:', err);
+    }
+  };
+
+  const handleGenerateStrategy = async () => {
+    if (!input.trim() || loading) return;
+
+    const requirements = input.trim();
+    setInput('');
+
+    try {
+      const result = await generateStrategyCode(
+        requirements,
+        marketType,
+        currentStrategy?.parameters?.symbol,
+        currentStrategy?.parameters?.exchange || 'NSE'
+      );
+      
+      // Emit event or callback to update code editor
+      // For now, we'll show it in the chat
+      await sendMessage(`I've generated a strategy for you. Here's the code:\n\n\`\`\`python\n${result.strategy_code}\n\`\`\`\n\n${result.explanation}`, {
+        strategy_id: currentStrategy?.id,
+        market_type: marketType
+      });
+    } catch (err) {
+      console.error('Generate error:', err);
+    }
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -65,6 +89,15 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate }: LeftCo
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="flex justify-start">
+            <div className="bg-gray-700 rounded-lg px-4 py-2">
+              <p className="text-sm text-gray-200">
+                Hello! I'm your AI strategy assistant. I can help you create and optimize trading strategies. What would you like to build?
+              </p>
+            </div>
+          </div>
+        )}
         {messages.map((message, index) => (
           <div
             key={index}
@@ -92,6 +125,13 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate }: LeftCo
             </div>
           </div>
         )}
+        {error && (
+          <div className="flex justify-start">
+            <div className="bg-red-500/10 border border-red-500 text-red-400 rounded-lg px-4 py-2 text-sm">
+              {error}
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
@@ -105,6 +145,7 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate }: LeftCo
             placeholder="Ask me to create a strategy..."
             className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             rows={2}
+            disabled={loading}
           />
           <button
             onClick={handleSend}
@@ -116,6 +157,13 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate }: LeftCo
             </svg>
           </button>
         </div>
+        <button
+          onClick={handleGenerateStrategy}
+          disabled={!input.trim() || loading}
+          className="mt-2 w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
+        >
+          Generate Strategy Code
+        </button>
         <p className="text-xs text-gray-500 mt-2">
           Press Enter to send, Shift+Enter for new line
         </p>
