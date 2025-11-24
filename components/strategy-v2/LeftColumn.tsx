@@ -13,7 +13,7 @@ interface LeftColumnProps {
 export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketType = 'equity' }: LeftColumnProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { messages, loading, error, sendMessage, generateStrategyCode } = useAIChat();
+  const { messages, loading, error, sendMessage } = useAIChat();
 
   // Initialize with welcome message if no messages
   useEffect(() => {
@@ -47,30 +47,6 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
     }
   };
 
-  const handleGenerateStrategy = async () => {
-    if (!input.trim() || loading) return;
-
-    const requirements = input.trim();
-    setInput('');
-
-    try {
-      const result = await generateStrategyCode(
-        requirements,
-        marketType,
-        currentStrategy?.parameters?.symbol,
-        currentStrategy?.parameters?.exchange || 'NSE'
-      );
-      
-      // Emit event or callback to update code editor
-      // For now, we'll show it in the chat
-      await sendMessage(`I've generated a strategy for you. Here's the code:\n\n\`\`\`python\n${result.strategy_code}\n\`\`\`\n\n${result.explanation}`, {
-        strategy_id: currentStrategy?.id,
-        market_type: marketType
-      });
-    } catch (err) {
-      console.error('Generate error:', err);
-    }
-  };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -157,13 +133,6 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
             </svg>
           </button>
         </div>
-        <button
-          onClick={handleGenerateStrategy}
-          disabled={!input.trim() || loading}
-          className="mt-2 w-full px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white rounded-lg transition-colors text-sm"
-        >
-          Generate Strategy Code
-        </button>
         <p className="text-xs text-gray-500 mt-2">
           Press Enter to send, Shift+Enter for new line
         </p>
