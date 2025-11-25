@@ -15,13 +15,6 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { messages, loading, error, sendMessage } = useAIChat();
 
-  // Initialize with welcome message if no messages
-  useEffect(() => {
-    if (messages.length === 0) {
-      // Welcome message will be added by the hook or we can add it here
-    }
-  }, []);
-
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -37,6 +30,9 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
     setInput('');
 
     try {
+      // The backend AI chat endpoint will intelligently handle code generation requests
+      // Users can naturally ask for code generation (e.g., "create a strategy", "generate code", etc.)
+      // and the AI will respond with the appropriate code generation
       await sendMessage(userMessage, {
         strategy_id: currentStrategy?.id,
         market_type: marketType,
@@ -46,7 +42,6 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
       console.error('Chat error:', err);
     }
   };
-
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -140,4 +135,3 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
     </div>
   );
 }
-
