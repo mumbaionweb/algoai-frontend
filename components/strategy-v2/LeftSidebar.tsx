@@ -103,11 +103,11 @@ export default function LeftSidebar({
                   onStrategySelect(strategy);
                 }
               }}
-              className={`px-4 py-3 border-b border-gray-700 hover:bg-gray-700 transition-colors cursor-pointer ${
+              className={`px-4 py-2 border-b border-gray-700 hover:bg-gray-700 transition-colors cursor-pointer ${
                 currentStrategy?.id === strategy.id ? 'bg-gray-700 border-l-4 border-blue-500' : ''
               }`}
             >
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-white truncate">{strategy.name}</span>
                   <span
@@ -118,7 +118,7 @@ export default function LeftSidebar({
                 {strategy.description && (
                   <p className="text-xs text-gray-400 truncate">{strategy.description}</p>
                 )}
-                <div className="flex items-center justify-between text-xs mt-1.5">
+                <div className="flex items-center justify-between text-xs mt-1">
                   <div className="flex items-center gap-3 text-gray-500">
                     <span>{getStatusLabel(strategy.status)}</span>
                     {strategy.total_trades > 0 && (
