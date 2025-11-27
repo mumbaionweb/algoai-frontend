@@ -408,13 +408,78 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     >
                       Create New Strategy
                     </Link>
-                    <Link
-                      href="/dashboard/strategies/v2"
-                      onClick={() => setStrategiesMenuOpen(false)}
-                      className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+                    <button
+                      onClick={async () => {
+                        setStrategiesMenuOpen(false);
+                        try {
+                          // Import createStrategy dynamically to avoid circular dependencies
+                          const { createStrategy } = await import('@/lib/api/strategies');
+                          
+                          // Create a new strategy with a temporary name
+                          const newStrategy = await createStrategy({
+                            name: 'New Strategy', // Temporary name, will be updated
+                            strategy_code: `import backtrader as bt
+
+class MyStrategy(bt.Strategy):
+    """
+    Simple Moving Average Crossover Strategy
+    Buy when short MA crosses above long MA
+    Sell when short MA crosses below long MA
+    """
+    
+    params = (
+        ('short_window', 20),
+        ('long_window', 50),
+    )
+    
+    def __init__(self):
+        # Create moving averages
+        self.short_ma = bt.indicators.SMA(self.data.close, period=self.params.short_window)
+        self.long_ma = bt.indicators.SMA(self.data.close, period=self.params.long_window)
+        
+        # Crossover signal
+        self.crossover = bt.indicators.CrossOver(self.short_ma, self.long_ma)
+    
+    def next(self):
+        # Check if we have enough data
+        if len(self.data) < self.params.long_window:
+            return
+        
+        # Buy signal: short MA crosses above long MA (crossover > 0)
+        if self.crossover > 0 and not self.position:
+            # Buy with all available cash
+            self.buy()
+        
+        # Sell signal: short MA crosses below long MA (crossover < 0)
+        elif self.crossover < 0 and self.position:
+            # Sell all positions
+            self.sell()
+`,
+                            parameters: {
+                              symbol: 'RELIANCE',
+                              exchange: 'NSE',
+                              market_type: 'equity',
+                            },
+                          });
+                          
+                          // Update the name to include the strategy ID
+                          const { updateStrategy } = await import('@/lib/api/strategies');
+                          await updateStrategy(newStrategy.id, {
+                            name: `untitled-strategy-${newStrategy.id}`,
+                          });
+                          
+                          // Navigate to the new strategy page
+                          router.push(`/strategies/${newStrategy.id}`);
+                        } catch (err: any) {
+                          console.error('Failed to create strategy:', err);
+                          // Fallback to the old route if creation fails
+                          router.push('/dashboard/strategies/v2');
+                        }
+                      }}
+                      className="flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors w-full text-left"
                     >
                       Add Strategy v2
-                    </Link>
+                    </button>
                   </div>
                 )}
               </div>

@@ -32,7 +32,12 @@ export default function StrategyV2Layout({
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
       {/* Top Row */}
-      <TopRow currentStrategy={currentStrategy} marketType={marketType} onMarketTypeChange={setMarketType} />
+      <TopRow 
+        currentStrategy={currentStrategy} 
+        marketType={marketType} 
+        onMarketTypeChange={setMarketType}
+        onStrategyUpdate={onStrategiesUpdate}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex overflow-hidden relative">
