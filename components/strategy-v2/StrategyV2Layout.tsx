@@ -15,6 +15,9 @@ interface StrategyV2LayoutProps {
   currentStrategy: Strategy | null;
   onStrategyChange: (strategy: Strategy | null) => void;
   onStrategiesUpdate: () => void;
+  onStrategyPlay: (strategy: Strategy) => void;
+  onStrategyPause: (strategy: Strategy) => void;
+  onStrategyDelete: (strategy: Strategy) => void;
 }
 
 export default function StrategyV2Layout({
@@ -22,6 +25,9 @@ export default function StrategyV2Layout({
   currentStrategy,
   onStrategyChange,
   onStrategiesUpdate,
+  onStrategyPlay,
+  onStrategyPause,
+  onStrategyDelete,
 }: StrategyV2LayoutProps) {
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState(false);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState(false);
@@ -76,6 +82,9 @@ export default function StrategyV2Layout({
                   strategies={strategies}
                   currentStrategy={currentStrategy}
                   onStrategySelect={onStrategyChange}
+                  onPlayStrategy={onStrategyPlay}
+                  onPauseStrategy={onStrategyPause}
+                  onDeleteStrategy={onStrategyDelete}
                   onCollapse={() => setLeftSidebarCollapsed(true)}
                 />
               </Panel>
@@ -132,4 +141,3 @@ export default function StrategyV2Layout({
     </div>
   );
 }
-

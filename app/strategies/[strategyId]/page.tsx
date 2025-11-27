@@ -5,7 +5,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useRouter, useParams } from 'next/navigation';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
-import { getStrategies, getStrategy } from '@/lib/api/strategies';
+import { getStrategies, getStrategy, startStrategy, pauseStrategy, resumeStrategy, deleteStrategy } from '@/lib/api/strategies';
 import type { Strategy } from '@/types';
 import StrategyV2Layout from '@/components/strategy-v2/StrategyV2Layout';
 
@@ -19,13 +19,14 @@ function StrategyPageContent() {
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [currentStrategy, setCurrentStrategy] = useState<Strategy | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string>('');
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
       router.push('/login');
     } else if (isInitialized && isAuthenticated && strategyId) {
       loadStrategies();
-      loadCurrentStrategy();
+      loadCurrentStrategy(strategyId);
     }
   }, [isAuthenticated, isInitialized, router, strategyId]);
 
@@ -39,22 +40,72 @@ function StrategyPageContent() {
       setStrategies(response.strategies);
     } catch (err: any) {
       console.error('Failed to load strategies:', err);
+      setActionError(err.response?.data?.detail || 'Failed to load strategies');
     }
   };
 
-  const loadCurrentStrategy = async () => {
-    if (!strategyId) return;
-    
+  const loadCurrentStrategy = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
-      const strategy = await getStrategy(strategyId);
+      const strategy = await getStrategy(id);
       setCurrentStrategy(strategy);
+      setActionError('');
     } catch (err: any) {
       console.error('Failed to load strategy:', err);
       setError(err.response?.data?.detail || 'Strategy not found');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleStrategyPlay = async (strategy: Strategy) => {
+    try {
+      if (strategy.status === 'paused') {
+        await resumeStrategy(strategy.id);
+      } else {
+        await startStrategy(strategy.id);
+      }
+      await loadStrategies();
+      if (strategyId) {
+        await loadCurrentStrategy(strategyId);
+      }
+    } catch (err: any) {
+      console.error('Failed to start/resume strategy:', err);
+      setActionError(err.response?.data?.detail || 'Failed to start strategy');
+    }
+  };
+
+  const handleStrategyPause = async (strategy: Strategy) => {
+    try {
+      await pauseStrategy(strategy.id);
+      await loadStrategies();
+      if (strategyId) {
+        await loadCurrentStrategy(strategyId);
+      }
+    } catch (err: any) {
+      console.error('Failed to pause strategy:', err);
+      setActionError(err.response?.data?.detail || 'Failed to pause strategy');
+    }
+  };
+
+  const handleStrategyDelete = async (strategy: Strategy) => {
+    if (strategy.status === 'active') {
+      setActionError('Please pause or stop the strategy before deleting.');
+      return;
+    }
+
+    if (!confirm(`Delete strategy "${strategy.name}"?`)) {
+      return;
+    }
+
+    try {
+      await deleteStrategy(strategy.id);
+      await loadStrategies();
+      router.push('/dashboard/strategies/v2');
+    } catch (err: any) {
+      console.error('Failed to delete strategy:', err);
+      setActionError(err.response?.data?.detail || 'Failed to delete strategy');
     }
   };
 
@@ -103,6 +154,13 @@ function StrategyPageContent() {
   return (
     <div className="min-h-screen bg-gray-900">
       <DashboardNavigation />
+      {actionError && (
+        <div className="max-w-4xl mx-auto px-4 pt-6">
+          <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
+            {actionError}
+          </div>
+        </div>
+      )}
       <ErrorBoundary>
         <StrategyV2Layout
           strategies={strategies}
@@ -117,9 +175,12 @@ function StrategyPageContent() {
           onStrategiesUpdate={() => {
             loadStrategies();
             if (strategyId) {
-              loadCurrentStrategy();
+              loadCurrentStrategy(strategyId);
             }
           }}
+          onStrategyPlay={handleStrategyPlay}
+          onStrategyPause={handleStrategyPause}
+          onStrategyDelete={handleStrategyDelete}
         />
       </ErrorBoundary>
     </div>
@@ -139,4 +200,3 @@ export default function StrategyPage() {
     </Suspense>
   );
 }
-

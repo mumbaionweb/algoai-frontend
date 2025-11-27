@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
 import type { Strategy } from '@/types';
 
 interface LeftSidebarProps {
   strategies: Strategy[];
   currentStrategy: Strategy | null;
   onStrategySelect: (strategy: Strategy | null) => void;
+  onPlayStrategy: (strategy: Strategy) => void;
+  onPauseStrategy: (strategy: Strategy) => void;
+  onDeleteStrategy: (strategy: Strategy) => void;
   onCollapse: () => void;
 }
 
@@ -14,6 +16,9 @@ export default function LeftSidebar({
   strategies,
   currentStrategy,
   onStrategySelect,
+  onPlayStrategy,
+  onPauseStrategy,
+  onDeleteStrategy,
   onCollapse,
 }: LeftSidebarProps) {
   const getStatusColor = (status: Strategy['status']) => {
@@ -80,39 +85,121 @@ export default function LeftSidebar({
         </button>
 
         {/* Strategy Items */}
-        {strategies.map((strategy) => (
-          <button
-            key={strategy.id}
-            onClick={() => onStrategySelect(strategy)}
-            className={`w-full text-left px-4 py-3 border-b border-gray-700 hover:bg-gray-700 transition-colors ${
-              currentStrategy?.id === strategy.id ? 'bg-gray-700 border-l-4 border-blue-500' : ''
-            }`}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-sm font-medium text-white truncate">{strategy.name}</span>
-                  <span
-                    className={`w-2 h-2 rounded-full ${getStatusColor(strategy.status)}`}
-                    title={getStatusLabel(strategy.status)}
-                  />
-                </div>
-                {strategy.description && (
-                  <p className="text-xs text-gray-400 truncate">{strategy.description}</p>
-                )}
-                <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                  <span>{getStatusLabel(strategy.status)}</span>
-                  {strategy.total_trades > 0 && (
-                    <>
-                      <span>•</span>
-                      <span>{strategy.total_trades} trades</span>
-                    </>
+        {strategies.map((strategy) => {
+          const isActive = strategy.status === 'active';
+          const isPaused = strategy.status === 'paused';
+          const canPlay = !isActive;
+          const playLabel = isPaused ? 'Resume strategy' : 'Start strategy';
+
+          return (
+            <div
+              key={strategy.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onStrategySelect(strategy)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onStrategySelect(strategy);
+                }
+              }}
+              className={`px-4 py-3 border-b border-gray-700 hover:bg-gray-700 transition-colors cursor-pointer ${
+                currentStrategy?.id === strategy.id ? 'bg-gray-700 border-l-4 border-blue-500' : ''
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-sm font-medium text-white truncate">{strategy.name}</span>
+                    <span
+                      className={`w-2 h-2 rounded-full ${getStatusColor(strategy.status)}`}
+                      title={getStatusLabel(strategy.status)}
+                    />
+                  </div>
+                  {strategy.description && (
+                    <p className="text-xs text-gray-400 truncate">{strategy.description}</p>
                   )}
+                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                    <span>{getStatusLabel(strategy.status)}</span>
+                    {strategy.total_trades > 0 && (
+                      <>
+                        <span>•</span>
+                        <span>{strategy.total_trades} trades</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!canPlay) return;
+                      onPlayStrategy(strategy);
+                    }}
+                    disabled={!canPlay}
+                    title={playLabel}
+                    className={`p-2 rounded-lg border border-gray-600 hover:bg-gray-600 transition-colors ${
+                      !canPlay ? 'opacity-40 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isPaused ? (
+                      <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4v16M19 12L5 4v16z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+                      </svg>
+                    )}
+                    <span className="sr-only">{playLabel}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isActive) return;
+                      onPauseStrategy(strategy);
+                    }}
+                    disabled={!isActive}
+                    title="Pause strategy"
+                    className={`p-2 rounded-lg border border-gray-600 hover:bg-gray-600 transition-colors ${
+                      !isActive ? 'opacity-40 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 5v14M14 5v14" />
+                    </svg>
+                    <span className="sr-only">Pause</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isActive) return;
+                      onDeleteStrategy(strategy);
+                    }}
+                    disabled={isActive}
+                    title={isActive ? 'Stop strategy before deleting' : 'Delete strategy'}
+                    className={`p-2 rounded-lg border border-gray-600 hover:bg-red-600 hover:border-red-500 transition-colors ${
+                      isActive ? 'opacity-40 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M6 7h12M10 11v6m4-6v6M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v12a2 2 0 01-2 2H8a2 2 0 01-2-2V7"
+                      />
+                    </svg>
+                    <span className="sr-only">Delete</span>
+                  </button>
                 </div>
               </div>
             </div>
-          </button>
-        ))}
+          );
+        })}
 
         {strategies.length === 0 && (
           <div className="px-4 py-8 text-center">
@@ -123,4 +210,3 @@ export default function LeftSidebar({
     </div>
   );
 }
-
