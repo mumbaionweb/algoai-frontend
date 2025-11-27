@@ -129,7 +129,7 @@ export default function LeftSidebar({
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={(e) => {
@@ -139,19 +139,17 @@ export default function LeftSidebar({
                     }}
                     disabled={!canPlay}
                     title={playLabel}
-                    className={`p-2 rounded-lg border border-gray-600 hover:bg-gray-600 transition-colors ${
+                    className={`p-1.5 rounded-md border border-gray-600 hover:bg-gray-600 transition-colors ${
                       !canPlay ? 'opacity-40 cursor-not-allowed' : ''
                     }`}
                   >
-                    {isPaused ? (
-                      <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      {isPaused ? (
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4v16M19 12L5 4v16z" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      ) : (
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
-                      </svg>
-                    )}
+                      )}
+                    </svg>
                     <span className="sr-only">{playLabel}</span>
                   </button>
                   <button
@@ -163,12 +161,12 @@ export default function LeftSidebar({
                     }}
                     disabled={!isActive}
                     title="Pause strategy"
-                    className={`p-2 rounded-lg border border-gray-600 hover:bg-gray-600 transition-colors ${
+                    className={`p-1.5 rounded-md border border-gray-600 hover:bg-gray-600 transition-colors ${
                       !isActive ? 'opacity-40 cursor-not-allowed' : ''
                     }`}
                   >
-                    <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 5v14M14 5v14" />
+                    <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 5v14m4-14v14" />
                     </svg>
                     <span className="sr-only">Pause</span>
                   </button>
@@ -181,11 +179,11 @@ export default function LeftSidebar({
                     }}
                     disabled={isActive}
                     title={isActive ? 'Stop strategy before deleting' : 'Delete strategy'}
-                    className={`p-2 rounded-lg border border-gray-600 hover:bg-red-600 hover:border-red-500 transition-colors ${
+                    className={`p-1.5 rounded-md border border-gray-600 hover:bg-red-600 hover:border-red-500 transition-colors ${
                       isActive ? 'opacity-40 cursor-not-allowed' : ''
                     }`}
                   >
-                    <svg className="w-4 h-4 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
