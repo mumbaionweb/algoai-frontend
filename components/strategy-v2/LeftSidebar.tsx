@@ -107,19 +107,19 @@ export default function LeftSidebar({
                 currentStrategy?.id === strategy.id ? 'bg-gray-700 border-l-4 border-blue-500' : ''
               }`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-sm font-medium text-white truncate">{strategy.name}</span>
-                    <span
-                      className={`w-2 h-2 rounded-full ${getStatusColor(strategy.status)}`}
-                      title={getStatusLabel(strategy.status)}
-                    />
-                  </div>
-                  {strategy.description && (
-                    <p className="text-xs text-gray-400 truncate">{strategy.description}</p>
-                  )}
-                  <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-white truncate">{strategy.name}</span>
+                  <span
+                    className={`w-2 h-2 rounded-full ${getStatusColor(strategy.status)}`}
+                    title={getStatusLabel(strategy.status)}
+                  />
+                </div>
+                {strategy.description && (
+                  <p className="text-xs text-gray-400 truncate">{strategy.description}</p>
+                )}
+                <div className="flex items-center justify-between text-xs mt-1.5">
+                  <div className="flex items-center gap-3 text-gray-500">
                     <span>{getStatusLabel(strategy.status)}</span>
                     {strategy.total_trades > 0 && (
                       <>
@@ -128,71 +128,71 @@ export default function LeftSidebar({
                       </>
                     )}
                   </div>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!canPlay) return;
-                      onPlayStrategy(strategy);
-                    }}
-                    disabled={!canPlay}
-                    title={playLabel}
-                    className={`p-1.5 rounded-md border border-gray-600 hover:bg-gray-600 transition-colors ${
-                      !canPlay ? 'opacity-40 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      {isPaused ? (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4v16M19 12L5 4v16z" />
-                      ) : (
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
-                      )}
-                    </svg>
-                    <span className="sr-only">{playLabel}</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isActive) return;
-                      onPauseStrategy(strategy);
-                    }}
-                    disabled={!isActive}
-                    title="Pause strategy"
-                    className={`p-1.5 rounded-md border border-gray-600 hover:bg-gray-600 transition-colors ${
-                      !isActive ? 'opacity-40 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 5v14m4-14v14" />
-                    </svg>
-                    <span className="sr-only">Pause</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isActive) return;
-                      onDeleteStrategy(strategy);
-                    }}
-                    disabled={isActive}
-                    title={isActive ? 'Stop strategy before deleting' : 'Delete strategy'}
-                    className={`p-1.5 rounded-md border border-gray-600 hover:bg-red-600 hover:border-red-500 transition-colors ${
-                      isActive ? 'opacity-40 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 7h12M10 11v6m4-6v6M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v12a2 2 0 01-2 2H8a2 2 0 01-2-2V7"
-                      />
-                    </svg>
-                    <span className="sr-only">Delete</span>
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!canPlay) return;
+                        onPlayStrategy(strategy);
+                      }}
+                      disabled={!canPlay}
+                      title={playLabel}
+                      className={`p-1.5 rounded-md border border-gray-600 hover:bg-gray-600 transition-colors ${
+                        !canPlay ? 'opacity-40 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        {isPaused ? (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 4v16M19 12L5 4v16z" />
+                        ) : (
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3l14 9-14 9V3z" />
+                        )}
+                      </svg>
+                      <span className="sr-only">{playLabel}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!isActive) return;
+                        onPauseStrategy(strategy);
+                      }}
+                      disabled={!isActive}
+                      title="Pause strategy"
+                      className={`p-1.5 rounded-md border border-gray-600 hover:bg-gray-600 transition-colors ${
+                        !isActive ? 'opacity-40 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 5v14m4-14v14" />
+                      </svg>
+                      <span className="sr-only">Pause</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isActive) return;
+                        onDeleteStrategy(strategy);
+                      }}
+                      disabled={isActive}
+                      title={isActive ? 'Stop strategy before deleting' : 'Delete strategy'}
+                      className={`p-1.5 rounded-md border border-gray-600 hover:bg-red-600 hover:border-red-500 transition-colors ${
+                        isActive ? 'opacity-40 cursor-not-allowed' : ''
+                      }`}
+                    >
+                      <svg className="w-3.5 h-3.5 text-gray-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 7h12M10 11v6m4-6v6M9 7V5a1 1 0 011-1h4a1 1 0 011 1v2m2 0v12a2 2 0 01-2 2H8a2 2 0 01-2-2V7"
+                        />
+                      </svg>
+                      <span className="sr-only">Delete</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
