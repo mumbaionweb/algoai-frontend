@@ -51,7 +51,7 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
   };
 
   return (
-    <div className="h-full bg-gray-800 border-r border-gray-700 flex flex-col">
+    <div className="h-full bg-gray-800 border-r border-gray-700 flex flex-col min-h-0">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-700">
         <h2 className="text-sm font-semibold text-white">AI Assistant</h2>

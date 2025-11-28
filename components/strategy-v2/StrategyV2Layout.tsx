@@ -46,7 +46,7 @@ export default function StrategyV2Layout({
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden relative min-h-0">
+      <div className="flex-1 flex overflow-hidden min-h-0 relative">
         {/* Collapse buttons when sidebars are hidden */}
         {leftSidebarCollapsed && (
           <button
@@ -73,7 +73,7 @@ export default function StrategyV2Layout({
         )}
 
         {/* Panel Group for resizable layout */}
-        <PanelGroup direction="horizontal" className="w-full">
+        <PanelGroup direction="horizontal" className="w-full h-full">
           {/* Left Sidebar */}
           {!leftSidebarCollapsed && (
             <>

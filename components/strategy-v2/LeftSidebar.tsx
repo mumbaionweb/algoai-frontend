@@ -52,7 +52,7 @@ export default function LeftSidebar({
   };
 
   return (
-    <div className="h-full bg-gray-800 border-r border-gray-700 flex flex-col">
+    <div className="h-full bg-gray-800 border-r border-gray-700 flex flex-col min-h-0">
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-700">
         <h2 className="text-sm font-semibold text-white">Strategies</h2>
