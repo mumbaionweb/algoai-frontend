@@ -24,7 +24,7 @@ export default function RightColumn({
   const [activeTab, setActiveTab] = useState<'code' | 'visual'>('code');
 
   return (
-    <div className="h-full bg-gray-800 flex flex-col">
+    <div className="h-full bg-gray-800 flex flex-col min-h-0">
       {/* Tab Navigation */}
       <div className="flex items-center justify-between border-b border-gray-700">
         <div className="flex">
@@ -66,7 +66,7 @@ export default function RightColumn({
       </div>
 
       {/* Main Content */}
-      <PanelGroup direction="vertical">
+      <PanelGroup direction="vertical" className="flex-1 min-h-0">
         <Panel defaultSize={bottomPaneCollapsed ? 100 : 70} minSize={30}>
           {activeTab === 'code' ? (
             <CodeEditor 

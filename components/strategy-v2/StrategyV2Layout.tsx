@@ -46,7 +46,7 @@ export default function StrategyV2Layout({
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex overflow-hidden relative">
+      <div className="flex-1 flex overflow-hidden relative min-h-0">
         {/* Collapse buttons when sidebars are hidden */}
         {leftSidebarCollapsed && (
           <button

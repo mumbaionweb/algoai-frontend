@@ -101,7 +101,7 @@ def handle_data(context, data):
   };
 
   return (
-    <div className="h-full flex flex-col bg-gray-900">
+    <div className="h-full flex flex-col bg-gray-900 min-h-0">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ def handle_data(context, data):
       </div>
 
       {/* Editor */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto min-h-0">
         <textarea
           value={code}
           onChange={(e) => handleCodeChange(e.target.value)}
