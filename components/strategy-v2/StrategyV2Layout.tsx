@@ -77,7 +77,7 @@ export default function StrategyV2Layout({
           {/* Left Sidebar */}
           {!leftSidebarCollapsed && (
             <>
-              <Panel defaultSize={15} minSize={10} maxSize={30}>
+              <Panel defaultSize={15} minSize={10} maxSize={30} className="h-full">
                 <LeftSidebar
                   strategies={strategies}
                   currentStrategy={currentStrategy}
@@ -93,10 +93,10 @@ export default function StrategyV2Layout({
           )}
 
           {/* Main Content: Left Column + Right Column */}
-          <Panel defaultSize={leftSidebarCollapsed && rightSidebarCollapsed ? 100 : leftSidebarCollapsed ? 85 : rightSidebarCollapsed ? 85 : 70} minSize={30}>
-            <PanelGroup direction="horizontal">
+          <Panel defaultSize={leftSidebarCollapsed && rightSidebarCollapsed ? 100 : leftSidebarCollapsed ? 85 : rightSidebarCollapsed ? 85 : 70} minSize={30} className="h-full">
+            <PanelGroup direction="horizontal" className="h-full">
               {/* Left Column - AI Chatbot */}
-              <Panel defaultSize={35} minSize={20} maxSize={50}>
+              <Panel defaultSize={35} minSize={20} maxSize={50} className="h-full">
                 <LeftColumn
                   currentStrategy={currentStrategy}
                   onStrategyUpdate={onStrategiesUpdate}
@@ -107,7 +107,7 @@ export default function StrategyV2Layout({
               <PanelResizeHandle className="w-1 bg-gray-700 hover:bg-gray-600 transition-colors cursor-col-resize" />
 
               {/* Right Column - Code + Visual Builder */}
-              <Panel defaultSize={65} minSize={30}>
+              <Panel defaultSize={65} minSize={30} className="h-full">
                 <RightColumn
                   currentStrategy={currentStrategy}
                   bottomPaneCollapsed={bottomPaneCollapsed}
@@ -123,7 +123,7 @@ export default function StrategyV2Layout({
           {!rightSidebarCollapsed && (
             <>
               <PanelResizeHandle className="w-1 bg-gray-700 hover:bg-gray-600 transition-colors cursor-col-resize" />
-              <Panel defaultSize={15} minSize={10} maxSize={30}>
+              <Panel defaultSize={15} minSize={10} maxSize={30} className="h-full">
                 <RightSidebar
                   currentStrategy={currentStrategy}
                   bottomPaneCollapsed={rightBottomPaneCollapsed}

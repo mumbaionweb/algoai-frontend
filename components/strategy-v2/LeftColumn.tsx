@@ -13,14 +13,21 @@ interface LeftColumnProps {
 export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketType = 'equity' }: LeftColumnProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const { messages, loading, error, sendMessage } = useAIChat();
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
+    // Use setTimeout to ensure DOM is updated before scrolling
+    const timer = setTimeout(() => {
+      scrollToBottom();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [messages]);
 
   const handleSend = async () => {
@@ -53,13 +60,13 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
   return (
     <div className="h-full bg-gray-800 border-r border-gray-700 flex flex-col min-h-0">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-700">
+      <div className="flex-shrink-0 px-4 py-3 border-b border-gray-700">
         <h2 className="text-sm font-semibold text-white">AI Assistant</h2>
         <p className="text-xs text-gray-400 mt-1">Powered by AI + API sources</p>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto min-h-0 p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex justify-start">
             <div className="bg-gray-700 rounded-lg px-4 py-2">
@@ -107,7 +114,7 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
       </div>
 
       {/* Input */}
-      <div className="border-t border-gray-700 p-4">
+      <div className="flex-shrink-0 border-t border-gray-700 p-4">
         <div className="flex gap-2">
           <textarea
             value={input}
