@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { chatAI, generateStrategy, analyzeStrategy, type ChatRequest, type GenerateStrategyRequest, type AnalyzeStrategyRequest } from '@/lib/api/ai';
+import { chatAI, generateStrategy, analyzeStrategy, getConversationByStrategy, type ChatRequest, type GenerateStrategyRequest, type AnalyzeStrategyRequest } from '@/lib/api/ai';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -107,6 +107,45 @@ export function useAIChat() {
     setError(null);
   }, []);
 
+  const loadConversationByStrategy = useCallback(async (strategyId: string) => {
+    if (!strategyId) {
+      setMessages([]);
+      setConversationId(null);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const conversation = await getConversationByStrategy(strategyId);
+      if (conversation && conversation.messages) {
+        // Convert conversation messages to ChatMessage format
+        const chatMessages: ChatMessage[] = conversation.messages.map((msg: any) => ({
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content || msg.message || ''
+        }));
+        setMessages(chatMessages);
+        setConversationId(conversation.id || conversation.conversation_id || null);
+      } else {
+        // No conversation found, reset to empty
+        setMessages([]);
+        setConversationId(null);
+      }
+    } catch (err: any) {
+      console.error('Failed to load conversation:', err);
+      // Don't set error for 404 or missing conversations, just reset
+      if (err.response?.status !== 404) {
+        setError(err.response?.data?.detail || err.message || 'Failed to load conversation');
+      } else {
+        setMessages([]);
+        setConversationId(null);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     messages,
     conversationId,
@@ -115,7 +154,8 @@ export function useAIChat() {
     sendMessage,
     generateStrategyCode,
     analyzeStrategyCode,
-    clearMessages
+    clearMessages,
+    loadConversationByStrategy
   };
 }
 

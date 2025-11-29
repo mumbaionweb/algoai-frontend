@@ -77,14 +77,17 @@ export interface ValidationIssue {
 }
 
 export interface Conversation {
-  conversation_id: string;
+  id?: string;
+  conversation_id?: string;
   messages: Array<{
     role: 'user' | 'assistant';
     content: string;
-    timestamp: string;
+    timestamp?: string;
   }>;
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
+  strategy_id?: string;
+  user_id?: string;
 }
 
 /**
@@ -116,6 +119,14 @@ export async function analyzeStrategy(request: AnalyzeStrategyRequest): Promise<
  */
 export async function getConversation(conversationId: string): Promise<Conversation> {
   const response = await apiClient.get<Conversation>(`/api/ai/conversations/${conversationId}`);
+  return response.data;
+}
+
+/**
+ * Get conversation history by strategy ID
+ */
+export async function getConversationByStrategy(strategyId: string): Promise<Conversation | null> {
+  const response = await apiClient.get<Conversation | null>(`/api/ai/conversations/strategy/${strategyId}`);
   return response.data;
 }
 

@@ -14,7 +14,17 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const { messages, loading, error, sendMessage } = useAIChat();
+  const { messages, loading, error, sendMessage, loadConversationByStrategy } = useAIChat();
+
+  // Load conversation history when strategy changes
+  useEffect(() => {
+    if (currentStrategy?.id) {
+      loadConversationByStrategy(currentStrategy.id);
+    } else {
+      // Clear messages if no strategy is selected
+      loadConversationByStrategy('');
+    }
+  }, [currentStrategy?.id, loadConversationByStrategy]);
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
