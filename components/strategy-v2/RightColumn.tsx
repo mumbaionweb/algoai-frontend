@@ -12,6 +12,7 @@ interface RightColumnProps {
   onBottomPaneToggle: () => void;
   onStrategyUpdate: () => void;
   marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
+  externalCode?: string | null; // Code from AI chat to populate
 }
 
 export default function RightColumn({
@@ -20,6 +21,7 @@ export default function RightColumn({
   onBottomPaneToggle,
   onStrategyUpdate,
   marketType = 'equity',
+  externalCode,
 }: RightColumnProps) {
   const [activeTab, setActiveTab] = useState<'code' | 'visual'>('code');
 
@@ -73,6 +75,7 @@ export default function RightColumn({
               currentStrategy={currentStrategy} 
               onStrategyUpdate={onStrategyUpdate}
               marketType={marketType}
+              externalCode={externalCode}
             />
           ) : (
             <VisualBuilder currentStrategy={currentStrategy} onStrategyUpdate={onStrategyUpdate} />

@@ -34,6 +34,7 @@ export default function StrategyV2Layout({
   const [bottomPaneCollapsed, setBottomPaneCollapsed] = useState(true);
   const [rightBottomPaneCollapsed, setRightBottomPaneCollapsed] = useState(true);
   const [marketType, setMarketType] = useState<'equity' | 'commodity' | 'currency' | 'futures'>('equity');
+  const [externalCode, setExternalCode] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
@@ -101,6 +102,11 @@ export default function StrategyV2Layout({
                   currentStrategy={currentStrategy}
                   onStrategyUpdate={onStrategiesUpdate}
                   marketType={marketType}
+                  onCodeReceived={(code) => {
+                    setExternalCode(code);
+                    // Clear after a short delay to allow CodeEditor to process it
+                    setTimeout(() => setExternalCode(null), 100);
+                  }}
                 />
               </Panel>
 
@@ -114,6 +120,7 @@ export default function StrategyV2Layout({
                   onBottomPaneToggle={() => setBottomPaneCollapsed(!bottomPaneCollapsed)}
                   onStrategyUpdate={onStrategiesUpdate}
                   marketType={marketType}
+                  externalCode={externalCode}
                 />
               </Panel>
             </PanelGroup>

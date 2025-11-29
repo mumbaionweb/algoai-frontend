@@ -38,6 +38,7 @@ export function useAIChat() {
       return {
         response: response.response,
         suggestions: response.suggestions,
+        strategy_code: response.strategy_code,
         metadata: response.metadata
       };
     } catch (err: any) {

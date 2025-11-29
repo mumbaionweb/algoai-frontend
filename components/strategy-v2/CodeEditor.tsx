@@ -13,6 +13,7 @@ interface CodeEditorProps {
   marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
   onCodeChange?: (code: string) => void;
   onValidationChange?: (validation: ValidationResult) => void;
+  externalCode?: string | null; // Code to set from external source (e.g., AI chat)
 }
 
 export default function CodeEditor({ 
@@ -20,21 +21,23 @@ export default function CodeEditor({
   onStrategyUpdate, 
   marketType = 'equity',
   onCodeChange,
-  onValidationChange
+  onValidationChange,
+  externalCode
 }: CodeEditorProps) {
   const [code, setCode] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
+  const [isExternalCode, setIsExternalCode] = useState(false); // Track if code came from AI
 
   // Debounce code changes for auto-validation
   const debouncedCode = useDebounce(code, 1000);
 
-  // Auto-save for existing strategies
+  // Auto-save for existing strategies (disabled when code comes from AI)
   useAutoSave(
     currentStrategy?.id,
     code,
-    !!currentStrategy && code.length > 0
+    !!currentStrategy && code.length > 0 && !isExternalCode
   );
 
   useEffect(() => {
@@ -51,6 +54,16 @@ def handle_data(context, data):
 `);
     }
   }, [currentStrategy]);
+
+  // Handle external code updates (e.g., from AI chat)
+  useEffect(() => {
+    if (externalCode && externalCode.trim()) {
+      setIsExternalCode(true); // Mark as external code to disable auto-save
+      setCode(externalCode);
+      onCodeChange?.(externalCode);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalCode]); // Only depend on externalCode to avoid loops
 
   // Validate code when it changes
   useEffect(() => {
@@ -81,6 +94,10 @@ def handle_data(context, data):
   const handleCodeChange = (newCode: string) => {
     setCode(newCode);
     onCodeChange?.(newCode);
+    // Once user manually edits, re-enable auto-save
+    if (isExternalCode) {
+      setIsExternalCode(false);
+    }
   };
 
   const handleSave = async () => {

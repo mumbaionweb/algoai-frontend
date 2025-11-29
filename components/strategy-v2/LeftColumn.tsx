@@ -8,9 +8,10 @@ interface LeftColumnProps {
   currentStrategy: Strategy | null;
   onStrategyUpdate: () => void;
   marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
+  onCodeReceived?: (code: string) => void; // Callback when AI returns code
 }
 
-export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketType = 'equity' }: LeftColumnProps) {
+export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketType = 'equity', onCodeReceived }: LeftColumnProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -50,11 +51,16 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
       // The backend AI chat endpoint will intelligently handle code generation requests
       // Users can naturally ask for code generation (e.g., "create a strategy", "generate code", etc.)
       // and the AI will respond with the appropriate code generation
-      await sendMessage(userMessage, {
+      const result = await sendMessage(userMessage, {
         strategy_id: currentStrategy?.id,
         market_type: marketType,
         current_code: currentStrategy?.strategy_code || currentStrategy?.code
       });
+
+      // If AI returned code, populate it in the editor
+      if (result.strategy_code && onCodeReceived) {
+        onCodeReceived(result.strategy_code);
+      }
     } catch (err) {
       console.error('Chat error:', err);
     }

@@ -21,10 +21,13 @@ export interface ChatResponse {
   response: string;
   conversation_id: string;
   suggestions: CodeSuggestion[];
+  strategy_code?: string | null;
+  strategy_id?: string;
   metadata: {
     tokens_used?: number;
     model: string;
     timestamp: string;
+    has_code?: boolean;
   };
 }
 
