@@ -119,10 +119,18 @@ export default function StrategyV2Layout({
                   }}
                   marketType={marketType}
                   onCodeReceived={(code) => {
+                    console.log('[STRATEGY_LAYOUT] onCodeReceived called:', {
+                      codeLength: code.length,
+                      codePreview: code.substring(0, 100)
+                    });
                     setExternalCode(code);
+                    console.log('[STRATEGY_LAYOUT] externalCode state set, will clear in 1000ms');
                     // Clear after a delay to allow CodeEditor to process it and prevent override
                     // Keep it longer to prevent currentStrategy refresh from clearing it
-                    setTimeout(() => setExternalCode(null), 1000);
+                    setTimeout(() => {
+                      console.log('[STRATEGY_LAYOUT] Clearing externalCode after timeout');
+                      setExternalCode(null);
+                    }, 1000);
                   }}
                 />
               </Panel>

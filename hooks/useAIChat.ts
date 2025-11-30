@@ -26,7 +26,17 @@ export function useAIChat() {
         context,
       };
 
+      console.log('[AI_CHAT] Sending message:', { message, context });
       const response = await chatAI(request);
+      console.log('[AI_CHAT] Response received:', {
+        conversation_id: response.conversation_id,
+        has_strategy_code: !!response.strategy_code,
+        strategy_code_length: response.strategy_code?.length || 0,
+        strategy_code_preview: response.strategy_code?.substring(0, 100) || 'null',
+        has_code_in_metadata: response.metadata?.has_code,
+        suggestions_count: response.suggestions?.length || 0
+      });
+      
       setConversationId(response.conversation_id);
       
       setMessages(prev => [

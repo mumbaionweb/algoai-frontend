@@ -52,34 +52,67 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
       // The backend AI chat endpoint will intelligently handle code generation requests
       // Users can naturally ask for code generation (e.g., "create a strategy", "generate code", etc.)
       // and the AI will respond with the appropriate code generation
+      console.log('[AI_CHAT] handleSend - Sending message:', {
+        userMessage,
+        strategyId: currentStrategy?.id,
+        marketType,
+        hasCurrentCode: !!(currentStrategy?.strategy_code || currentStrategy?.code)
+      });
+
       const result = await sendMessage(userMessage, {
         strategy_id: currentStrategy?.id,
         market_type: marketType,
         current_code: currentStrategy?.strategy_code || currentStrategy?.code
       });
 
+      console.log('[AI_CHAT] handleSend - Result received:', {
+        has_strategy_code: !!result.strategy_code,
+        strategy_code_length: result.strategy_code?.length || 0,
+        has_strategy_id: !!currentStrategy?.id,
+        has_onCodeReceived: !!onCodeReceived
+      });
+
       // If AI returned code, populate it in the editor and save to trigger model extraction
       if (result.strategy_code && currentStrategy?.id) {
         const codeToSave = result.strategy_code; // TypeScript knows this is not null here
+        console.log('[AI_CHAT] Code received with strategy ID - Populating editor:', {
+          codeLength: codeToSave.length,
+          codePreview: codeToSave.substring(0, 100)
+        });
+        
         // Populate code in editor first
         if (onCodeReceived) {
+          console.log('[AI_CHAT] Calling onCodeReceived callback');
           onCodeReceived(codeToSave);
+        } else {
+          console.warn('[AI_CHAT] onCodeReceived callback is not available!');
         }
         
         // Save code to trigger backend model extraction (for visual builder sync)
         // Wait a bit for the code to be set in the editor before saving
         setTimeout(async () => {
           try {
+            console.log('[AI_CHAT] Saving code to strategy:', {
+              strategyId: currentStrategy.id,
+              codeLength: codeToSave.length
+            });
             await updateStrategy(currentStrategy.id, { strategy_code: codeToSave }, false);
+            console.log('[AI_CHAT] Code saved successfully, refreshing strategy');
             // Refresh strategy to get extracted model after save completes
             onStrategyUpdate();
           } catch (saveErr) {
-            console.error('Failed to save AI-generated code:', saveErr);
+            console.error('[AI_CHAT] Failed to save AI-generated code:', saveErr);
           }
         }, 200);
       } else if (result.strategy_code && onCodeReceived) {
         // If no strategy exists yet, just populate code
+        console.log('[AI_CHAT] Code received without strategy ID - Just populating editor');
         onCodeReceived(result.strategy_code);
+      } else {
+        console.log('[AI_CHAT] No code in response or no callback available:', {
+          has_strategy_code: !!result.strategy_code,
+          has_onCodeReceived: !!onCodeReceived
+        });
       }
     } catch (err) {
       console.error('Chat error:', err);

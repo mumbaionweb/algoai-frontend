@@ -45,30 +45,55 @@ export default function CodeEditor({
   // Handle external code updates (e.g., from AI chat) - must run before currentStrategy effect
   useEffect(() => {
     if (externalCode && externalCode.trim()) {
+      console.log('[CODE_EDITOR] External code received:', {
+        codeLength: externalCode.length,
+        codePreview: externalCode.substring(0, 100),
+        currentCodeLength: code.length
+      });
       externalCodeRef.current = externalCode;
       setIsExternalCode(true); // Mark as external code to disable auto-save
       setCode(externalCode);
+      console.log('[CODE_EDITOR] Code set in editor, isExternalCode=true');
       onCodeChange?.(externalCode);
       // Keep the ref for longer to prevent override during strategy refresh
       setTimeout(() => {
         // Only clear if externalCode is still null (wasn't set again)
         if (externalCodeRef.current === externalCode) {
+          console.log('[CODE_EDITOR] Clearing externalCodeRef after timeout');
           externalCodeRef.current = null;
         }
       }, 2000);
+    } else if (externalCode === null) {
+      console.log('[CODE_EDITOR] externalCode cleared (set to null)');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalCode]); // Only depend on externalCode to avoid loops
 
   useEffect(() => {
+    console.log('[CODE_EDITOR] currentStrategy effect triggered:', {
+      strategyId: currentStrategy?.id,
+      hasStrategyCode: !!(currentStrategy?.strategy_code || currentStrategy?.code),
+      strategyCodeLength: (currentStrategy?.strategy_code || currentStrategy?.code || '').length,
+      hasExternalCodeRef: !!externalCodeRef.current,
+      currentCodeLength: code.length
+    });
+
     // Don't override code if we just set external code
     if (externalCodeRef.current) {
+      console.log('[CODE_EDITOR] External code ref exists, checking if strategy code matches');
       // If we have external code set, check if the strategy code now matches (save completed)
       const strategyCode = currentStrategy?.strategy_code || currentStrategy?.code || '';
       if (strategyCode === externalCodeRef.current) {
         // Save completed, code matches, safe to clear ref
+        console.log('[CODE_EDITOR] Strategy code matches external code, clearing ref and enabling auto-save');
         externalCodeRef.current = null;
         setIsExternalCode(false);
+      } else {
+        console.log('[CODE_EDITOR] Strategy code does not match external code yet, keeping external code:', {
+          strategyCodeLength: strategyCode.length,
+          externalCodeLength: externalCodeRef.current.length,
+          matches: strategyCode === externalCodeRef.current
+        });
       }
       // Otherwise, keep the external code and don't update from strategy
       return;
@@ -77,21 +102,35 @@ export default function CodeEditor({
     // Only update if strategy ID changed (not just strategy object reference)
     const strategyId = currentStrategy?.id || null;
     if (strategyId === lastStrategyIdRef.current) {
+      console.log('[CODE_EDITOR] Same strategy ID, checking if code update needed');
       // Same strategy ID - don't update code unless it's empty
       if (!code && currentStrategy) {
         const newCode = currentStrategy.strategy_code || currentStrategy.code || '';
         if (newCode) {
+          console.log('[CODE_EDITOR] Code is empty, loading from strategy');
           setCode(newCode);
         }
+      } else {
+        console.log('[CODE_EDITOR] Code already exists, not updating');
       }
       return;
     }
 
+    console.log('[CODE_EDITOR] Strategy ID changed, updating code:', {
+      oldId: lastStrategyIdRef.current,
+      newId: strategyId
+    });
     lastStrategyIdRef.current = strategyId;
 
     if (currentStrategy) {
-      setCode(currentStrategy.strategy_code || currentStrategy.code || '');
+      const newCode = currentStrategy.strategy_code || currentStrategy.code || '';
+      console.log('[CODE_EDITOR] Loading code from strategy:', {
+        codeLength: newCode.length,
+        codePreview: newCode.substring(0, 100)
+      });
+      setCode(newCode);
     } else {
+      console.log('[CODE_EDITOR] No strategy, setting default code');
       setCode(`def initialize(context):
     # Strategy initialization
     pass
@@ -101,7 +140,8 @@ def handle_data(context, data):
     pass
 `);
     }
-  }, [currentStrategy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStrategy]); // Don't include code to avoid loops
 
   // Validate code when it changes
   useEffect(() => {
