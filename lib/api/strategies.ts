@@ -7,6 +7,7 @@ import type {
   StrategyPerformance,
   StrategiesListResponse,
   StrategyParams,
+  StrategyModel,
 } from '@/types';
 
 /**
@@ -162,6 +163,42 @@ export async function resumeStrategy(
  */
 export async function getStrategyPerformance(strategyId: string): Promise<StrategyPerformance> {
   const response = await apiClient.get<StrategyPerformance>(`/api/strategies/${strategyId}/performance`);
+  return response.data;
+}
+
+/**
+ * Visual Builder API Response
+ */
+export interface VisualBuilderModelResponse {
+  strategy_id: string;
+  strategy_model: StrategyModel | null;
+  last_updated?: string;
+}
+
+/**
+ * Get visual builder model for a strategy
+ * If no model exists but code exists, backend automatically extracts and saves it
+ * @param strategyId Strategy ID
+ * @returns Visual builder model response
+ */
+export async function getVisualBuilderModel(strategyId: string): Promise<VisualBuilderModelResponse> {
+  const response = await apiClient.get<VisualBuilderModelResponse>(`/api/strategies/${strategyId}/visual-builder`);
+  return response.data;
+}
+
+/**
+ * Update visual builder model for a strategy
+ * @param strategyId Strategy ID
+ * @param model Strategy model to save
+ * @returns Updated visual builder model response
+ */
+export async function updateVisualBuilderModel(
+  strategyId: string,
+  model: StrategyModel
+): Promise<VisualBuilderModelResponse> {
+  const response = await apiClient.put<VisualBuilderModelResponse>(`/api/strategies/${strategyId}/visual-builder`, {
+    strategy_model: model,
+  });
   return response.data;
 }
 
