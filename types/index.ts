@@ -8,8 +8,68 @@ export interface User {
   is_active: boolean;
 }
 
-// Strategy Model Types (for Visual Builder)
+// Flow-Based Visual Builder Types
+export interface FlowStep {
+  id: string;                    // Unique ID (e.g., "step_1", "ind_sma_20")
+  type: 'indicator' | 'condition' | 'action' | 'risk';
+  order: number;                 // Position in flow (1, 2, 3, ...)
+  title: string;                 // Display title
+  description?: string;          // Optional description
+  
+  data: {
+    // For indicator steps
+    indicator_type?: string;      // 'SMA', 'RSI', 'MACD', 'Highest', 'Lowest'
+    source?: string;              // 'close', 'high', 'low', 'open'
+    period?: number;
+    
+    // For condition steps
+    condition_type?: string;      // 'price_above', 'indicator_cross', 'breakout'
+    left_operand?: string;       // e.g., 'close', 'sma_20'
+    operator?: string;            // '>', '<', 'cross_above', 'cross_below'
+    right_operand?: string;       // e.g., 'resistance', 'sma_50'
+    
+    // For action steps
+    action_type?: string;         // 'buy', 'sell', 'close_position'
+    quantity?: number | string;   // Position size or 'all'
+    
+    // For risk steps
+    risk_type?: string;           // 'stop_loss', 'take_profit', 'trailing_stop'
+    value?: number;               // Percentage or absolute value
+    
+    [key: string]: any;           // Allow additional fields
+  };
+  
+  depends_on?: string[];         // Array of step IDs this step depends on
+  position?: { x: number; y: number; }; // Visual position (optional)
+}
+
+export interface FlowBasedStrategyModel {
+  meta?: {
+    class_name?: string;
+    description?: string;
+    version?: string;
+  };
+  flow: FlowStep[];               // Ordered list of steps
+  // Legacy fields (for backward compatibility)
+  parameters?: Record<string, any>;
+  indicators?: Array<any>;
+  entries?: Array<any>;
+  exits?: Array<any>;
+  risk?: Record<string, any>;
+  [key: string]: any;             // Allow additional fields
+}
+
+// Strategy Model Types (for Visual Builder - supports both legacy and flow-based)
 export interface StrategyModel {
+  // Flow-based model (new)
+  flow?: FlowStep[];
+  meta?: {
+    class_name?: string;
+    description?: string;
+    version?: string;
+  };
+  
+  // Legacy model structure (for backward compatibility)
   indicators?: Array<{
     type: string;
     source?: string;

@@ -5,6 +5,7 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import type { Strategy } from '@/types';
 import CodeEditor from './CodeEditor';
 import VisualBuilder from './VisualBuilder';
+import FlowBasedVisualBuilder from './FlowBasedVisualBuilder';
 
 interface RightColumnProps {
   currentStrategy: Strategy | null;
@@ -78,7 +79,10 @@ export default function RightColumn({
               externalCode={externalCode}
             />
           ) : (
-            <VisualBuilder currentStrategy={currentStrategy} onStrategyUpdate={onStrategyUpdate} />
+            <FlowBasedVisualBuilder 
+              currentStrategy={currentStrategy} 
+              onStrategyUpdate={onStrategyUpdate}
+            />
           )}
         </Panel>
 

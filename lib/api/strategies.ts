@@ -190,15 +190,43 @@ export async function getVisualBuilderModel(strategyId: string): Promise<VisualB
  * Update visual builder model for a strategy
  * @param strategyId Strategy ID
  * @param model Strategy model to save
+ * @param generateCode Whether to generate code from model (default: false)
  * @returns Updated visual builder model response
  */
 export async function updateVisualBuilderModel(
   strategyId: string,
-  model: StrategyModel
+  model: StrategyModel,
+  generateCode: boolean = false
 ): Promise<VisualBuilderModelResponse> {
-  const response = await apiClient.put<VisualBuilderModelResponse>(`/api/strategies/${strategyId}/visual-builder`, {
+  const url = `/api/strategies/${strategyId}/visual-builder${generateCode ? '?generate_code=true' : ''}`;
+  const response = await apiClient.put<VisualBuilderModelResponse>(url, {
     strategy_model: model,
   });
+  return response.data;
+}
+
+/**
+ * Generate code from visual builder model (standalone)
+ * @param strategyId Strategy ID
+ * @param model Strategy model to generate code from
+ * @returns Generated code with warnings and errors
+ */
+export interface GenerateCodeFromModelResponse {
+  strategy_code: string;
+  warnings: string[];
+  errors: string[];
+}
+
+export async function generateCodeFromModel(
+  strategyId: string,
+  model: StrategyModel
+): Promise<GenerateCodeFromModelResponse> {
+  const response = await apiClient.post<GenerateCodeFromModelResponse>(
+    `/api/strategies/${strategyId}/visual-builder/generate-code`,
+    {
+      strategy_model: model,
+    }
+  );
   return response.data;
 }
 
