@@ -25,10 +25,23 @@ export function useStrategyStatusSSE(
   } | null>(null);
   const [connected, setConnected] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  const wasConnectedRef = useRef(false);
 
   useEffect(() => {
     if (!token) {
+      // Close existing connection if token is removed
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setConnected(false);
       return;
+    }
+
+    // Close existing connection before creating a new one
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
     }
 
     const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
@@ -39,10 +52,12 @@ export function useStrategyStatusSSE(
 
     eventSource.onopen = () => {
       setConnected(true);
+      wasConnectedRef.current = true;
     };
 
     eventSource.addEventListener('connection', () => {
       setConnected(true);
+      wasConnectedRef.current = true;
     });
 
     eventSource.addEventListener('strategies_snapshot', (e) => {
@@ -81,14 +96,29 @@ export function useStrategyStatusSSE(
     });
 
     eventSource.onerror = (error) => {
-      console.error('SSE error:', error);
-      setConnected(false);
-      // EventSource will automatically reconnect
+      // Only log errors if connection is actually closed (not just reconnecting)
+      if (eventSource.readyState === EventSource.CLOSED) {
+        // Connection closed - this might be normal during page refresh
+        // Only log if we were previously connected (not initial connection failure)
+        if (wasConnectedRef.current) {
+          console.warn('SSE connection closed');
+        }
+        setConnected(false);
+        wasConnectedRef.current = false;
+      } else if (eventSource.readyState === EventSource.CONNECTING) {
+        // Reconnecting - this is normal, don't log as error
+        setConnected(false);
+      }
+      // EventSource will automatically reconnect for other states
     };
 
     return () => {
-      eventSource.close();
-      eventSourceRef.current = null;
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      setConnected(false);
+      wasConnectedRef.current = false;
     };
   }, [token, strategyId]);
 
