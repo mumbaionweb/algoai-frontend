@@ -120,8 +120,9 @@ export default function StrategyV2Layout({
                   marketType={marketType}
                   onCodeReceived={(code) => {
                     setExternalCode(code);
-                    // Clear after a short delay to allow CodeEditor to process it
-                    setTimeout(() => setExternalCode(null), 100);
+                    // Clear after a delay to allow CodeEditor to process it and prevent override
+                    // Keep it longer to prevent currentStrategy refresh from clearing it
+                    setTimeout(() => setExternalCode(null), 1000);
                   }}
                 />
               </Panel>

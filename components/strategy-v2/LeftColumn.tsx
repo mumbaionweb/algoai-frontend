@@ -60,19 +60,22 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
 
       // If AI returned code, populate it in the editor and save to trigger model extraction
       if (result.strategy_code && currentStrategy?.id) {
-        // Populate code in editor
+        // Populate code in editor first
         if (onCodeReceived) {
           onCodeReceived(result.strategy_code);
         }
         
         // Save code to trigger backend model extraction (for visual builder sync)
-        try {
-          await updateStrategy(currentStrategy.id, { strategy_code: result.strategy_code }, false);
-          // Refresh strategy to get extracted model
-          onStrategyUpdate();
-        } catch (saveErr) {
-          console.error('Failed to save AI-generated code:', saveErr);
-        }
+        // Wait a bit for the code to be set in the editor before saving
+        setTimeout(async () => {
+          try {
+            await updateStrategy(currentStrategy.id, { strategy_code: result.strategy_code }, false);
+            // Refresh strategy to get extracted model after save completes
+            onStrategyUpdate();
+          } catch (saveErr) {
+            console.error('Failed to save AI-generated code:', saveErr);
+          }
+        }, 200);
       } else if (result.strategy_code && onCodeReceived) {
         // If no strategy exists yet, just populate code
         onCodeReceived(result.strategy_code);

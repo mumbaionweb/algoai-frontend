@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Strategy } from '@/types';
 import { useDebounce } from '@/hooks/useDebounce';
 import { useAutoSave } from '@/hooks/useAutoSave';
@@ -29,6 +29,8 @@ export default function CodeEditor({
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [validating, setValidating] = useState(false);
   const [isExternalCode, setIsExternalCode] = useState(false); // Track if code came from AI
+  const externalCodeRef = useRef<string | null>(null); // Track external code to prevent override
+  const lastStrategyIdRef = useRef<string | null>(null); // Track strategy ID to detect changes
 
   // Debounce code changes for auto-validation
   const debouncedCode = useDebounce(code, 1000);
@@ -40,7 +42,53 @@ export default function CodeEditor({
     !!currentStrategy && code.length > 0 && !isExternalCode
   );
 
+  // Handle external code updates (e.g., from AI chat) - must run before currentStrategy effect
   useEffect(() => {
+    if (externalCode && externalCode.trim()) {
+      externalCodeRef.current = externalCode;
+      setIsExternalCode(true); // Mark as external code to disable auto-save
+      setCode(externalCode);
+      onCodeChange?.(externalCode);
+      // Keep the ref for longer to prevent override during strategy refresh
+      setTimeout(() => {
+        // Only clear if externalCode is still null (wasn't set again)
+        if (externalCodeRef.current === externalCode) {
+          externalCodeRef.current = null;
+        }
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalCode]); // Only depend on externalCode to avoid loops
+
+  useEffect(() => {
+    // Don't override code if we just set external code
+    if (externalCodeRef.current) {
+      // If we have external code set, check if the strategy code now matches (save completed)
+      const strategyCode = currentStrategy?.strategy_code || currentStrategy?.code || '';
+      if (strategyCode === externalCodeRef.current) {
+        // Save completed, code matches, safe to clear ref
+        externalCodeRef.current = null;
+        setIsExternalCode(false);
+      }
+      // Otherwise, keep the external code and don't update from strategy
+      return;
+    }
+
+    // Only update if strategy ID changed (not just strategy object reference)
+    const strategyId = currentStrategy?.id || null;
+    if (strategyId === lastStrategyIdRef.current) {
+      // Same strategy ID - don't update code unless it's empty
+      if (!code && currentStrategy) {
+        const newCode = currentStrategy.strategy_code || currentStrategy.code || '';
+        if (newCode) {
+          setCode(newCode);
+        }
+      }
+      return;
+    }
+
+    lastStrategyIdRef.current = strategyId;
+
     if (currentStrategy) {
       setCode(currentStrategy.strategy_code || currentStrategy.code || '');
     } else {
@@ -54,16 +102,6 @@ def handle_data(context, data):
 `);
     }
   }, [currentStrategy]);
-
-  // Handle external code updates (e.g., from AI chat)
-  useEffect(() => {
-    if (externalCode && externalCode.trim()) {
-      setIsExternalCode(true); // Mark as external code to disable auto-save
-      setCode(externalCode);
-      onCodeChange?.(externalCode);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [externalCode]); // Only depend on externalCode to avoid loops
 
   // Validate code when it changes
   useEffect(() => {
