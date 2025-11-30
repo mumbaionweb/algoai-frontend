@@ -8,6 +8,32 @@ export interface User {
   is_active: boolean;
 }
 
+// Strategy Model Types (for Visual Builder)
+export interface StrategyModel {
+  indicators?: Array<{
+    type: string;
+    source?: string;
+    period?: number;
+    [key: string]: any;
+  }>;
+  entryConditions?: Array<{
+    type: string;
+    [key: string]: any;
+  }>;
+  exitConditions?: Array<{
+    type: string;
+    [key: string]: any;
+  }>;
+  riskManagement?: {
+    riskPercent?: number;
+    stopLossPercent?: number;
+    positionSizing?: string;
+    [key: string]: any;
+  };
+  parameters?: Record<string, any>;
+  [key: string]: any; // Allow flexible structure
+}
+
 // Strategy Types
 export interface Strategy {
   id: string;
@@ -16,6 +42,7 @@ export interface Strategy {
   description?: string;
   strategy_code?: string; // For backward compatibility, also support 'code'
   code?: string; // Legacy field
+  strategy_model?: StrategyModel; // NEW: Canonical model for visual builder
   status: 'draft' | 'active' | 'paused' | 'stopped' | 'error';
   parameters?: Record<string, any>;
   created_at?: string;
@@ -29,6 +56,7 @@ export interface StrategyCreate {
   name: string;
   description?: string;
   strategy_code: string;
+  strategy_model?: StrategyModel; // NEW: Optional model for visual builder
   parameters: {
     symbol: string;
     exchange?: string;
@@ -46,7 +74,9 @@ export interface StrategyUpdate {
   name?: string;
   description?: string;
   strategy_code?: string;
+  strategy_model?: StrategyModel; // NEW: Optional model for visual builder
   parameters?: Record<string, any>;
+  auto_save?: boolean; // NEW: Indicates if this is an auto-save
 }
 
 export interface StrategyActionResponse {

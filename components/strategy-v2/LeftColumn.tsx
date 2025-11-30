@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Strategy } from '@/types';
 import { useAIChat } from '@/hooks/useAIChat';
+import { updateStrategy } from '@/lib/api/strategies';
 
 interface LeftColumnProps {
   currentStrategy: Strategy | null;
@@ -57,8 +58,23 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
         current_code: currentStrategy?.strategy_code || currentStrategy?.code
       });
 
-      // If AI returned code, populate it in the editor
-      if (result.strategy_code && onCodeReceived) {
+      // If AI returned code, populate it in the editor and save to trigger model extraction
+      if (result.strategy_code && currentStrategy?.id) {
+        // Populate code in editor
+        if (onCodeReceived) {
+          onCodeReceived(result.strategy_code);
+        }
+        
+        // Save code to trigger backend model extraction (for visual builder sync)
+        try {
+          await updateStrategy(currentStrategy.id, { strategy_code: result.strategy_code }, false);
+          // Refresh strategy to get extracted model
+          onStrategyUpdate();
+        } catch (saveErr) {
+          console.error('Failed to save AI-generated code:', saveErr);
+        }
+      } else if (result.strategy_code && onCodeReceived) {
+        // If no strategy exists yet, just populate code
         onCodeReceived(result.strategy_code);
       }
     } catch (err) {

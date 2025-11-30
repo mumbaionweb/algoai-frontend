@@ -35,9 +35,20 @@ export default function StrategyV2Layout({
   const [rightBottomPaneCollapsed, setRightBottomPaneCollapsed] = useState(true);
   const [marketType, setMarketType] = useState<'equity' | 'commodity' | 'currency' | 'futures'>('equity');
   const [externalCode, setExternalCode] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
+      {/* Sync Status Indicator */}
+      {syncStatus && (
+        <div className="absolute top-16 left-1/2 transform -translate-x-1/2 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-fade-in">
+          <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span className="text-sm font-medium">{syncStatus}</span>
+        </div>
+      )}
+
       {/* Top Row */}
       <TopRow 
         currentStrategy={currentStrategy} 
@@ -100,7 +111,12 @@ export default function StrategyV2Layout({
               <Panel defaultSize={35} minSize={20} maxSize={50} className="h-full">
                 <LeftColumn
                   currentStrategy={currentStrategy}
-                  onStrategyUpdate={onStrategiesUpdate}
+                  onStrategyUpdate={() => {
+                    onStrategiesUpdate();
+                    // Show sync indicator
+                    setSyncStatus('AI → Code → Visual Builder');
+                    setTimeout(() => setSyncStatus(null), 3000);
+                  }}
                   marketType={marketType}
                   onCodeReceived={(code) => {
                     setExternalCode(code);
@@ -118,7 +134,12 @@ export default function StrategyV2Layout({
                   currentStrategy={currentStrategy}
                   bottomPaneCollapsed={bottomPaneCollapsed}
                   onBottomPaneToggle={() => setBottomPaneCollapsed(!bottomPaneCollapsed)}
-                  onStrategyUpdate={onStrategiesUpdate}
+                  onStrategyUpdate={() => {
+                    onStrategiesUpdate();
+                    // Show sync indicator when code is saved
+                    setSyncStatus('Code → Visual Builder');
+                    setTimeout(() => setSyncStatus(null), 3000);
+                  }}
                   marketType={marketType}
                   externalCode={externalCode}
                 />

@@ -108,10 +108,16 @@ def handle_data(context, data):
     
     setIsSaving(true);
     try {
-      await updateStrategy(currentStrategy.id, { strategy_code: code }, false); // manual save
+      // Save code (backend will extract model automatically)
+      const updatedStrategy = await updateStrategy(currentStrategy.id, { strategy_code: code }, false); // manual save
+      
+      // Refresh strategy to get extracted model
       onStrategyUpdate();
+      
+      return updatedStrategy;
     } catch (err) {
       console.error('Failed to save strategy:', err);
+      throw err;
     } finally {
       setIsSaving(false);
     }
