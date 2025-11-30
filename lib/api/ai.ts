@@ -3,6 +3,7 @@ import { apiClient } from './client';
 export interface ChatRequest {
   message: string;
   conversation_id?: string;
+  auto_save_code?: boolean; // Auto-save code to strategy when code is generated
   context?: {
     strategy_id?: string;
     market_type?: string;

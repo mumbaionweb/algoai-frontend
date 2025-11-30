@@ -14,7 +14,8 @@ export function useAIChat() {
 
   const sendMessage = useCallback(async (
     message: string,
-    context?: { strategy_id?: string; market_type?: string; current_code?: string }
+    context?: { strategy_id?: string; market_type?: string; current_code?: string },
+    autoSaveCode: boolean = false
   ) => {
     setLoading(true);
     setError(null);
@@ -23,10 +24,11 @@ export function useAIChat() {
       const request: ChatRequest = {
         message,
         conversation_id: conversationId || undefined,
+        auto_save_code: autoSaveCode, // Auto-save code when strategy_id is present
         context,
       };
 
-      console.log('[AI_CHAT] Sending message:', { message, context });
+      console.log('[AI_CHAT] Sending message:', { message, context, autoSaveCode });
       const response = await chatAI(request);
       console.log('[AI_CHAT] Response received:', {
         conversation_id: response.conversation_id,
