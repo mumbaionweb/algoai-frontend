@@ -60,16 +60,17 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
 
       // If AI returned code, populate it in the editor and save to trigger model extraction
       if (result.strategy_code && currentStrategy?.id) {
+        const codeToSave = result.strategy_code; // TypeScript knows this is not null here
         // Populate code in editor first
         if (onCodeReceived) {
-          onCodeReceived(result.strategy_code);
+          onCodeReceived(codeToSave);
         }
         
         // Save code to trigger backend model extraction (for visual builder sync)
         // Wait a bit for the code to be set in the editor before saving
         setTimeout(async () => {
           try {
-            await updateStrategy(currentStrategy.id, { strategy_code: result.strategy_code }, false);
+            await updateStrategy(currentStrategy.id, { strategy_code: codeToSave }, false);
             // Refresh strategy to get extracted model after save completes
             onStrategyUpdate();
           } catch (saveErr) {
