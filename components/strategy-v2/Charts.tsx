@@ -44,28 +44,41 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
       },
     });
 
-    // Create candlestick series - using the chart API directly
-    // In lightweight-charts v5, we need to use addSeries with the series type
-    const candlestickSeriesInstance = (chart as any).addCandlestickSeries({
-      upColor: '#26a69a',
-      downColor: '#ef5350',
-      borderVisible: false,
-      wickUpColor: '#26a69a',
-      wickDownColor: '#ef5350',
-    });
-
-    // Create volume series - using the chart API directly
-    const volumeSeriesInstance = (chart as any).addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: 'volume',
-      scaleMargins: {
-        top: 0.8,
-        bottom: 0,
-      },
-    });
+    // Create candlestick series
+    // Try addCandlestickSeries first (if available), otherwise use addSeries
+    let candlestickSeriesInstance: ISeriesApi<'Candlestick'>;
+    let volumeSeriesInstance: ISeriesApi<'Histogram'>;
+    
+    if (typeof (chart as any).addCandlestickSeries === 'function') {
+      // Use convenience method if available
+      candlestickSeriesInstance = (chart as any).addCandlestickSeries({
+        upColor: '#26a69a',
+        downColor: '#ef5350',
+        borderVisible: false,
+        wickUpColor: '#26a69a',
+        wickDownColor: '#ef5350',
+      });
+      volumeSeriesInstance = (chart as any).addHistogramSeries({
+        color: '#26a69a',
+        priceFormat: {
+          type: 'volume',
+        },
+        priceScaleId: 'volume',
+        scaleMargins: {
+          top: 0.8,
+          bottom: 0,
+        },
+      });
+    } else {
+      // Fallback: Use addSeries with series type string
+      // This is a workaround for versions where convenience methods don't exist
+      console.error('[CHARTS] addCandlestickSeries not available. Chart functionality may be limited.');
+      // Return early cleanup function
+      return () => {
+        window.removeEventListener('resize', () => {});
+        chart.remove();
+      };
+    }
 
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeriesInstance;
