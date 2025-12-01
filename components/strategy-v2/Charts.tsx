@@ -1,7 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createChart, IChartApi, ISeriesApi, CandlestickData, UTCTimestamp } from 'lightweight-charts';
+import { 
+  createChart, 
+  IChartApi, 
+  ISeriesApi, 
+  CandlestickData, 
+  UTCTimestamp,
+  SeriesOptionsMap,
+  SeriesPartialOptionsMap
+} from 'lightweight-charts';
 import type { Strategy } from '@/types';
 import { getLiveMarketData, getMockRunData, getBacktestData, type OHLCDataPoint } from '@/lib/api/charts';
 
@@ -44,21 +52,25 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
       },
     });
 
-    // Create candlestick series
-    // Try addCandlestickSeries first (if available), otherwise use addSeries
-    let candlestickSeriesInstance: ISeriesApi<'Candlestick'>;
-    let volumeSeriesInstance: ISeriesApi<'Histogram'>;
-    
-    if (typeof (chart as any).addCandlestickSeries === 'function') {
-      // Use convenience method if available
-      candlestickSeriesInstance = (chart as any).addCandlestickSeries({
+    // Create candlestick series using addSeries with series definition
+    // In lightweight-charts v5, we need to use addSeries with a series definition object
+    // The series definitions are available as constants but need to be imported/accessed correctly
+    // For now, we'll use type assertion to work with the API
+    const candlestickSeriesInstance = (chart as any).addSeries(
+      { type: 'Candlestick' },
+      {
         upColor: '#26a69a',
         downColor: '#ef5350',
         borderVisible: false,
         wickUpColor: '#26a69a',
         wickDownColor: '#ef5350',
-      });
-      volumeSeriesInstance = (chart as any).addHistogramSeries({
+      }
+    ) as ISeriesApi<'Candlestick'>;
+
+    // Create volume histogram series
+    const volumeSeriesInstance = (chart as any).addSeries(
+      { type: 'Histogram' },
+      {
         color: '#26a69a',
         priceFormat: {
           type: 'volume',
@@ -68,17 +80,8 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
           top: 0.8,
           bottom: 0,
         },
-      });
-    } else {
-      // Fallback: Use addSeries with series type string
-      // This is a workaround for versions where convenience methods don't exist
-      console.error('[CHARTS] addCandlestickSeries not available. Chart functionality may be limited.');
-      // Return early cleanup function
-      return () => {
-        window.removeEventListener('resize', () => {});
-        chart.remove();
-      };
-    }
+      }
+    ) as ISeriesApi<'Histogram'>;
 
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeriesInstance;
