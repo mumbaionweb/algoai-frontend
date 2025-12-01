@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData, UTCTimestamp } from 'lightweight-charts';
+import { createChart, IChartApi, ISeriesApi, CandlestickData, UTCTimestamp } from 'lightweight-charts';
 import type { Strategy } from '@/types';
 import { getLiveMarketData, getMockRunData, getBacktestData, type OHLCDataPoint } from '@/lib/api/charts';
 
@@ -44,9 +44,9 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
       },
     });
 
-    // Create candlestick series
-    // @ts-ignore - lightweight-charts types may not be fully up to date
-    const candlestickSeries = chart.addCandlestickSeries({
+    // Create candlestick series - using the chart API directly
+    // In lightweight-charts v5, we need to use addSeries with the series type
+    const candlestickSeriesInstance = (chart as any).addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
       borderVisible: false,
@@ -54,9 +54,8 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
       wickDownColor: '#ef5350',
     });
 
-    // Create volume series
-    // @ts-ignore - lightweight-charts types may not be fully up to date
-    const volumeSeries = chart.addHistogramSeries({
+    // Create volume series - using the chart API directly
+    const volumeSeriesInstance = (chart as any).addHistogramSeries({
       color: '#26a69a',
       priceFormat: {
         type: 'volume',
@@ -69,8 +68,8 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
     });
 
     chartRef.current = chart;
-    candlestickSeriesRef.current = candlestickSeries;
-    volumeSeriesRef.current = volumeSeries;
+    candlestickSeriesRef.current = candlestickSeriesInstance;
+    volumeSeriesRef.current = volumeSeriesInstance;
 
     // Handle resize
     const handleResize = () => {
