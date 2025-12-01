@@ -6,6 +6,7 @@ import type { Strategy } from '@/types';
 import CodeEditor from './CodeEditor';
 import VisualBuilder from './VisualBuilder';
 import FlowBasedVisualBuilder from './FlowBasedVisualBuilder';
+import Charts from './Charts';
 
 interface RightColumnProps {
   currentStrategy: Strategy | null;
@@ -24,7 +25,7 @@ export default function RightColumn({
   marketType = 'equity',
   externalCode,
 }: RightColumnProps) {
-  const [activeTab, setActiveTab] = useState<'code' | 'visual'>('code');
+  const [activeTab, setActiveTab] = useState<'code' | 'visual' | 'charts'>('code');
 
   return (
     <div className="h-full bg-gray-800 flex flex-col min-h-0">
@@ -50,6 +51,16 @@ export default function RightColumn({
             }`}
           >
             Visual Builder
+          </button>
+          <button
+            onClick={() => setActiveTab('charts')}
+            className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 ${
+              activeTab === 'charts'
+                ? 'text-blue-400 border-blue-400'
+                : 'text-gray-400 border-transparent hover:text-gray-300'
+            }`}
+          >
+            Charts
           </button>
         </div>
         <button
@@ -78,10 +89,15 @@ export default function RightColumn({
               marketType={marketType}
               externalCode={externalCode}
             />
-          ) : (
+          ) : activeTab === 'visual' ? (
             <FlowBasedVisualBuilder 
               currentStrategy={currentStrategy} 
               onStrategyUpdate={onStrategyUpdate}
+            />
+          ) : (
+            <Charts 
+              currentStrategy={currentStrategy}
+              marketType={marketType}
             />
           )}
         </Panel>
