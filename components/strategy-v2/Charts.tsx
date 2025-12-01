@@ -7,8 +7,8 @@ import {
   ISeriesApi, 
   CandlestickData, 
   UTCTimestamp,
-  SeriesOptionsMap,
-  SeriesPartialOptionsMap
+  CandlestickSeries,
+  HistogramSeries
 } from 'lightweight-charts';
 import type { Strategy } from '@/types';
 import { getLiveMarketData, getMockRunData, getBacktestData, type OHLCDataPoint } from '@/lib/api/charts';
@@ -53,35 +53,23 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
     });
 
     // Create candlestick series using addSeries with series definition
-    // In lightweight-charts v5, we need to use addSeries with a series definition object
-    // The series definitions are available as constants but need to be imported/accessed correctly
-    // For now, we'll use type assertion to work with the API
-    const candlestickSeriesInstance = (chart as any).addSeries(
-      { type: 'Candlestick' },
-      {
-        upColor: '#26a69a',
-        downColor: '#ef5350',
-        borderVisible: false,
-        wickUpColor: '#26a69a',
-        wickDownColor: '#ef5350',
-      }
-    ) as ISeriesApi<'Candlestick'>;
+    // In lightweight-charts v5, we use addSeries with the series definition constant
+    const candlestickSeriesInstance = chart.addSeries(CandlestickSeries, {
+      upColor: '#26a69a',
+      downColor: '#ef5350',
+      borderVisible: false,
+      wickUpColor: '#26a69a',
+      wickDownColor: '#ef5350',
+    });
 
     // Create volume histogram series
-    const volumeSeriesInstance = (chart as any).addSeries(
-      { type: 'Histogram' },
-      {
-        color: '#26a69a',
-        priceFormat: {
-          type: 'volume',
-        },
-        priceScaleId: 'volume',
-        scaleMargins: {
-          top: 0.8,
-          bottom: 0,
-        },
-      }
-    ) as ISeriesApi<'Histogram'>;
+    const volumeSeriesInstance = chart.addSeries(HistogramSeries, {
+      color: '#26a69a',
+      priceFormat: {
+        type: 'volume',
+      },
+      priceScaleId: 'volume',
+    });
 
     chartRef.current = chart;
     candlestickSeriesRef.current = candlestickSeriesInstance;
