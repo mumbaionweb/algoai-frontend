@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { createChart, IChartApi, ISeriesApi, CandlestickData, UTCTimestamp } from 'lightweight-charts';
+import { createChart, ColorType, IChartApi, ISeriesApi, CandlestickData, UTCTimestamp } from 'lightweight-charts';
 import type { Strategy } from '@/types';
 import { getLiveMarketData, getMockRunData, getBacktestData, type OHLCDataPoint } from '@/lib/api/charts';
 
@@ -45,6 +45,7 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
     });
 
     // Create candlestick series
+    // @ts-ignore - lightweight-charts types may not be fully up to date
     const candlestickSeries = chart.addCandlestickSeries({
       upColor: '#26a69a',
       downColor: '#ef5350',
@@ -54,6 +55,7 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
     });
 
     // Create volume series
+    // @ts-ignore - lightweight-charts types may not be fully up to date
     const volumeSeries = chart.addHistogramSeries({
       color: '#26a69a',
       priceFormat: {
