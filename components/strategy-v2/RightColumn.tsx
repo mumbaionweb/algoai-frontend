@@ -98,6 +98,7 @@ export default function RightColumn({
             <Charts 
               currentStrategy={currentStrategy}
               marketType={marketType}
+              onStrategyUpdate={onStrategyUpdate}
             />
           )}
         </Panel>

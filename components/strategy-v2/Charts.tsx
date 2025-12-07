@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   createChart, 
   IChartApi, 
@@ -12,23 +12,41 @@ import {
 } from 'lightweight-charts';
 import type { Strategy } from '@/types';
 import { getLiveMarketData, getMockRunData, getBacktestData, type OHLCDataPoint } from '@/lib/api/charts';
+import { updateStrategy } from '@/lib/api/strategies';
+import { apiClient } from '@/lib/api/client';
 
 interface ChartsProps {
   currentStrategy: Strategy | null;
   marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
+  onStrategyUpdate?: () => void;
 }
 
 type ChartDataType = 'live' | 'mock' | 'backtest';
 
+interface ChartDebugInfo {
+  strategyId: string | null;
+  chartType: ChartDataType;
+  dataPoints: number;
+  dataSource: string;
+  symbol?: string;
+  exchange?: string;
+  backtestJobs?: number;
+  lastUpdated?: string;
+  errors?: string[];
+}
 
-export default function Charts({ currentStrategy, marketType = 'equity' }: ChartsProps) {
+export default function Charts({ currentStrategy, marketType = 'equity', onStrategyUpdate }: ChartsProps) {
   const [chartType, setChartType] = useState<ChartDataType>('live');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<ChartDebugInfo | null>(null);
+  const [showDebug, setShowDebug] = useState(false);
+  const [backtestJobsCount, setBacktestJobsCount] = useState<number | null>(null);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
+  const lastStrategyIdRef = useRef<string | null>(null);
 
   // Initialize chart
   useEffect(() => {
@@ -93,33 +111,188 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
     };
   }, []);
 
+  // Load chart config when strategy changes
+  useEffect(() => {
+    if (!currentStrategy?.id) {
+      console.log('[CHARTS] No strategy selected');
+      setDebugInfo(null);
+      return;
+    }
+
+    const strategyId = currentStrategy.id;
+    console.log('[CHARTS] Strategy changed:', {
+      strategyId,
+      previousStrategyId: lastStrategyIdRef.current,
+      hasParameters: !!currentStrategy.parameters,
+      hasChartConfig: !!currentStrategy.parameters?.chart_config,
+      chartConfig: currentStrategy.parameters?.chart_config
+    });
+
+    // Load saved chart type from strategy config
+    if (currentStrategy.parameters?.chart_config?.chartType) {
+      const savedChartType = currentStrategy.parameters.chart_config.chartType as ChartDataType;
+      console.log('[CHARTS] Loading saved chart type from strategy:', savedChartType);
+      setChartType(savedChartType);
+    } else {
+      // Default to 'live' if no saved config
+      console.log('[CHARTS] No saved chart config, using default: live');
+      setChartType('live');
+    }
+
+    lastStrategyIdRef.current = strategyId;
+
+    // Fetch backtest jobs count for debugging
+    fetchBacktestJobsCount(strategyId);
+  }, [currentStrategy?.id]);
+
   // Load chart data based on type
   useEffect(() => {
-    if (!currentStrategy?.id || !chartRef.current || !candlestickSeriesRef.current) return;
+    if (!currentStrategy?.id || !chartRef.current || !candlestickSeriesRef.current) {
+      console.log('[CHARTS] Skipping load - missing requirements:', {
+        hasStrategyId: !!currentStrategy?.id,
+        hasChartRef: !!chartRef.current,
+        hasCandlestickSeries: !!candlestickSeriesRef.current
+      });
+      return;
+    }
+
+    console.log('[CHARTS] Loading chart data:', {
+      strategyId: currentStrategy.id,
+      chartType,
+      marketType
+    });
 
     loadChartData(chartType);
   }, [chartType, currentStrategy?.id, marketType]);
 
-  const loadChartData = async (type: ChartDataType) => {
+  // Save chart configuration when chart type changes
+  const saveChartConfig = useCallback(async (newChartType: ChartDataType) => {
     if (!currentStrategy?.id) return;
+
+    try {
+      const currentParams = currentStrategy.parameters || {};
+      const chartConfig = {
+        ...currentParams.chart_config,
+        chartType: newChartType,
+        lastUpdated: new Date().toISOString()
+      };
+
+      console.log('[CHARTS] Saving chart configuration:', {
+        strategyId: currentStrategy.id,
+        chartType: newChartType,
+        chartConfig
+      });
+
+      await updateStrategy(
+        currentStrategy.id,
+        {
+          parameters: {
+            ...currentParams,
+            chart_config: chartConfig
+          }
+        },
+        true // auto_save
+      );
+
+      console.log('[CHARTS] Chart configuration saved successfully');
+      
+      // Refresh strategy to get updated config
+      if (onStrategyUpdate) {
+        onStrategyUpdate();
+      }
+    } catch (err: any) {
+      console.error('[CHARTS] Failed to save chart configuration:', err);
+    }
+  }, [currentStrategy?.id, onStrategyUpdate]);
+
+  // Fetch backtest jobs count for debugging
+  const fetchBacktestJobsCount = async (strategyId: string) => {
+    try {
+      console.log('[CHARTS] Fetching backtest jobs for strategy:', strategyId);
+      const response = await apiClient.get(`/api/backtesting/jobs?strategy_id=${strategyId}&limit=10`);
+      const jobs = response.data.jobs || [];
+      setBacktestJobsCount(jobs.length);
+      console.log('[CHARTS] Found backtest jobs:', {
+        strategyId,
+        count: jobs.length,
+        jobs: jobs.map((j: any) => ({
+          job_id: j.job_id || j.id,
+          status: j.status,
+          created_at: j.created_at
+        }))
+      });
+    } catch (err: any) {
+      console.error('[CHARTS] Error fetching backtest jobs:', err);
+      setBacktestJobsCount(null);
+    }
+  };
+
+  const loadChartData = async (type: ChartDataType) => {
+    if (!currentStrategy?.id) {
+      console.warn('[CHARTS] Cannot load chart data - no strategy ID');
+      return;
+    }
+
+    const strategyId = currentStrategy.id;
+    console.log('[CHARTS] ========================================');
+    console.log('[CHARTS] Loading chart data:', {
+      strategyId,
+      chartType: type,
+      marketType,
+      timestamp: new Date().toISOString()
+    });
 
     setLoading(true);
     setError(null);
+    setDebugInfo({
+      strategyId,
+      chartType: type,
+      dataPoints: 0,
+      dataSource: 'loading...',
+      symbol: currentStrategy.parameters?.symbol,
+      exchange: currentStrategy.parameters?.exchange,
+      backtestJobs: backtestJobsCount || undefined,
+      lastUpdated: new Date().toISOString()
+    });
 
     try {
       let data: OHLCDataPoint[] = [];
+      let dataSource = '';
 
       switch (type) {
         case 'live':
+          console.log('[CHARTS] Fetching LIVE market data...');
           data = await fetchLiveMarketData();
+          dataSource = 'Live Market Data API';
           break;
         case 'mock':
+          console.log('[CHARTS] Fetching MOCK run data...');
           data = await fetchMockRunData();
+          dataSource = 'Mock Run Data API';
           break;
         case 'backtest':
+          console.log('[CHARTS] Fetching BACKTEST data...');
           data = await fetchBacktestData();
+          dataSource = 'Backtest Historical Data API';
           break;
       }
+
+      console.log('[CHARTS] Data fetched:', {
+        strategyId,
+        chartType: type,
+        dataPoints: data.length,
+        dataSource,
+        firstDataPoint: data[0] ? {
+          date: data[0].date,
+          open: data[0].open,
+          close: data[0].close
+        } : null,
+        lastDataPoint: data[data.length - 1] ? {
+          date: data[data.length - 1].date,
+          open: data[data.length - 1].open,
+          close: data[data.length - 1].close
+        } : null
+      });
 
       if (data.length > 0 && candlestickSeriesRef.current && volumeSeriesRef.current) {
         // Convert OHLCDataPoint to TradingView format
@@ -158,6 +331,16 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
             };
           });
 
+        console.log('[CHARTS] Setting chart data:', {
+          strategyId,
+          candlestickDataPoints: candlestickData.length,
+          volumeDataPoints: volumeData.length,
+          timeRange: {
+            start: candlestickData[0]?.time,
+            end: candlestickData[candlestickData.length - 1]?.time
+          }
+        });
+
         candlestickSeriesRef.current.setData(candlestickData);
         if (volumeData.length > 0) {
           volumeSeriesRef.current.setData(volumeData);
@@ -165,28 +348,92 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
 
         // Fit content
         chartRef.current?.timeScale().fitContent();
+
+        // Update debug info
+        setDebugInfo({
+          strategyId,
+          chartType: type,
+          dataPoints: data.length,
+          dataSource,
+          symbol: currentStrategy.parameters?.symbol,
+          exchange: currentStrategy.parameters?.exchange,
+          backtestJobs: backtestJobsCount || undefined,
+          lastUpdated: new Date().toISOString()
+        });
+
+        console.log('[CHARTS] Chart data loaded successfully:', {
+          strategyId,
+          chartType: type,
+          dataPoints: data.length,
+          dataSource
+        });
+      } else {
+        console.warn('[CHARTS] No data or chart series not ready:', {
+          strategyId,
+          dataLength: data.length,
+          hasCandlestickSeries: !!candlestickSeriesRef.current,
+          hasVolumeSeries: !!volumeSeriesRef.current
+        });
       }
     } catch (err: any) {
-      setError(err.message || 'Failed to load chart data');
-      console.error('[CHARTS] Error loading chart data:', err);
+      const errorMessage = err.message || 'Failed to load chart data';
+      setError(errorMessage);
+      console.error('[CHARTS] Error loading chart data:', {
+        strategyId,
+        chartType: type,
+        error: err,
+        errorMessage,
+        stack: err.stack
+      });
+      
+      setDebugInfo({
+        strategyId,
+        chartType: type,
+        dataPoints: 0,
+        dataSource: 'Error',
+        symbol: currentStrategy.parameters?.symbol,
+        exchange: currentStrategy.parameters?.exchange,
+        backtestJobs: backtestJobsCount || undefined,
+        lastUpdated: new Date().toISOString(),
+        errors: [errorMessage]
+      });
     } finally {
       setLoading(false);
+      console.log('[CHARTS] ========================================');
     }
   };
 
   const fetchLiveMarketData = async (): Promise<OHLCDataPoint[]> => {
     if (!currentStrategy?.parameters?.symbol) {
+      console.warn('[CHARTS] Cannot fetch live market data - no symbol in strategy parameters');
       return [];
     }
 
+    const strategyId = currentStrategy.id;
+    const symbol = currentStrategy.parameters.symbol;
+    const exchange = currentStrategy.parameters.exchange || 'NSE';
+    
+    console.log('[CHARTS] Fetching live market data:', {
+      strategyId,
+      symbol,
+      exchange,
+      marketType
+    });
+
     try {
-      const symbol = currentStrategy.parameters.symbol;
-      const exchange = currentStrategy.parameters.exchange || 'NSE';
-      
       // Get last 30 days of data
       const toDate = new Date();
       const fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - 30);
+
+      console.log('[CHARTS] Live market data request:', {
+        strategyId,
+        symbol,
+        exchange,
+        interval: 'day',
+        fromDate: fromDate.toISOString().split('T')[0],
+        toDate: toDate.toISOString().split('T')[0]
+      });
 
       const data = await getLiveMarketData(
         symbol,
@@ -196,45 +443,132 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
         toDate.toISOString().split('T')[0]
       );
 
+      console.log('[CHARTS] Live market data received:', {
+        strategyId,
+        symbol,
+        dataPoints: data.length,
+        sampleData: data.slice(0, 3)
+      });
+
       return data;
-    } catch (err) {
-      console.error('[CHARTS] Error fetching live market data:', err);
+    } catch (err: any) {
+      console.error('[CHARTS] Error fetching live market data:', {
+        strategyId,
+        symbol,
+        exchange,
+        error: err,
+        errorMessage: err.message,
+        response: err.response?.data
+      });
       // Fallback to mock data on error
+      console.log('[CHARTS] Falling back to mock data for live market');
       return generateMockData('live');
     }
   };
 
   const fetchMockRunData = async (): Promise<OHLCDataPoint[]> => {
     if (!currentStrategy?.parameters?.symbol) {
+      console.warn('[CHARTS] Cannot fetch mock run data - no symbol in strategy parameters');
       return [];
     }
 
+    const strategyId = currentStrategy.id;
+    const symbol = currentStrategy.parameters.symbol;
+    const exchange = currentStrategy.parameters.exchange || 'NSE';
+    
+    console.log('[CHARTS] Fetching mock run data:', {
+      strategyId,
+      symbol,
+      exchange
+    });
+
     try {
-      const symbol = currentStrategy.parameters.symbol;
-      const exchange = currentStrategy.parameters.exchange || 'NSE';
-      
       const data = await getMockRunData(symbol, exchange);
+      console.log('[CHARTS] Mock run data received:', {
+        strategyId,
+        symbol,
+        dataPoints: data.length
+      });
       return data;
-    } catch (err) {
-      console.error('[CHARTS] Error fetching mock run data:', err);
+    } catch (err: any) {
+      console.error('[CHARTS] Error fetching mock run data:', {
+        strategyId,
+        symbol,
+        exchange,
+        error: err,
+        errorMessage: err.message
+      });
       // Fallback to mock data on error
+      console.log('[CHARTS] Falling back to generated mock data');
       return generateMockData('mock');
     }
   };
 
   const fetchBacktestData = async (): Promise<OHLCDataPoint[]> => {
-    if (!currentStrategy?.id) return [];
+    if (!currentStrategy?.id) {
+      console.warn('[CHARTS] Cannot fetch backtest data - no strategy ID');
+      return [];
+    }
+
+    const strategyId = currentStrategy.id;
+    console.log('[CHARTS] Fetching backtest data:', {
+      strategyId,
+      backtestJobsAvailable: backtestJobsCount
+    });
 
     try {
-      const data = await getBacktestData(currentStrategy.id);
+      // First check for backtest jobs
+      try {
+        const jobsResponse = await apiClient.get(`/api/backtesting/jobs?strategy_id=${strategyId}&limit=5`);
+        const jobs = jobsResponse.data.jobs || [];
+        console.log('[CHARTS] Backtest jobs found:', {
+          strategyId,
+          jobsCount: jobs.length,
+          jobs: jobs.map((j: any) => ({
+            job_id: j.job_id || j.id,
+            status: j.status,
+            created_at: j.created_at,
+            symbol: j.symbol,
+            from_date: j.from_date,
+            to_date: j.to_date
+          }))
+        });
+
+        if (jobs.length === 0) {
+          console.warn('[CHARTS] No backtest jobs found for strategy:', strategyId);
+        }
+      } catch (jobsErr: any) {
+        console.warn('[CHARTS] Could not fetch backtest jobs list:', {
+          strategyId,
+          error: jobsErr.message
+        });
+      }
+
+      const data = await getBacktestData(strategyId);
+      console.log('[CHARTS] Backtest data received:', {
+        strategyId,
+        dataPoints: data.length,
+        hasData: data.length > 0,
+        sampleData: data.slice(0, 3)
+      });
+
       if (data.length > 0) {
         return data;
       }
+      
       // Fallback to mock data if no backtest data available
+      console.warn('[CHARTS] No backtest data available, using mock data');
       return generateMockData('backtest');
-    } catch (err) {
-      console.error('[CHARTS] Error fetching backtest data:', err);
+    } catch (err: any) {
+      console.error('[CHARTS] Error fetching backtest data:', {
+        strategyId,
+        error: err,
+        errorMessage: err.message,
+        response: err.response?.data,
+        status: err.response?.status
+      });
       // Fallback to mock data on error
+      console.log('[CHARTS] Falling back to generated mock data');
       return generateMockData('backtest');
     }
   };
@@ -281,7 +615,11 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
         <h3 className="text-lg font-semibold text-white">Charts</h3>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setChartType('live')}
+            onClick={() => {
+              console.log('[CHARTS] Switching to Live Market chart');
+              setChartType('live');
+              saveChartConfig('live');
+            }}
             className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
               chartType === 'live'
                 ? 'bg-blue-600 text-white'
@@ -291,7 +629,11 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
             Live Market
           </button>
           <button
-            onClick={() => setChartType('mock')}
+            onClick={() => {
+              console.log('[CHARTS] Switching to Mock Run chart');
+              setChartType('mock');
+              saveChartConfig('mock');
+            }}
             className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
               chartType === 'mock'
                 ? 'bg-blue-600 text-white'
@@ -301,14 +643,29 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
             Mock Run
           </button>
           <button
-            onClick={() => setChartType('backtest')}
+            onClick={() => {
+              console.log('[CHARTS] Switching to Backtest chart');
+              setChartType('backtest');
+              saveChartConfig('backtest');
+            }}
             className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
               chartType === 'backtest'
                 ? 'bg-blue-600 text-white'
                 : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
             }`}
           >
-            Backtest
+            Backtest {backtestJobsCount !== null && `(${backtestJobsCount})`}
+          </button>
+          <button
+            onClick={() => setShowDebug(!showDebug)}
+            className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+              showDebug
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            }`}
+            title="Toggle debug info"
+          >
+            🐛 Debug
           </button>
           <button
             onClick={() => loadChartData(chartType)}
@@ -357,13 +714,68 @@ export default function Charts({ currentStrategy, marketType = 'equity' }: Chart
         )}
       </div>
 
+      {/* Debug Info Panel */}
+      {showDebug && debugInfo && (
+        <div className="border-t border-gray-700 bg-gray-800 p-3 text-xs text-gray-300 flex-shrink-0 max-h-48 overflow-y-auto">
+          <div className="font-semibold text-white mb-2">🐛 Chart Debug Info</div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <span className="text-gray-500">Strategy ID:</span>
+              <span className="ml-2 font-mono text-yellow-400">{debugInfo.strategyId || 'N/A'}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Chart Type:</span>
+              <span className="ml-2 text-blue-400">{debugInfo.chartType}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Data Points:</span>
+              <span className="ml-2 text-green-400">{debugInfo.dataPoints}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Data Source:</span>
+              <span className="ml-2 text-purple-400">{debugInfo.dataSource}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Symbol:</span>
+              <span className="ml-2">{debugInfo.symbol || 'N/A'}</span>
+            </div>
+            <div>
+              <span className="text-gray-500">Exchange:</span>
+              <span className="ml-2">{debugInfo.exchange || 'N/A'}</span>
+            </div>
+            {debugInfo.backtestJobs !== undefined && (
+              <div>
+                <span className="text-gray-500">Backtest Jobs:</span>
+                <span className="ml-2 text-cyan-400">{debugInfo.backtestJobs}</span>
+              </div>
+            )}
+            <div>
+              <span className="text-gray-500">Last Updated:</span>
+              <span className="ml-2 text-gray-400">{debugInfo.lastUpdated ? new Date(debugInfo.lastUpdated).toLocaleTimeString() : 'N/A'}</span>
+            </div>
+            {debugInfo.errors && debugInfo.errors.length > 0 && (
+              <div className="col-span-2">
+                <span className="text-red-400">Errors:</span>
+                <ul className="list-disc list-inside ml-2 text-red-300">
+                  {debugInfo.errors.map((err, idx) => (
+                    <li key={idx}>{err}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Chart Info */}
       {currentStrategy?.id && !loading && !error && (
         <div className="border-t border-gray-700 p-2 flex items-center justify-between text-xs text-gray-400 flex-shrink-0">
           <div className="flex gap-4">
+            <span>Strategy ID: <span className="font-mono text-yellow-400">{currentStrategy.id}</span></span>
             <span>Symbol: {currentStrategy.parameters?.symbol || 'N/A'}</span>
             <span>Exchange: {currentStrategy.parameters?.exchange || 'N/A'}</span>
             <span>Type: {chartType === 'live' ? 'Live Market Data' : chartType === 'mock' ? 'Mock Run Data' : 'Backtest Data'}</span>
+            {debugInfo && <span>Data Points: {debugInfo.dataPoints}</span>}
           </div>
           <div className="text-gray-500">
             Powered by TradingView Lightweight Charts
