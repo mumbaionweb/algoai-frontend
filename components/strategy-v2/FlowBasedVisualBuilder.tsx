@@ -39,22 +39,68 @@ export default function FlowBasedVisualBuilder({
 
   // Initialize flow from strategy model
   useEffect(() => {
+    console.log('[FLOW_BUILDER] ========================================');
+    console.log('[FLOW_BUILDER] Initializing flow from strategy model:', {
+      strategyId: currentStrategy?.id,
+      hasStrategyModel: !!currentStrategy?.strategy_model,
+      strategyModelType: currentStrategy?.strategy_model ? typeof currentStrategy.strategy_model : 'none',
+      timestamp: new Date().toISOString()
+    });
+
     if (currentStrategy?.strategy_model) {
       const model = currentStrategy.strategy_model as FlowBasedStrategyModel;
+      console.log('[FLOW_BUILDER] Strategy model details:', {
+        strategyId: currentStrategy.id,
+        hasFlow: !!model.flow,
+        flowIsArray: Array.isArray(model.flow),
+        flowLength: model.flow?.length || 0,
+        modelKeys: Object.keys(model),
+        meta: model.meta
+      });
+
       if (model.flow && Array.isArray(model.flow)) {
         // Sort by order
         const sortedFlow = [...model.flow].sort((a, b) => 
           (a.order || 0) - (b.order || 0)
         );
+        console.log('[FLOW_BUILDER] ✅ Loaded flow from model:', {
+          strategyId: currentStrategy.id,
+          flowSteps: sortedFlow.length,
+          steps: sortedFlow.map(s => ({
+            id: s.id,
+            type: s.type,
+            order: s.order,
+            title: s.title
+          }))
+        });
         setFlow(sortedFlow);
       } else {
         // Convert legacy model to flow (if needed)
+        console.log('[FLOW_BUILDER] Converting legacy model to flow:', {
+          strategyId: currentStrategy.id,
+          modelStructure: Object.keys(model)
+        });
         const convertedFlow = convertLegacyModelToFlow(model);
+        console.log('[FLOW_BUILDER] ✅ Converted legacy model to flow:', {
+          strategyId: currentStrategy.id,
+          convertedSteps: convertedFlow.length,
+          steps: convertedFlow.map(s => ({
+            id: s.id,
+            type: s.type,
+            order: s.order
+          }))
+        });
         setFlow(convertedFlow);
       }
     } else {
+      console.log('[FLOW_BUILDER] ⚠️ No strategy model found:', {
+        strategyId: currentStrategy?.id,
+        hasStrategy: !!currentStrategy,
+        message: 'Flow will be empty. Strategy model will be created when code is generated or flow is saved.'
+      });
       setFlow([]);
     }
+    console.log('[FLOW_BUILDER] ========================================');
   }, [currentStrategy?.strategy_model]);
 
   // Debounce flow changes for auto-save
@@ -62,7 +108,22 @@ export default function FlowBasedVisualBuilder({
 
   // Save flow function
   const saveFlow = useCallback(async (flowToSave: FlowStep[], generateCode: boolean = false) => {
-    if (!currentStrategy?.id) return;
+    if (!currentStrategy?.id) {
+      console.warn('[FLOW_BUILDER] Cannot save flow - no strategy ID');
+      return;
+    }
+
+    console.log('[FLOW_BUILDER] Saving flow:', {
+      strategyId: currentStrategy.id,
+      flowSteps: flowToSave.length,
+      generateCode,
+      steps: flowToSave.map(s => ({
+        id: s.id,
+        type: s.type,
+        order: s.order,
+        title: s.title
+      }))
+    });
 
     setIsSaving(true);
     if (generateCode) {
@@ -78,18 +139,38 @@ export default function FlowBasedVisualBuilder({
         flow: flowToSave,
       };
 
+      console.log('[FLOW_BUILDER] Calling updateVisualBuilderModel:', {
+        strategyId: currentStrategy.id,
+        modelMeta: model.meta,
+        flowLength: model.flow.length,
+        generateCode
+      });
+
       await updateVisualBuilderModel(currentStrategy.id, model, generateCode);
+
+      console.log('[FLOW_BUILDER] ✅ Flow saved successfully:', {
+        strategyId: currentStrategy.id,
+        generateCode,
+        flowSteps: flowToSave.length
+      });
 
       // Refresh strategy to get updated code
       if (generateCode) {
+        console.log('[FLOW_BUILDER] Code generation requested, refreshing strategy in 500ms...');
         setTimeout(() => {
           onStrategyUpdate();
         }, 500);
       }
 
       onModelChange?.(model);
-    } catch (error) {
-      console.error('[FLOW_BUILDER] Failed to save flow:', error);
+    } catch (error: any) {
+      console.error('[FLOW_BUILDER] ❌ Failed to save flow:', {
+        strategyId: currentStrategy.id,
+        error: error,
+        errorMessage: error.message,
+        errorResponse: error.response?.data,
+        stack: error.stack
+      });
     } finally {
       setIsSaving(false);
       setIsGeneratingCode(false);

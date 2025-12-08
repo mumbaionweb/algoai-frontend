@@ -58,8 +58,25 @@ export async function getLiveMarketData(
       close: point.close,
       volume: point.volume,
     }));
-  } catch (error) {
-    console.error('[CHARTS] Error fetching live market data:', error);
+  } catch (error: any) {
+    const errorDetail = error.response?.data?.detail || error.message || 'Unknown error';
+    const statusCode = error.response?.status;
+    const isOAuthError = errorDetail.includes('Access token') || errorDetail.includes('OAuth') || errorDetail.includes('broker account');
+    
+    console.error('[CHARTS] ❌ Error fetching live market data:', {
+      symbol,
+      exchange,
+      interval,
+      fromDate,
+      toDate,
+      statusCode,
+      errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
+      errorMessage: error.message,
+      errorDetail,
+      responseData: error.response?.data,
+      fullError: error
+    });
+    
     throw error;
   }
 }

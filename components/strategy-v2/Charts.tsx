@@ -376,14 +376,30 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
         });
       }
     } catch (err: any) {
-      const errorMessage = err.message || 'Failed to load chart data';
-      setError(errorMessage);
-      console.error('[CHARTS] Error loading chart data:', {
+      const errorDetail = err.response?.data?.detail || err.message || 'Failed to load chart data';
+      const statusCode = err.response?.status;
+      const isOAuthError = errorDetail.includes('Access token') || errorDetail.includes('OAuth') || errorDetail.includes('broker account');
+      
+      // Error message should already be set by fetchLiveMarketData or other fetch functions
+      // But set a fallback if not set
+      if (!error) {
+        if (isOAuthError) {
+          setError('Broker account not connected. Please complete OAuth flow to view live market data.');
+        } else {
+          setError(errorDetail);
+        }
+      }
+      
+      console.error('[CHARTS] ❌ Error loading chart data:', {
         strategyId,
         chartType: type,
-        error: err,
-        errorMessage,
-        stack: err.stack
+        statusCode,
+        errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
+        errorMessage: err.message,
+        errorDetail,
+        responseData: err.response?.data,
+        stack: err.stack,
+        fullError: err
       });
       
       setDebugInfo({
@@ -395,7 +411,7 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
         exchange: currentStrategy.parameters?.exchange,
         backtestJobs: backtestJobsCount || undefined,
         lastUpdated: new Date().toISOString(),
-        errors: [errorMessage]
+        errors: [errorDetail]
       });
     } finally {
       setLoading(false);
@@ -406,6 +422,8 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
   const fetchLiveMarketData = async (): Promise<OHLCDataPoint[]> => {
     if (!currentStrategy?.parameters?.symbol) {
       console.warn('[CHARTS] Cannot fetch live market data - no symbol in strategy parameters');
+      const errorMsg = 'No symbol configured in strategy parameters. Please set a symbol to view live market data.';
+      setError(errorMsg);
       return [];
     }
 
@@ -413,11 +431,13 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
     const symbol = currentStrategy.parameters.symbol;
     const exchange = currentStrategy.parameters.exchange || 'NSE';
     
+    console.log('[CHARTS] ========================================');
     console.log('[CHARTS] Fetching live market data:', {
       strategyId,
       symbol,
       exchange,
-      marketType
+      marketType,
+      timestamp: new Date().toISOString()
     });
 
     try {
@@ -426,13 +446,14 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
       const fromDate = new Date();
       fromDate.setDate(fromDate.getDate() - 30);
 
-      console.log('[CHARTS] Live market data request:', {
+      console.log('[CHARTS] Live market data request details:', {
         strategyId,
         symbol,
         exchange,
         interval: 'day',
         fromDate: fromDate.toISOString().split('T')[0],
-        toDate: toDate.toISOString().split('T')[0]
+        toDate: toDate.toISOString().split('T')[0],
+        dateRange: `${fromDate.toISOString().split('T')[0]} to ${toDate.toISOString().split('T')[0]}`
       });
 
       const data = await getLiveMarketData(
@@ -443,26 +464,57 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
         toDate.toISOString().split('T')[0]
       );
 
-      console.log('[CHARTS] Live market data received:', {
-        strategyId,
-        symbol,
-        dataPoints: data.length,
-        sampleData: data.slice(0, 3)
-      });
-
-      return data;
-    } catch (err: any) {
-      console.error('[CHARTS] Error fetching live market data:', {
+      console.log('[CHARTS] ✅ Live market data received successfully:', {
         strategyId,
         symbol,
         exchange,
-        error: err,
-        errorMessage: err.message,
-        response: err.response?.data
+        dataPoints: data.length,
+        sampleData: data.slice(0, 3),
+        dataRange: data.length > 0 ? {
+          first: data[0].date,
+          last: data[data.length - 1].date
+        } : null
       });
-      // Fallback to mock data on error
-      console.log('[CHARTS] Falling back to mock data for live market');
-      return generateMockData('live');
+
+      // Clear any previous errors
+      setError(null);
+      return data;
+    } catch (err: any) {
+      const errorDetail = err.response?.data?.detail || err.message || 'Unknown error';
+      const statusCode = err.response?.status;
+      const isOAuthError = errorDetail.includes('Access token') || errorDetail.includes('OAuth') || errorDetail.includes('broker account');
+      
+      console.error('[CHARTS] ❌ Error fetching live market data:', {
+        strategyId,
+        symbol,
+        exchange,
+        statusCode,
+        errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
+        errorMessage: err.message,
+        errorDetail,
+        responseData: err.response?.data,
+        fullError: err
+      });
+
+      // Set user-friendly error message
+      if (isOAuthError) {
+        const oauthErrorMsg = 'Broker account not connected. Please complete OAuth flow to connect your broker account and view live market data.';
+        setError(oauthErrorMsg);
+        console.warn('[CHARTS] ⚠️ OAuth error detected - user needs to connect broker account');
+      } else if (statusCode === 400) {
+        setError(`Failed to fetch market data: ${errorDetail}`);
+      } else if (statusCode === 404) {
+        setError(`Market data not found for ${symbol} on ${exchange}. Please check the symbol and exchange.`);
+      } else if (statusCode === 500) {
+        setError('Server error while fetching market data. Please try again later.');
+      } else {
+        setError(`Failed to fetch live market data: ${errorDetail}`);
+      }
+
+      // Don't fallback to mock data automatically - let user see the error
+      // Only return empty array so error is visible
+      console.log('[CHARTS] Not falling back to mock data - showing error to user');
+      throw err; // Re-throw to let loadChartData handle it
     }
   };
 
@@ -695,14 +747,37 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
 
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-gray-900/80 z-10">
-            <div className="text-center p-4">
-              <p className="text-red-400 mb-2">{error}</p>
-              <button
-                onClick={() => loadChartData(chartType)}
-                className="px-3 py-1.5 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-              >
-                Retry
-              </button>
+            <div className="text-center p-6 max-w-md">
+              <div className="mb-4">
+                <svg className="w-12 h-12 text-red-400 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <p className="text-red-400 font-medium mb-2">{error}</p>
+                {error.includes('OAuth') || error.includes('broker account') ? (
+                  <div className="mt-4 space-y-2">
+                    <p className="text-sm text-gray-400">
+                      To view live market data, you need to connect your broker account.
+                    </p>
+                    <a
+                      href="/dashboard/broker-credentials"
+                      className="inline-block px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+                    >
+                      Connect Broker Account
+                    </a>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => {
+                      console.log('[CHARTS] Retrying chart data load:', { chartType });
+                      setError(null);
+                      loadChartData(chartType);
+                    }}
+                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         )}
