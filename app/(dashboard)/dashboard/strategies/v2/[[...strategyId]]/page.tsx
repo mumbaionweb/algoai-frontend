@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useAuthStore } from '@/store/authStore';
 import { useRouter, useParams } from 'next/navigation';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
@@ -19,6 +19,7 @@ function StrategyV2PageContent() {
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [currentStrategy, setCurrentStrategy] = useState<Strategy | null>(null);
   const [actionError, setActionError] = useState<string>('');
+  const previousStrategyIdRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
@@ -28,15 +29,61 @@ function StrategyV2PageContent() {
     }
   }, [isAuthenticated, isInitialized, router]);
 
+  // Update current strategy when URL parameter or strategies change
   useEffect(() => {
-    if (strategyId && strategies.length > 0) {
-      const strategy = strategies.find(s => s.id === strategyId);
-      setCurrentStrategy(strategy || null);
-    } else if (!strategyId && strategies.length > 0) {
-      // Default: create new strategy
-      setCurrentStrategy(null);
+    // Skip if strategies haven't loaded yet
+    if (strategies.length === 0) {
+      return;
     }
-  }, [strategyId, strategies]);
+
+    console.log('[STRATEGY_V2] URL parameter effect:', {
+      strategyId,
+      previousStrategyId: previousStrategyIdRef.current,
+      strategiesCount: strategies.length,
+      currentStrategyId: currentStrategy?.id,
+      strategyIds: strategies.map(s => s.id),
+      timestamp: new Date().toISOString()
+    });
+
+    // Only update if strategyId changed or if we don't have a current strategy yet
+    const strategyIdChanged = previousStrategyIdRef.current !== strategyId;
+    const needsUpdate = strategyIdChanged || !currentStrategy;
+
+    if (!needsUpdate) {
+      console.log('[STRATEGY_V2] No update needed - strategyId unchanged and currentStrategy exists');
+      return;
+    }
+
+    previousStrategyIdRef.current = strategyId;
+
+    if (strategyId) {
+      const strategy = strategies.find(s => s.id === strategyId);
+      console.log('[STRATEGY_V2] Finding strategy:', {
+        lookingFor: strategyId,
+        found: strategy ? strategy.id : null,
+        strategyName: strategy?.name || null,
+        currentStrategyId: currentStrategy?.id
+      });
+      
+      if (strategy) {
+        // Always update if strategyId changed, or if currentStrategy doesn't match
+        if (strategyIdChanged || currentStrategy?.id !== strategy.id) {
+          console.log('[STRATEGY_V2] Setting current strategy:', strategy.id);
+          setCurrentStrategy(strategy);
+        }
+      } else {
+        // Strategy not found in list - might be deleted
+        console.log('[STRATEGY_V2] Strategy not found in list, clearing selection');
+        setCurrentStrategy(null);
+      }
+    } else {
+      // No strategy ID in URL - clear selection
+      if (strategyIdChanged || currentStrategy !== null) {
+        console.log('[STRATEGY_V2] No strategy ID in URL, clearing selection');
+        setCurrentStrategy(null);
+      }
+    }
+  }, [strategyId, strategies, currentStrategy]);
 
   const loadStrategies = async () => {
     try {
@@ -140,10 +187,27 @@ function StrategyV2PageContent() {
           strategies={strategies}
           currentStrategy={currentStrategy}
           onStrategyChange={(strategy) => {
+            console.log('[STRATEGY_V2] Strategy change requested:', {
+              strategyId: strategy?.id,
+              currentUrl: window.location.pathname,
+              timestamp: new Date().toISOString()
+            });
+            
             if (strategy) {
-              router.push(`/dashboard/strategies/v2/${strategy.id}`);
+              const newUrl = `/dashboard/strategies/v2/${strategy.id}`;
+              // Only navigate if URL is different to prevent unnecessary re-renders
+              if (window.location.pathname !== newUrl) {
+                console.log('[STRATEGY_V2] Navigating to:', newUrl);
+                router.push(newUrl);
+              } else {
+                console.log('[STRATEGY_V2] Already on this URL, skipping navigation');
+              }
             } else {
-              router.push('/dashboard/strategies/v2');
+              const newUrl = '/dashboard/strategies/v2';
+              if (window.location.pathname !== newUrl) {
+                console.log('[STRATEGY_V2] Navigating to new strategy:', newUrl);
+                router.push(newUrl);
+              }
             }
           }}
           onStrategiesUpdate={loadStrategies}

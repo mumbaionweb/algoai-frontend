@@ -469,7 +469,7 @@ class MyStrategy(bt.Strategy):
                           });
                           
                           // Navigate to the new strategy page
-                          router.push(`/strategies/${newStrategy.id}`);
+                          router.push(`/dashboard/strategies/v2/${newStrategy.id}`);
                         } catch (err: any) {
                           console.error('Failed to create strategy:', err);
                           // Fallback to the old route if creation fails

@@ -22,6 +22,13 @@ function StrategyPageContent() {
   const [actionError, setActionError] = useState<string>('');
 
   useEffect(() => {
+    // Redirect old route to new v2 route
+    if (strategyId) {
+      console.log('[STRATEGY_OLD] Redirecting from old route to v2 route:', strategyId);
+      router.replace(`/dashboard/strategies/v2/${strategyId}`);
+      return;
+    }
+    
     if (isInitialized && !isAuthenticated) {
       router.push('/login');
     } else if (isInitialized && isAuthenticated && strategyId) {
@@ -166,10 +173,19 @@ function StrategyPageContent() {
           strategies={strategies}
           currentStrategy={currentStrategy}
           onStrategyChange={(strategy) => {
+            console.log('[STRATEGY_OLD] Strategy change requested:', {
+              strategyId: strategy?.id,
+              currentUrl: window.location.pathname,
+              timestamp: new Date().toISOString()
+            });
+            
             if (strategy) {
-              router.push(`/strategies/${strategy.id}`);
+              // Redirect to the correct v2 route instead of old route
+              const newUrl = `/dashboard/strategies/v2/${strategy.id}`;
+              console.log('[STRATEGY_OLD] Redirecting to v2 route:', newUrl);
+              router.push(newUrl);
             } else {
-              router.push('/dashboard/strategies');
+              router.push('/dashboard/strategies/v2');
             }
           }}
           onStrategiesUpdate={() => {
