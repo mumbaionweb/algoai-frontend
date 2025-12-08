@@ -759,7 +759,7 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
                       To view live market data, you need to connect your broker account.
                     </p>
                     <a
-                      href="/dashboard/broker-credentials"
+                      href="/dashboard/broker"
                       className="inline-block px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
                     >
                       Connect Broker Account

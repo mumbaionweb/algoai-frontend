@@ -663,12 +663,33 @@ function getDefaultData(type: FlowStep['type']): FlowStep['data'] {
 }
 
 function convertLegacyModelToFlow(model: any): FlowStep[] {
+  console.log('[FLOW_BUILDER] Converting legacy model to flow - Full model structure:', {
+    modelKeys: Object.keys(model),
+    modelType: typeof model,
+    modelValue: model,
+    hasIndicators: !!model.indicators,
+    hasEntries: !!model.entries,
+    hasRisk: !!model.risk,
+    indicatorsType: typeof model.indicators,
+    indicatorsIsArray: Array.isArray(model.indicators),
+    indicatorsLength: model.indicators?.length,
+    entriesType: typeof model.entries,
+    entriesIsArray: Array.isArray(model.entries),
+    entriesLength: model.entries?.length,
+    riskType: typeof model.risk,
+    riskKeys: model.risk ? Object.keys(model.risk) : null
+  });
+
   // Convert legacy model structure to flow
   const flow: FlowStep[] = [];
   let order = 1;
 
   // Add indicators
-  if (model.indicators) {
+  if (model.indicators && Array.isArray(model.indicators)) {
+    console.log('[FLOW_BUILDER] Processing indicators:', {
+      count: model.indicators.length,
+      indicators: model.indicators
+    });
     model.indicators.forEach((ind: any, idx: number) => {
       flow.push({
         id: `ind_${idx}`,
@@ -683,10 +704,19 @@ function convertLegacyModelToFlow(model: any): FlowStep[] {
         depends_on: [],
       });
     });
+  } else {
+    console.log('[FLOW_BUILDER] No indicators found or not an array:', {
+      indicators: model.indicators,
+      isArray: Array.isArray(model.indicators)
+    });
   }
 
   // Add entries
-  if (model.entries) {
+  if (model.entries && Array.isArray(model.entries)) {
+    console.log('[FLOW_BUILDER] Processing entries:', {
+      count: model.entries.length,
+      entries: model.entries
+    });
     model.entries.forEach((entry: any, idx: number) => {
       flow.push({
         id: `entry_${idx}`,
@@ -699,10 +729,16 @@ function convertLegacyModelToFlow(model: any): FlowStep[] {
         depends_on: [],
       });
     });
+  } else {
+    console.log('[FLOW_BUILDER] No entries found or not an array:', {
+      entries: model.entries,
+      isArray: Array.isArray(model.entries)
+    });
   }
 
   // Add actions (buy)
-  if (model.entries && model.entries.length > 0) {
+  if (model.entries && Array.isArray(model.entries) && model.entries.length > 0) {
+    console.log('[FLOW_BUILDER] Adding buy action');
     flow.push({
       id: 'action_buy',
       type: 'action',
@@ -718,6 +754,11 @@ function convertLegacyModelToFlow(model: any): FlowStep[] {
 
   // Add risk
   if (model.risk) {
+    console.log('[FLOW_BUILDER] Processing risk:', {
+      risk: model.risk,
+      hasStopLoss: !!model.risk.stop_loss_pct,
+      stopLossValue: model.risk.stop_loss_pct
+    });
     if (model.risk.stop_loss_pct) {
       flow.push({
         id: 'risk_stop_loss',
@@ -731,7 +772,19 @@ function convertLegacyModelToFlow(model: any): FlowStep[] {
         depends_on: ['action_buy'],
       });
     }
+  } else {
+    console.log('[FLOW_BUILDER] No risk found');
   }
+
+  console.log('[FLOW_BUILDER] Legacy conversion result:', {
+    totalSteps: flow.length,
+    steps: flow.map(s => ({
+      id: s.id,
+      type: s.type,
+      order: s.order,
+      title: s.title
+    }))
+  });
 
   return flow;
 }

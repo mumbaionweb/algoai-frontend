@@ -154,29 +154,34 @@ export function useBacktestJobsSSE({
     eventSource.onerror = (err) => {
       // Don't reconnect if intentionally closed (e.g., due to 401)
       if (isIntentionallyClosedRef.current) {
-        console.log('🔌 SSE connection error (intentionally closed, not reconnecting)');
+        // Silently ignore - connection was intentionally closed
         return;
       }
       
-      console.error('EventSource error:', err);
-      
       // If connection closes immediately without receiving connection event, likely 401
       if (eventSource.readyState === EventSource.CLOSED && !hasReceivedConnectionRef.current) {
-        console.error('❌ SSE connection closed immediately - likely 401 Unauthorized');
+        console.error('[SSE_JOBS] ❌ Connection closed immediately - likely 401 Unauthorized');
         setError('Authentication failed. Please refresh the page.');
         setLoading(false);
         isIntentionallyClosedRef.current = true;
         return;
       }
       
+      // Only log errors that are actually problematic
       if (eventSource.readyState === EventSource.CLOSED) {
         if (!isIntentionallyClosedRef.current) {
-          setError('Connection closed. Attempting to reconnect...');
-          setLoading(false);
+          // Connection closed but we had a successful connection - this is normal
+          // SSE will auto-reconnect, so we don't need to log every closure
+          console.log('[SSE_JOBS] 🔌 Connection closed (will auto-reconnect)');
         }
       } else if (eventSource.readyState === EventSource.CONNECTING) {
-        console.log('🔄 SSE reconnecting...');
+        console.log('[SSE_JOBS] 🔄 Reconnecting...');
       } else {
+        // Only log actual errors, not normal closures
+        console.error('[SSE_JOBS] ❌ Connection error:', {
+          readyState: eventSource.readyState,
+          error: err
+        });
         setError('Failed to connect to job listings');
         setLoading(false);
       }

@@ -229,15 +229,15 @@ export class HistoricalDataSSEClient {
           }
           
           if (this.eventSource?.readyState === EventSource.CONNECTING) {
-            console.log('🔄 SSE reconnecting...');
+            // Reconnecting - this is normal, don't log every time
           } else if (this.eventSource?.readyState === EventSource.CLOSED) {
+            // Connection closed - SSE will auto-reconnect, don't log normal closures
             if (!this.isIntentionallyClosed && !this.isStreamComplete) {
-              console.log('🔌 SSE connection closed (will auto-reconnect)');
-            } else if (this.isStreamComplete) {
-              console.log('🔌 SSE connection closed (stream complete, not reconnecting)');
+              // Normal closure - will auto-reconnect silently
             }
           } else {
-            console.error('❌ SSE connection error');
+            // Only log actual errors, not normal closures
+            console.error('[SSE_HISTORICAL] ❌ Connection error');
             if (!this.isStreamComplete) {
               onError({
                 error: 'connection_error',
@@ -249,13 +249,11 @@ export class HistoricalDataSSEClient {
       });
 
       this.eventSource.onerror = (error) => {
-        // Only log if stream is not complete
-        if (!this.isStreamComplete) {
-          console.error('❌ SSE onerror:', error);
-          // SSE will auto-reconnect unless stream is complete
-        } else {
-          console.log('🔌 SSE onerror (stream complete, ignoring):', error);
+        // Only log if stream is not complete and it's an actual error (not normal closure)
+        if (!this.isStreamComplete && this.eventSource?.readyState !== EventSource.CLOSED) {
+          console.error('[SSE_HISTORICAL] ❌ Connection error:', error);
         }
+        // SSE will auto-reconnect unless stream is complete
       };
 
     } catch (error) {
@@ -436,15 +434,15 @@ export class MultiIntervalHistoricalDataSSEClient {
           }
           
           if (this.eventSource?.readyState === EventSource.CONNECTING) {
-            console.log('🔄 SSE reconnecting...');
+            // Reconnecting - this is normal, don't log every time
           } else if (this.eventSource?.readyState === EventSource.CLOSED) {
+            // Connection closed - SSE will auto-reconnect, don't log normal closures
             if (!this.isIntentionallyClosed && !this.isStreamComplete) {
-              console.log('🔌 SSE connection closed (will auto-reconnect)');
-            } else if (this.isStreamComplete) {
-              console.log('🔌 SSE connection closed (stream complete, not reconnecting)');
+              // Normal closure - will auto-reconnect silently
             }
           } else {
-            console.error('❌ SSE connection error');
+            // Only log actual errors, not normal closures
+            console.error('[SSE_HISTORICAL] ❌ Connection error');
             if (!this.isStreamComplete) {
               onError({
                 error: 'connection_error',
@@ -456,13 +454,11 @@ export class MultiIntervalHistoricalDataSSEClient {
       });
 
       this.eventSource.onerror = (error) => {
-        // Only log if stream is not complete
-        if (!this.isStreamComplete) {
-          console.error('❌ SSE onerror:', error);
-          // SSE will auto-reconnect unless stream is complete
-        } else {
-          console.log('🔌 SSE onerror (stream complete, ignoring):', error);
+        // Only log if stream is not complete and it's an actual error (not normal closure)
+        if (!this.isStreamComplete && this.eventSource?.readyState !== EventSource.CLOSED) {
+          console.error('[SSE_HISTORICAL] ❌ Connection error:', error);
         }
+        // SSE will auto-reconnect unless stream is complete
       };
 
     } catch (error) {
