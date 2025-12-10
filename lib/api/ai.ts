@@ -29,6 +29,34 @@ export interface ChatResponse {
     model: string;
     timestamp: string;
     has_code?: boolean;
+    fetched_symbol?: string;
+    fetched_exchange?: string;
+    chart_data?: {
+      symbol: string;
+      exchange: string;
+      interval: string;
+      from_date: string;
+      to_date: string;
+      data_points: Array<{
+        date: string;
+        open: number;
+        high: number;
+        low: number;
+        close: number;
+        volume?: number;
+      }>;
+      summary?: {
+        total_points: number;
+        date_range: {
+          from: string;
+          to: string;
+        };
+        latest_price: number;
+        highest: number;
+        lowest: number;
+      };
+      chart_request_detected: boolean;
+    };
   };
 }
 

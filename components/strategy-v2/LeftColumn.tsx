@@ -10,9 +10,26 @@ interface LeftColumnProps {
   onStrategyUpdate: () => void;
   marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
   onCodeReceived?: (code: string) => void; // Callback when AI returns code
+  onChartGenerated?: (chartData: {
+    data_points: any[];
+    symbol: string;
+    exchange: string;
+    interval: string;
+    from_date: string;
+    to_date: string;
+    summary?: any;
+  }, insights: string) => void; // Callback when AI returns chart data
+  onSwitchToCharts?: () => void; // Callback to switch to Charts tab
 }
 
-export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketType = 'equity', onCodeReceived }: LeftColumnProps) {
+export default function LeftColumn({ 
+  currentStrategy, 
+  onStrategyUpdate, 
+  marketType = 'equity', 
+  onCodeReceived,
+  onChartGenerated,
+  onSwitchToCharts
+}: LeftColumnProps) {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -74,8 +91,46 @@ export default function LeftColumn({ currentStrategy, onStrategyUpdate, marketTy
         has_strategy_code: !!result.strategy_code,
         strategy_code_length: result.strategy_code?.length || 0,
         has_strategy_id: !!currentStrategy?.id,
-        has_onCodeReceived: !!onCodeReceived
+        has_onCodeReceived: !!onCodeReceived,
+        has_chart_data: !!result.metadata?.chart_data,
+        chart_data_symbol: result.metadata?.chart_data?.symbol
       });
+
+      // Check if chart data was returned
+      if (result.metadata?.chart_data && result.metadata.chart_data.chart_request_detected) {
+        const chartData = result.metadata.chart_data;
+        console.log('[AI_CHAT] Chart data detected in response:', {
+          symbol: chartData.symbol,
+          exchange: chartData.exchange,
+          interval: chartData.interval,
+          dataPoints: chartData.data_points?.length || 0,
+          hasSummary: !!chartData.summary
+        });
+
+        // Pass chart data to parent component
+        if (onChartGenerated) {
+          onChartGenerated(
+            {
+              data_points: chartData.data_points || [],
+              symbol: chartData.symbol,
+              exchange: chartData.exchange,
+              interval: chartData.interval,
+              from_date: chartData.from_date,
+              to_date: chartData.to_date,
+              summary: chartData.summary
+            },
+            result.response // Use AI response as insights
+          );
+        }
+
+        // Switch to Charts tab if callback is available
+        if (onSwitchToCharts) {
+          console.log('[AI_CHAT] Switching to Charts tab');
+          setTimeout(() => {
+            onSwitchToCharts();
+          }, 500); // Small delay to ensure chart data is processed
+        }
+      }
 
       // If AI returned code, populate it in the editor
       // Backend will auto-save if auto_save_code: true was sent

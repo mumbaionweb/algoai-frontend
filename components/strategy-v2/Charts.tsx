@@ -19,9 +19,44 @@ interface ChartsProps {
   currentStrategy: Strategy | null;
   marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
   onStrategyUpdate?: () => void;
+  chatChartData?: {
+    data_points: OHLCDataPoint[];
+    symbol: string;
+    exchange: string;
+    interval: string;
+    from_date: string;
+    to_date: string;
+    summary?: {
+      total_points: number;
+      date_range: { from: string; to: string };
+      latest_price: number;
+      highest: number;
+      lowest: number;
+    };
+  } | null;
+  chatChartInsights?: string | null;
+  onChatChartReceived?: (chartData: any) => void;
 }
 
-type ChartDataType = 'live' | 'mock' | 'backtest';
+type ChartDataType = 'live' | 'mock' | 'backtest' | 'chat';
+
+interface ChatChartData {
+  data_points: OHLCDataPoint[];
+  symbol: string;
+  exchange: string;
+  interval: string;
+  from_date: string;
+  to_date: string;
+  summary?: {
+    total_points: number;
+    date_range: { from: string; to: string };
+    latest_price: number;
+    highest: number;
+    lowest: number;
+  };
+  insights?: string;
+  generated_at?: string;
+}
 
 interface ChartDebugInfo {
   strategyId: string | null;
@@ -35,13 +70,22 @@ interface ChartDebugInfo {
   errors?: string[];
 }
 
-export default function Charts({ currentStrategy, marketType = 'equity', onStrategyUpdate }: ChartsProps) {
+export default function Charts({ 
+  currentStrategy, 
+  marketType = 'equity', 
+  onStrategyUpdate,
+  chatChartData,
+  chatChartInsights,
+  onChatChartReceived
+}: ChartsProps) {
   const [chartType, setChartType] = useState<ChartDataType>('live');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<ChartDebugInfo | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [backtestJobsCount, setBacktestJobsCount] = useState<number | null>(null);
+  const [chatCharts, setChatCharts] = useState<ChatChartData[]>([]);
+  const [currentChatChartIndex, setCurrentChatChartIndex] = useState<number>(-1);
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candlestickSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
@@ -165,6 +209,18 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
     loadChartData(chartType);
   }, [chartType, currentStrategy?.id, marketType]);
 
+  // Load chat charts from strategy parameters on mount or when strategy changes
+  useEffect(() => {
+    if (currentStrategy?.parameters?.chat_charts && currentStrategy.parameters.chat_charts.length > 0) {
+      console.log('[CHARTS] Found chat chart references in strategy parameters:', {
+        count: currentStrategy.parameters.chat_charts.length,
+        references: currentStrategy.parameters.chat_charts
+      });
+      // Note: Full chart data would need to be fetched from conversation history
+      // For now, we'll wait for the user to request a chart via AI chat or use prop data
+    }
+  }, [currentStrategy?.parameters?.chat_charts]);
+
   // Save chart configuration when chart type changes
   const saveChartConfig = useCallback(async (newChartType: ChartDataType) => {
     if (!currentStrategy?.id) return;
@@ -274,6 +330,20 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
           console.log('[CHARTS] Fetching BACKTEST data...');
           data = await fetchBacktestData();
           dataSource = 'Backtest Historical Data API';
+          break;
+        case 'chat':
+          console.log('[CHARTS] Loading CHAT-generated chart data...');
+          try {
+            data = await loadChatGeneratedChartData();
+            dataSource = 'AI Chat Generated Data';
+            if (data.length === 0) {
+              // Error already set in loadChatGeneratedChartData
+              throw new Error('No chat chart data available');
+            }
+          } catch (err: any) {
+            // Error already handled in loadChatGeneratedChartData
+            throw err;
+          }
           break;
       }
 
@@ -626,6 +696,112 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
   };
 
   // Generate mock data for demonstration
+  // Load chat-generated chart data
+  const loadChatGeneratedChartData = async (): Promise<OHLCDataPoint[]> => {
+    console.log('[CHARTS] Loading chat-generated chart data:', {
+      chatChartData: !!chatChartData,
+      chatChartsCount: chatCharts.length,
+      currentChatChartIndex,
+      strategyId: currentStrategy?.id
+    });
+
+    // Priority 1: Use prop data if available (most recent chart from AI chat)
+    if (chatChartData && chatChartData.data_points && chatChartData.data_points.length > 0) {
+      console.log('[CHARTS] Using chat chart data from props:', {
+        symbol: chatChartData.symbol,
+        exchange: chatChartData.exchange,
+        dataPoints: chatChartData.data_points.length
+      });
+      return chatChartData.data_points;
+    }
+
+    // Priority 2: Use stored chat charts
+    if (chatCharts.length > 0) {
+      const indexToUse = currentChatChartIndex >= 0 && currentChatChartIndex < chatCharts.length
+        ? currentChatChartIndex
+        : chatCharts.length - 1; // Use most recent if no index specified
+      
+      const chartToUse = chatCharts[indexToUse];
+      
+      console.log('[CHARTS] Using stored chat chart:', {
+        index: indexToUse,
+        symbol: chartToUse.symbol,
+        exchange: chartToUse.exchange,
+        dataPoints: chartToUse.data_points.length
+      });
+      return chartToUse.data_points;
+    }
+
+    // Priority 3: Check strategy parameters for chart references
+    const chartRefs = currentStrategy?.parameters?.chat_charts || [];
+    if (chartRefs.length > 0) {
+      console.log('[CHARTS] Found chart references in strategy parameters:', {
+        count: chartRefs.length,
+        references: chartRefs
+      });
+      // Note: Full chart data would need to be fetched from conversation history
+      // For now, return empty array and show message
+      console.warn('[CHARTS] Chart references found but full data not available. Need to fetch from conversation history.');
+      setError('Chart data not available. Please request a new chart via AI chat.');
+      return [];
+    }
+
+    console.log('[CHARTS] No chat chart data available');
+    setError('No chat-generated charts available. Ask the AI to pull up a chart for a symbol.');
+    return [];
+  };
+
+  // Handle incoming chat chart data
+  useEffect(() => {
+    if (chatChartData && chatChartData.data_points && chatChartData.data_points.length > 0) {
+      console.log('[CHARTS] New chat chart data received:', {
+        symbol: chatChartData.symbol,
+        exchange: chatChartData.exchange,
+        dataPoints: chatChartData.data_points.length
+      });
+
+      // Store in chat charts array
+      const newChart: ChatChartData = {
+        ...chatChartData,
+        insights: chatChartInsights || undefined,
+        generated_at: new Date().toISOString()
+      };
+
+      setChatCharts(prev => {
+        // Check if this chart already exists (by symbol, exchange, date range)
+        const existingIndex = prev.findIndex(
+          c => c.symbol === newChart.symbol &&
+               c.exchange === newChart.exchange &&
+               c.from_date === newChart.from_date &&
+               c.to_date === newChart.to_date
+        );
+
+        if (existingIndex >= 0) {
+          // Update existing chart
+          const updated = [...prev];
+          updated[existingIndex] = newChart;
+          setCurrentChatChartIndex(existingIndex);
+          return updated;
+        } else {
+          // Add new chart
+          setCurrentChatChartIndex(prev.length);
+          return [...prev, newChart];
+        }
+      });
+
+      // Switch to chat chart type if not already
+      if (chartType !== 'chat') {
+        console.log('[CHARTS] Switching to chat chart type');
+        setChartType('chat');
+        saveChartConfig('chat');
+      } else {
+        // Reload chart data if already on chat type
+        setTimeout(() => loadChartData('chat'), 100);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatChartData, chatChartInsights]);
+
   const generateMockData = (type: ChartDataType): OHLCDataPoint[] => {
     const data: OHLCDataPoint[] = [];
     const now = new Date();
@@ -708,6 +884,22 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
           >
             Backtest {backtestJobsCount !== null && `(${backtestJobsCount})`}
           </button>
+          {chatCharts.length > 0 && (
+            <button
+              onClick={() => {
+                console.log('[CHARTS] Switching to Chat Generated chart');
+                setChartType('chat');
+                saveChartConfig('chat');
+              }}
+              className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                chartType === 'chat'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              }`}
+            >
+              Chat Generated {chatCharts.length > 1 && `(${chatCharts.length})`}
+            </button>
+          )}
           <button
             onClick={() => setShowDebug(!showDebug)}
             className={`px-3 py-1.5 rounded text-sm font-medium transition-colors ${
@@ -842,6 +1034,71 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
         </div>
       )}
 
+      {/* AI Insights Panel - Show when chat chart is selected */}
+      {chartType === 'chat' && chatCharts.length > 0 && currentChatChartIndex >= 0 && (
+        <div className="border-t border-gray-700 p-4 bg-gray-800 flex-shrink-0">
+          <div className="flex items-start justify-between mb-2">
+            <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+              <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              AI Insights
+            </h4>
+            {chatCharts.length > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const prevIndex = currentChatChartIndex > 0 ? currentChatChartIndex - 1 : chatCharts.length - 1;
+                    setCurrentChatChartIndex(prevIndex);
+                    loadChartData('chat');
+                  }}
+                  className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors"
+                  title="Previous chart"
+                >
+                  ←
+                </button>
+                <span className="text-xs text-gray-400">
+                  {currentChatChartIndex + 1} / {chatCharts.length}
+                </span>
+                <button
+                  onClick={() => {
+                    const nextIndex = currentChatChartIndex < chatCharts.length - 1 ? currentChatChartIndex + 1 : 0;
+                    setCurrentChatChartIndex(nextIndex);
+                    loadChartData('chat');
+                  }}
+                  className="px-2 py-1 text-xs bg-gray-700 text-gray-300 rounded hover:bg-gray-600 transition-colors"
+                  title="Next chart"
+                >
+                  →
+                </button>
+              </div>
+            )}
+          </div>
+          {chatCharts[currentChatChartIndex]?.insights ? (
+            <p className="text-sm text-gray-300 whitespace-pre-wrap">
+              {chatCharts[currentChatChartIndex].insights}
+            </p>
+          ) : (
+            <p className="text-sm text-gray-400 italic">No insights available for this chart.</p>
+          )}
+          {chatCharts[currentChatChartIndex] && (
+            <div className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-500">
+              <div className="flex gap-4">
+                <span>Symbol: <span className="text-gray-300">{chatCharts[currentChatChartIndex].symbol}</span></span>
+                <span>Exchange: <span className="text-gray-300">{chatCharts[currentChatChartIndex].exchange}</span></span>
+                <span>Interval: <span className="text-gray-300">{chatCharts[currentChatChartIndex].interval}</span></span>
+                {chatCharts[currentChatChartIndex].summary && (
+                  <>
+                    <span>Data Points: <span className="text-gray-300">{chatCharts[currentChatChartIndex].summary.total_points}</span></span>
+                    <span>Latest Price: <span className="text-gray-300">₹{chatCharts[currentChatChartIndex].summary.latest_price.toFixed(2)}</span></span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Chart Info */}
       {currentStrategy?.id && !loading && !error && (
         <div className="border-t border-gray-700 p-2 flex items-center justify-between text-xs text-gray-400 flex-shrink-0">
@@ -849,7 +1106,12 @@ export default function Charts({ currentStrategy, marketType = 'equity', onStrat
             <span>Strategy ID: <span className="font-mono text-yellow-400">{currentStrategy.id}</span></span>
             <span>Symbol: {currentStrategy.parameters?.symbol || 'N/A'}</span>
             <span>Exchange: {currentStrategy.parameters?.exchange || 'N/A'}</span>
-            <span>Type: {chartType === 'live' ? 'Live Market Data' : chartType === 'mock' ? 'Mock Run Data' : 'Backtest Data'}</span>
+            <span>Type: {
+              chartType === 'live' ? 'Live Market Data' : 
+              chartType === 'mock' ? 'Mock Run Data' : 
+              chartType === 'backtest' ? 'Backtest Data' :
+              'Chat Generated Data'
+            }</span>
             {debugInfo && <span>Data Points: {debugInfo.dataPoints}</span>}
           </div>
           <div className="text-gray-500">

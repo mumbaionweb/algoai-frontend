@@ -36,6 +36,16 @@ export default function StrategyV2Layout({
   const [marketType, setMarketType] = useState<'equity' | 'commodity' | 'currency' | 'futures'>('equity');
   const [externalCode, setExternalCode] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [chatChartData, setChatChartData] = useState<{
+    data_points: any[];
+    symbol: string;
+    exchange: string;
+    interval: string;
+    from_date: string;
+    to_date: string;
+    summary?: any;
+  } | null>(null);
+  const [chatChartInsights, setChatChartInsights] = useState<string | null>(null);
 
   return (
     <div className="flex flex-col h-screen bg-gray-900 text-white overflow-hidden">
@@ -132,6 +142,25 @@ export default function StrategyV2Layout({
                       setExternalCode(null);
                     }, 1000);
                   }}
+                  onChartGenerated={(chartData, insights) => {
+                    console.log('[STRATEGY_LAYOUT] Chart generated:', {
+                      symbol: chartData.symbol,
+                      exchange: chartData.exchange,
+                      dataPoints: chartData.data_points.length
+                    });
+                    setChatChartData(chartData);
+                    setChatChartInsights(insights);
+                    // Clear after a delay to allow Charts component to process it
+                    setTimeout(() => {
+                      console.log('[STRATEGY_LAYOUT] Clearing chatChartData after timeout');
+                      setChatChartData(null);
+                      setChatChartInsights(null);
+                    }, 2000);
+                  }}
+                  onSwitchToCharts={() => {
+                    // This will be handled by RightColumn
+                    console.log('[STRATEGY_LAYOUT] Request to switch to Charts tab');
+                  }}
                 />
               </Panel>
 
@@ -151,6 +180,8 @@ export default function StrategyV2Layout({
                   }}
                   marketType={marketType}
                   externalCode={externalCode}
+                  chatChartData={chatChartData}
+                  chatChartInsights={chatChartInsights}
                 />
               </Panel>
             </PanelGroup>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import type { Strategy } from '@/types';
 import CodeEditor from './CodeEditor';
@@ -15,6 +15,16 @@ interface RightColumnProps {
   onStrategyUpdate: () => void;
   marketType?: 'equity' | 'commodity' | 'currency' | 'futures';
   externalCode?: string | null; // Code from AI chat to populate
+  chatChartData?: {
+    data_points: any[];
+    symbol: string;
+    exchange: string;
+    interval: string;
+    from_date: string;
+    to_date: string;
+    summary?: any;
+  } | null;
+  chatChartInsights?: string | null;
 }
 
 export default function RightColumn({
@@ -24,8 +34,18 @@ export default function RightColumn({
   onStrategyUpdate,
   marketType = 'equity',
   externalCode,
+  chatChartData,
+  chatChartInsights,
 }: RightColumnProps) {
   const [activeTab, setActiveTab] = useState<'code' | 'visual' | 'charts'>('code');
+
+  // Switch to Charts tab when chart data is received
+  useEffect(() => {
+    if (chatChartData && chatChartData.data_points && chatChartData.data_points.length > 0) {
+      console.log('[RIGHT_COLUMN] Chat chart data received, switching to Charts tab');
+      setActiveTab('charts');
+    }
+  }, [chatChartData]);
 
   return (
     <div className="h-full bg-gray-800 flex flex-col min-h-0">
@@ -99,6 +119,8 @@ export default function RightColumn({
               currentStrategy={currentStrategy}
               marketType={marketType}
               onStrategyUpdate={onStrategyUpdate}
+              chatChartData={chatChartData}
+              chatChartInsights={chatChartInsights}
             />
           )}
         </Panel>
