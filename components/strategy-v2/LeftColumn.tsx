@@ -92,23 +92,31 @@ export default function LeftColumn({
         strategy_code_length: result.strategy_code?.length || 0,
         has_strategy_id: !!currentStrategy?.id,
         has_onCodeReceived: !!onCodeReceived,
+        has_metadata: !!result.metadata,
+        metadata_keys: result.metadata ? Object.keys(result.metadata) : [],
         has_chart_data: !!result.metadata?.chart_data,
-        chart_data_symbol: result.metadata?.chart_data?.symbol
+        chart_data_symbol: result.metadata?.chart_data?.symbol,
+        full_metadata: result.metadata // Log full metadata for debugging
       });
 
       // Check if chart data was returned
-      if (result.metadata?.chart_data && result.metadata.chart_data.chart_request_detected) {
-        const chartData = result.metadata.chart_data;
-        console.log('[AI_CHAT] Chart data detected in response:', {
+      // Check for chart_data existence - it should have data_points array
+      const chartData = result.metadata?.chart_data;
+      if (chartData && chartData.data_points && Array.isArray(chartData.data_points) && chartData.data_points.length > 0) {
+        console.log('[AI_CHAT] ✅ Chart data detected in response:', {
           symbol: chartData.symbol,
           exchange: chartData.exchange,
           interval: chartData.interval,
-          dataPoints: chartData.data_points?.length || 0,
-          hasSummary: !!chartData.summary
+          dataPoints: chartData.data_points.length,
+          hasSummary: !!chartData.summary,
+          chartRequestDetected: chartData.chart_request_detected,
+          fromDate: chartData.from_date,
+          toDate: chartData.to_date
         });
 
         // Pass chart data to parent component
         if (onChartGenerated) {
+          console.log('[AI_CHAT] Calling onChartGenerated callback');
           onChartGenerated(
             {
               data_points: chartData.data_points || [],
@@ -121,6 +129,8 @@ export default function LeftColumn({
             },
             result.response // Use AI response as insights
           );
+        } else {
+          console.warn('[AI_CHAT] ⚠️ Chart data detected but onChartGenerated callback is not available');
         }
 
         // Switch to Charts tab if callback is available
@@ -129,7 +139,18 @@ export default function LeftColumn({
           setTimeout(() => {
             onSwitchToCharts();
           }, 500); // Small delay to ensure chart data is processed
+        } else {
+          console.warn('[AI_CHAT] ⚠️ Chart data detected but onSwitchToCharts callback is not available');
         }
+      } else {
+        console.log('[AI_CHAT] ❌ No chart data in response:', {
+          has_metadata: !!result.metadata,
+          has_chart_data: !!result.metadata?.chart_data,
+          chart_data_type: typeof result.metadata?.chart_data,
+          chart_data_keys: result.metadata?.chart_data ? Object.keys(result.metadata.chart_data) : [],
+          has_data_points: !!result.metadata?.chart_data?.data_points,
+          data_points_length: result.metadata?.chart_data?.data_points?.length || 0
+        });
       }
 
       // If AI returned code, populate it in the editor

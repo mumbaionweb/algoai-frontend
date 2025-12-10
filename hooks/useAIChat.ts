@@ -36,7 +36,12 @@ export function useAIChat() {
         strategy_code_length: response.strategy_code?.length || 0,
         strategy_code_preview: response.strategy_code?.substring(0, 100) || 'null',
         has_code_in_metadata: response.metadata?.has_code,
-        suggestions_count: response.suggestions?.length || 0
+        suggestions_count: response.suggestions?.length || 0,
+        has_metadata: !!response.metadata,
+        metadata_keys: response.metadata ? Object.keys(response.metadata) : [],
+        has_chart_data: !!response.metadata?.chart_data,
+        chart_data_keys: response.metadata?.chart_data ? Object.keys(response.metadata.chart_data) : [],
+        full_metadata: response.metadata // Log full metadata for debugging
       });
       
       setConversationId(response.conversation_id);
