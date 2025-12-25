@@ -176,7 +176,7 @@ export default function LeftColumn({
         // Otherwise, manually save
         if (currentStrategy?.id) {
           // Backend should have auto-saved, but refresh to get the updated strategy
-          // Wait a bit for backend to process
+          // Wait longer for backend to process and save the code
           setTimeout(async () => {
             try {
               console.log('[AI_CHAT] Refreshing strategy to get auto-saved code:', {
@@ -195,7 +195,7 @@ export default function LeftColumn({
                 console.error('[AI_CHAT] Failed to save AI-generated code:', saveErr);
               }
             }
-          }, 500); // Wait longer for backend auto-save to complete
+          }, 2000); // Wait 2 seconds for backend auto-save to complete (was 500ms)
         }
       } else {
         console.log('[AI_CHAT] No code in response:', {

@@ -134,13 +134,14 @@ export default function StrategyV2Layout({
                       codePreview: code.substring(0, 100)
                     });
                     setExternalCode(code);
-                    console.log('[STRATEGY_LAYOUT] externalCode state set, will clear in 1000ms');
+                    console.log('[STRATEGY_LAYOUT] externalCode state set, will clear in 3000ms');
                     // Clear after a delay to allow CodeEditor to process it and prevent override
                     // Keep it longer to prevent currentStrategy refresh from clearing it
+                    // Increased to 3000ms to give backend time to save (was 1000ms)
                     setTimeout(() => {
                       console.log('[STRATEGY_LAYOUT] Clearing externalCode after timeout');
                       setExternalCode(null);
-                    }, 1000);
+                    }, 3000);
                   }}
                   onChartGenerated={(chartData, insights) => {
                     console.log('[STRATEGY_LAYOUT] Chart generated:', {
