@@ -290,6 +290,15 @@ apiClient.interceptors.response.use(
     // Log 404 errors with extra details (common for OAuth endpoints)
     // Always log 404 errors (not just in development) to help diagnose production issues
     if (axiosError.response?.status === 404) {
+      const requestUrl = axiosError.config?.url || '';
+      
+      // Suppress 404 logging for conversations endpoint - 404 is expected when no conversation exists
+      if (requestUrl.includes('/conversations/strategy/')) {
+        // Silently handle 404 for conversations - this is expected behavior
+        // The frontend already handles this gracefully in useAIChat.ts
+        return Promise.reject(error);
+      }
+      
       const responseData = axiosError.response.data as { detail?: string; message?: string; [key: string]: any };
       
       console.error('🔴 BACKEND 404 ERROR (Resource Not Found):');
