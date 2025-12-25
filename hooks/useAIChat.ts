@@ -151,11 +151,12 @@ export function useAIChat() {
         setConversationId(null);
       }
     } catch (err: any) {
-      console.error('Failed to load conversation:', err);
-      // Don't set error for 404 or missing conversations, just reset
+      // Don't log 404 errors - they're expected when no conversation exists
       if (err.response?.status !== 404) {
+        console.error('Failed to load conversation:', err);
         setError(err.response?.data?.detail || err.message || 'Failed to load conversation');
       } else {
+        // 404 is expected - no conversation exists yet, just reset to empty state
         setMessages([]);
         setConversationId(null);
       }
