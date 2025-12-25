@@ -89,7 +89,7 @@ function StrategyV2PageContent() {
     try {
       setLoading(true);
       const response = await getStrategies({
-        sort_by: 'updated_at',
+        sort_by: 'created_at',
         order: 'desc',
         limit: 100
       });

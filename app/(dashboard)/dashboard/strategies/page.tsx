@@ -112,7 +112,11 @@ class MyStrategy(bt.Strategy):
     try {
       setLoading(true);
       setError('');
-      const response = await getStrategies();
+      const response = await getStrategies({
+        sort_by: 'created_at',
+        order: 'desc',
+        limit: 100
+      });
       setStrategies(response.strategies);
     } catch (err: any) {
       console.error('Failed to load strategies:', err);
