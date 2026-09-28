@@ -87,10 +87,39 @@ export default function BacktestDetailPage() {
       max_drawdown_pct: null,
       system_quality_number: null,
       average_return: null,
-      annual_return: null,
-      // Optional fields
-      transactions: undefined,
-      positions: undefined,
+  // Helper function to create results from backtest history item (when no active job exists)
+  const createResultsFromBacktest = (bt: any): BacktestResponse => {
+    return {
+      backtest_id: bt.backtest_id || id,
+      symbol: bt.symbol,
+      exchange: bt.exchange,
+      from_date: bt.from_date,
+      to_date: bt.to_date,
+      initial_cash: bt.initial_cash,
+      final_value: bt.final_value ?? bt.initial_cash,
+      total_return: bt.total_return ?? 0,
+      total_return_pct: bt.total_return ?? 0,
+      total_trades: bt.total_trades ?? 0,
+      winning_trades: bt.winning_trades ?? 0,
+      losing_trades: bt.losing_trades ?? 0,
+      win_rate: bt.win_rate ?? null,
+      total_pnl: bt.total_pnl ?? 0,
+      sharpe_ratio: bt.sharpe_ratio ?? null,
+      max_drawdown: bt.max_drawdown ?? null,
+      max_drawdown_pct: bt.max_drawdown_pct ?? null,
+      system_quality_number: bt.system_quality_number ?? null,
+      average_return: bt.average_return ?? null,
+      annual_return: bt.annual_return ?? null,
+      interval: bt.interval || bt.intervals?.[0] || 'day',
+      intervals: bt.intervals || (bt.interval ? [bt.interval] : ['day']),
+      data_bars_count: bt.data_bars_count ?? 0,
+      transactions: bt.transactions || [],
+      positions: bt.positions || [],
+      open_positions_count: bt.open_positions_count ?? 0,
+      closed_positions_count: bt.closed_positions_count ?? 0,
+      total_invested_capital: bt.total_invested_capital ?? 0,
+      available_capital: bt.available_capital ?? (bt.final_value ?? bt.initial_cash),
+      total_open_positions_value: bt.total_open_positions_value ?? 0,
     };
   };
 
@@ -262,10 +291,12 @@ export default function BacktestDetailPage() {
           setBacktest(backtestData);
           setIsJobId(false);
           
-          // Try to find associated job to get full results
+          // Try to find associated job to get full results (pass backtestData directly)
           if (backtestData.backtest_id) {
             console.log('🔍 Attempting to load full results from associated job...');
-            await loadJobByBacktestId(backtestData.backtest_id);
+            await loadJobByBacktestId(backtestData.backtest_id, backtestData);
+          } else {
+            setResults(createResultsFromBacktest(backtestData));
           }
         } catch (backtestErr: any) {
           console.error('Failed to load backtest:', backtestErr);
@@ -291,7 +322,8 @@ export default function BacktestDetailPage() {
     }
   };
 
-  const loadJobByBacktestId = async (backtestId: string) => {
+  const loadJobByBacktestId = async (backtestId: string, backtestFallback?: any) => {
+    const targetBacktest = backtestFallback || backtest;
     try {
       console.log('🔍 Searching for job with backtest_id:', backtestId);
       // Try to fetch more jobs to find the match (increase limit)
@@ -315,26 +347,39 @@ export default function BacktestDetailPage() {
             has_positions: !!matchingJob.result.positions,
           });
           setResults(matchingJob.result);
-        } else {
-          console.log('⚠️ Job found but not completed or missing result:', {
-            status: matchingJob.status,
-            has_result: !!matchingJob.result,
-          });
+          return;
         }
-      } else {
-        console.log('⚠️ No matching job found for backtest_id:', backtestId);
-        console.log('📋 Searched through jobs:', jobs.map(j => ({
-          job_id: j.job_id,
-          status: j.status,
-          backtest_id: j.result?.backtest_id,
-        })));
+      }
+
+      // If no matching completed job was found, synthesize results from the backtest document itself
+      if (targetBacktest) {
+        console.log('📊 Synthesizing full results from backtest history document');
+        setResults(createResultsFromBacktest(targetBacktest));
+        if (!job && targetBacktest.strategy_code) {
+          // Provide strategy code to allow viewing / saving as strategy
+          setJob({
+            job_id: targetBacktest.backtest_id || id,
+            strategy_code: targetBacktest.strategy_code,
+            symbol: targetBacktest.symbol,
+            exchange: targetBacktest.exchange,
+            from_date: targetBacktest.from_date,
+            to_date: targetBacktest.to_date,
+            intervals: targetBacktest.intervals || [targetBacktest.interval || 'day'],
+            initial_cash: targetBacktest.initial_cash,
+            commission: 0.001,
+            broker_type: 'zerodha',
+            status: 'completed',
+            progress: 100,
+            strategy_params: targetBacktest.strategy_params || {},
+            created_at: targetBacktest.created_at,
+            updated_at: targetBacktest.updated_at,
+          } as BacktestJob);
+        }
       }
     } catch (err: any) {
-      // Silently fail for job loading
-      if (err.response?.status !== 500) {
-        console.error('❌ Failed to load job:', err);
-      } else {
-        console.warn('⚠️ Backend 500 error when searching for job (this is expected if jobs endpoint has issues)');
+      console.warn('⚠️ Could not complete job search:', err?.message || err);
+      if (targetBacktest) {
+        setResults(createResultsFromBacktest(targetBacktest));
       }
     }
   };
