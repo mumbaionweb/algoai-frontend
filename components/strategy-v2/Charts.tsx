@@ -554,17 +554,18 @@ export default function Charts({
       const statusCode = err.response?.status;
       const isOAuthError = errorDetail.includes('Access token') || errorDetail.includes('OAuth') || errorDetail.includes('broker account');
       
-      console.error('[CHARTS] ❌ Error fetching live market data:', {
-        strategyId,
-        symbol,
-        exchange,
-        statusCode,
-        errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
-        errorMessage: err.message,
-        errorDetail,
-        responseData: err.response?.data,
-        fullError: err
-      });
+      if (isOAuthError || statusCode === 400) {
+        console.warn('[CHARTS] ℹ️ Broker connection needed for live market data:', errorDetail);
+      } else {
+        console.error('[CHARTS] ❌ Error fetching live market data:', {
+          strategyId,
+          symbol,
+          exchange,
+          statusCode,
+          errorMessage: err.message,
+          errorDetail,
+        });
+      }
 
       // Set user-friendly error message
       if (isOAuthError) {

@@ -248,9 +248,13 @@ apiClient.interceptors.response.use(
     if (axiosError.response?.status === 400) {
       const responseData = axiosError.response.data as { detail?: string; message?: string; [key: string]: any };
       
-      // If it's a portfolio endpoint where broker is simply not connected or token expired, log as a warning
-      if (axiosError.config?.url?.includes('/portfolio')) {
-        console.warn('ℹ️ [Portfolio Notice]: Broker session is not active or credentials need configuration:', responseData?.detail || responseData?.message);
+      // If broker is not connected or session expired (portfolio, market-data, etc.), log as warning
+      if (
+        axiosError.config?.url?.includes('/portfolio') ||
+        axiosError.config?.url?.includes('/market-data') ||
+        axiosError.config?.url?.includes('/broker')
+      ) {
+        console.warn('ℹ️ [Broker Notice]:', responseData?.detail || responseData?.message || 'Broker session not active');
         return Promise.reject(error);
       }
       
