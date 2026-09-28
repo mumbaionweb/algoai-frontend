@@ -47,23 +47,14 @@ function HomePageContent() {
       const data = await getPortfolio();
       setPortfolio(data);
     } catch (err: any) {
-      console.error('Failed to load portfolio:', err);
-      console.error('Portfolio error details:', {
-        message: err.message,
-        response: err.response,
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        config: err.config,
-      });
-      
       const errorDetail = err.response?.data?.detail || '';
       const status = err.response?.status;
-
-      // Log the full error response for debugging
-      if (err.response?.data) {
-        console.error('🔴 Portfolio API Error Response:', JSON.stringify(err.response.data, null, 2));
-        console.error('Error Detail Field:', errorDetail || 'No detail field');
+      
+      // Expected business error when user has not yet connected broker / KiteConnect session expired
+      if (status === 400) {
+        console.warn('ℹ️ Portfolio notice (broker setup needed):', errorDetail);
+      } else {
+        console.error('Failed to load portfolio:', err);
       }
 
       // Handle specific errors

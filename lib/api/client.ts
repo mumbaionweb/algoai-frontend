@@ -248,6 +248,12 @@ apiClient.interceptors.response.use(
     if (axiosError.response?.status === 400) {
       const responseData = axiosError.response.data as { detail?: string; message?: string; [key: string]: any };
       
+      // If it's a portfolio endpoint where broker is simply not connected or token expired, log as a warning
+      if (axiosError.config?.url?.includes('/portfolio')) {
+        console.warn('ℹ️ [Portfolio Notice]: Broker session is not active or credentials need configuration:', responseData?.detail || responseData?.message);
+        return Promise.reject(error);
+      }
+      
       console.error('🔴 BACKEND 400 ERROR (Bad Request):');
       console.error('Error Response Data:', JSON.stringify(responseData, null, 2));
       console.error('Error Detail Field:', responseData?.detail || 'No detail field');
@@ -270,21 +276,6 @@ apiClient.interceptors.response.use(
         authHeaderPreview: authHeaderPreview,
         timestamp: new Date().toISOString(),
       });
-      
-      // Special handling for portfolio endpoints
-      if (axiosError.config?.url?.includes('/portfolio')) {
-        console.error('🔍 Portfolio 400 Error Analysis:', {
-          possibleCauses: [
-            'Zerodha credentials not found',
-            'Access token not found (OAuth not completed)',
-            'Failed to create KiteConnect instance',
-            'Invalid credentials or token expired',
-          ],
-          checkAuthHeader: authHeader ? '✅ Present' : '❌ MISSING',
-          backendErrorDetail: responseData?.detail || 'No detail from backend',
-          suggestion: 'Check if user has added Zerodha credentials and completed OAuth',
-        });
-      }
     }
     
     // Log 404 errors with extra details (common for OAuth endpoints)
