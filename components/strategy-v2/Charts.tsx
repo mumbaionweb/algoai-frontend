@@ -460,17 +460,21 @@ export default function Charts({
         }
       }
       
-      console.error('[CHARTS] ❌ Error loading chart data:', {
-        strategyId,
-        chartType: type,
-        statusCode,
-        errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
-        errorMessage: err.message,
-        errorDetail,
-        responseData: err.response?.data,
-        stack: err.stack,
-        fullError: err
-      });
+      if (isOAuthError || statusCode === 400) {
+        console.warn('[CHARTS] ℹ️ Broker connection needed for live market data:', errorDetail);
+      } else {
+        console.error('[CHARTS] ❌ Error loading chart data:', {
+          strategyId,
+          chartType: type,
+          statusCode,
+          errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
+          errorMessage: err.message,
+          errorDetail,
+          responseData: err.response?.data,
+          stack: err.stack,
+          fullError: err
+        });
+      }
       
       setDebugInfo({
         strategyId,

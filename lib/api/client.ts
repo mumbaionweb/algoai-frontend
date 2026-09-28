@@ -247,39 +247,30 @@ apiClient.interceptors.response.use(
     // Log 400 errors with extra details (common for portfolio/API validation errors)
     if (axiosError.response?.status === 400) {
       const responseData = axiosError.response.data as { detail?: string; message?: string; [key: string]: any };
+      const reqUrl = (axiosError.config?.url || '').toLowerCase();
+      const errorMsg = (responseData?.detail || responseData?.message || '').toLowerCase();
       
-      // If broker is not connected or session expired (portfolio, market-data, etc.), log as warning
-      if (
-        axiosError.config?.url?.includes('/portfolio') ||
-        axiosError.config?.url?.includes('/market-data') ||
-        axiosError.config?.url?.includes('/broker')
-      ) {
+      // If broker is not connected or session expired (portfolio, market-data, ohlc, etc.), log as warning
+      const isBrokerRelated = 
+        reqUrl.includes('portfolio') ||
+        reqUrl.includes('market-data') ||
+        reqUrl.includes('broker') ||
+        reqUrl.includes('ohlc') ||
+        errorMsg.includes('broker') ||
+        errorMsg.includes('access token') ||
+        errorMsg.includes('oauth') ||
+        errorMsg.includes('credentials');
+
+      if (isBrokerRelated) {
         console.warn('ℹ️ [Broker Notice]:', responseData?.detail || responseData?.message || 'Broker session not active');
         return Promise.reject(error);
       }
       
-      console.error('🔴 BACKEND 400 ERROR (Bad Request):');
-      console.error('Error Response Data:', JSON.stringify(responseData, null, 2));
-      console.error('Error Detail Field:', responseData?.detail || 'No detail field');
-      console.error('Error Message Field:', responseData?.message || 'No message field');
-      
-      const authHeader = axiosError.config?.headers?.Authorization;
-      const authHeaderPreview = (() => {
-        if (!authHeader) return 'MISSING';
-        if (typeof authHeader === 'string') return authHeader.substring(0, 30) + '...';
-        return String(authHeader).substring(0, 30) + '...';
-      })();
-      
-      console.error('❌ Backend 400 Error - Full Details:', {
-        status: axiosError.response.status,
-        statusText: axiosError.response.statusText,
-        responseData: responseData,
-        requestUrl: `${axiosError.config?.baseURL || ''}${axiosError.config?.url || ''}`,
-        requestMethod: axiosError.config?.method,
-        hasAuthHeader: !!authHeader,
-        authHeaderPreview: authHeaderPreview,
-        timestamp: new Date().toISOString(),
+      console.warn('⚠️ BACKEND 400 ERROR (Bad Request):', {
+        endpoint: axiosError.config?.url,
+        data: responseData,
       });
+      return Promise.reject(error);
     }
     
     // Log 404 errors with extra details (common for OAuth endpoints)

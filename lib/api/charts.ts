@@ -63,19 +63,23 @@ export async function getLiveMarketData(
     const statusCode = error.response?.status;
     const isOAuthError = errorDetail.includes('Access token') || errorDetail.includes('OAuth') || errorDetail.includes('broker account');
     
-    console.error('[CHARTS] ❌ Error fetching live market data:', {
-      symbol,
-      exchange,
-      interval,
-      fromDate,
-      toDate,
-      statusCode,
-      errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
-      errorMessage: error.message,
-      errorDetail,
-      responseData: error.response?.data,
-      fullError: error
-    });
+    if (isOAuthError || statusCode === 400) {
+      console.warn('[CHARTS] ℹ️ Broker connection needed for live market data:', errorDetail);
+    } else {
+      console.error('[CHARTS] ❌ Error fetching live market data:', {
+        symbol,
+        exchange,
+        interval,
+        fromDate,
+        toDate,
+        statusCode,
+        errorType: isOAuthError ? 'OAuth/Authentication Error' : 'Other Error',
+        errorMessage: error.message,
+        errorDetail,
+        responseData: error.response?.data,
+        fullError: error
+      });
+    }
     
     throw error;
   }
