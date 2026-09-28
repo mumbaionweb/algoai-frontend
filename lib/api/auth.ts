@@ -20,6 +20,7 @@ export interface UserInfoResponse {
   uid: string;
   email: string;
   name: string;
+  phone_number?: string;
 }
 
 /**
@@ -34,7 +35,7 @@ export async function verifyToken(token: string): Promise<VerifyTokenResponse> {
   // Set token in localStorage so the interceptor can use it
   // (The interceptor reads from localStorage automatically)
   localStorage.setItem('firebase_token', token);
-  
+
   const response = await apiClient.get<VerifyTokenResponse>('/api/auth/verify-token');
   return response.data;
 }
@@ -51,7 +52,7 @@ export async function getCurrentUser(token: string): Promise<UserInfoResponse> {
   // Set token in localStorage so the interceptor can use it
   // (The interceptor reads from localStorage automatically)
   localStorage.setItem('firebase_token', token);
-  
+
   const response = await apiClient.get<UserInfoResponse>('/api/auth/me');
   return response.data;
 }
@@ -65,6 +66,7 @@ export function mapUserInfoToUser(userInfo: UserInfoResponse): User {
     id: userInfo.uid,
     email: userInfo.email,
     name: userInfo.name,
+    phone_number: userInfo.phone_number,
     is_active: true, // Default to active if not provided
   };
 }

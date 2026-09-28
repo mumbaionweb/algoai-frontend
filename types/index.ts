@@ -3,6 +3,7 @@ export interface User {
   id: string;
   email: string;
   name: string;
+  phone_number?: string;
   created_at?: string;
   updated_at?: string;
   is_active: boolean;
@@ -15,30 +16,30 @@ export interface FlowStep {
   order: number;                 // Position in flow (1, 2, 3, ...)
   title: string;                 // Display title
   description?: string;          // Optional description
-  
+
   data: {
     // For indicator steps
     indicator_type?: string;      // 'SMA', 'RSI', 'MACD', 'Highest', 'Lowest'
     source?: string;              // 'close', 'high', 'low', 'open'
     period?: number;
-    
+
     // For condition steps
     condition_type?: string;      // 'price_above', 'indicator_cross', 'breakout'
     left_operand?: string;       // e.g., 'close', 'sma_20'
     operator?: string;            // '>', '<', 'cross_above', 'cross_below'
     right_operand?: string;       // e.g., 'resistance', 'sma_50'
-    
+
     // For action steps
     action_type?: string;         // 'buy', 'sell', 'close_position'
     quantity?: number | string;   // Position size or 'all'
-    
+
     // For risk steps
     risk_type?: string;           // 'stop_loss', 'take_profit', 'trailing_stop'
     value?: number;               // Percentage or absolute value
-    
+
     [key: string]: any;           // Allow additional fields
   };
-  
+
   depends_on?: string[];         // Array of step IDs this step depends on
   position?: { x: number; y: number; }; // Visual position (optional)
 }
@@ -68,7 +69,7 @@ export interface StrategyModel {
     description?: string;
     version?: string;
   };
-  
+
   // Legacy model structure (for backward compatibility)
   indicators?: Array<{
     type: string;
@@ -313,19 +314,19 @@ export interface PortfolioParams {
 }
 
 // Backtesting Types
-export type IntervalType = 
+export type IntervalType =
   // Direct intervals (from Zerodha)
-  | 'minute' 
-  | '3minute' 
-  | '5minute' 
-  | '15minute' 
-  | '30minute' 
-  | '60minute' 
+  | 'minute'
+  | '3minute'
+  | '5minute'
+  | '15minute'
+  | '30minute'
+  | '60minute'
   | 'day'
   // Aggregated intervals (built from daily data)
-  | 'week' 
-  | 'month' 
-  | 'quarter' 
+  | 'week'
+  | 'month'
+  | 'quarter'
   | 'year';
 
 export interface IntervalOption {
@@ -345,15 +346,15 @@ export const INTERVAL_OPTIONS: IntervalOption[] = [
   { value: '15minute', label: '15 Minutes', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 25, dateRangeRecommendation: '1-60 days' },
   { value: '30minute', label: '30 Minutes', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 12.5, dateRangeRecommendation: '1-60 days' },
   { value: '60minute', label: '1 Hour', description: 'Intraday (60 days max)', category: 'intraday', barsPerDay: 6.25, dateRangeRecommendation: '1-60 days' },
-  
+
   // Daily
   { value: 'day', label: 'Daily', description: 'Long-term (5 years max)', category: 'daily', barsPerDay: 1, dateRangeRecommendation: 'Up to 5 years' },
-  
+
   // Aggregated intervals (built from daily data)
-  { value: 'week', label: 'Weekly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/5, dateRangeRecommendation: '1-10 years (recommended)' },
-  { value: 'month', label: 'Monthly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/20, dateRangeRecommendation: '1-20 years (recommended)' },
-  { value: 'quarter', label: 'Quarterly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/60, dateRangeRecommendation: '1-20 years (recommended)' },
-  { value: 'year', label: 'Annual', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1/250, dateRangeRecommendation: '5+ years (recommended)' },
+  { value: 'week', label: 'Weekly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1 / 5, dateRangeRecommendation: '1-10 years (recommended)' },
+  { value: 'month', label: 'Monthly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1 / 20, dateRangeRecommendation: '1-20 years (recommended)' },
+  { value: 'quarter', label: 'Quarterly', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1 / 60, dateRangeRecommendation: '1-20 years (recommended)' },
+  { value: 'year', label: 'Annual', description: 'Built from daily data', category: 'aggregated', barsPerDay: 1 / 250, dateRangeRecommendation: '5+ years (recommended)' },
 ];
 
 export interface BacktestRequest {
@@ -494,14 +495,14 @@ export interface BacktestResult {
 }
 
 // Async Backtesting Types
-export type BacktestJobStatus = 
-  | "pending" 
-  | "queued" 
-  | "running" 
-  | "paused" 
-  | "resuming" 
-  | "completed" 
-  | "failed" 
+export type BacktestJobStatus =
+  | "pending"
+  | "queued"
+  | "running"
+  | "paused"
+  | "resuming"
+  | "completed"
+  | "failed"
   | "cancelled";
 
 export interface BacktestJob {
