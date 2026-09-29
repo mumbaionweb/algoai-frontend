@@ -87,6 +87,13 @@ export default function BacktestDetailPage() {
       max_drawdown_pct: null,
       system_quality_number: null,
       average_return: null,
+      annual_return: null,
+      // Optional fields
+      transactions: undefined,
+      positions: undefined,
+    };
+  };
+
   // Helper function to create results from backtest history item (when no active job exists)
   const createResultsFromBacktest = (bt: any): BacktestResponse => {
     return {
