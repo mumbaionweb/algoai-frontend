@@ -14,7 +14,7 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
 
 export const apiClient = axios.create({
   baseURL: API_URL,
-  timeout: 60000, // 60 second timeout (matches Cloud Run gateway timeout)
+  timeout: 120000, // 120 second timeout (2 minutes) for heavy local queries
   headers: {
     'Content-Type': 'application/json',
   },
@@ -163,7 +163,7 @@ apiClient.interceptors.response.use(
     
     // Log timeout errors (both frontend timeout and gateway timeout)
     if (axiosError.code === 'ECONNABORTED' || axiosError.message?.includes('timeout') || axiosError.response?.status === 504) {
-      const timeoutMs = axiosError.config?.timeout || 60000;
+      const timeoutMs = axiosError.config?.timeout || 120000;
       const timeoutSeconds = timeoutMs / 1000;
       const isGatewayTimeout = axiosError.response?.status === 504;
       
