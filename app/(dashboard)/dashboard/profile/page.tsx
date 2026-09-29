@@ -492,12 +492,12 @@ export default function ProfilePage() {
                       onClick={() => setTheme(t.key)}
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                         theme === t.key
-                          ? 'bg-gray-700 text-white shadow-sm'
+                          ? 'bg-blue-600 !text-white shadow-sm'
                           : 'text-gray-500 hover:text-gray-300'
                       }`}
                     >
                       <span
-                        className="w-3 h-3 rounded-full border border-gray-600 shrink-0"
+                        className="w-3 h-3 rounded-full border border-gray-400/50 shrink-0"
                         style={{ background: t.dot }}
                       />
                       {t.label}
