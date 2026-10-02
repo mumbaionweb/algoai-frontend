@@ -1,0 +1,43 @@
+[debug] [2026-10-02T12:41:04.440Z] ----------------------------------------------------------------------
+[debug] [2026-10-02T12:41:04.450Z] Command:       /opt/homebrew/Cellar/node@20/20.20.2/bin/node /opt/homebrew/bin/firebase apps:sdkconfig web --project=algo-ai-477010
+[debug] [2026-10-02T12:41:04.451Z] CLI Version:   14.23.0
+[debug] [2026-10-02T12:41:04.451Z] Platform:      darwin
+[debug] [2026-10-02T12:41:04.451Z] Node Version:  v20.20.2
+[debug] [2026-10-02T12:41:04.451Z] Time:          Fri Oct 02 2026 18:11:04 GMT+0530 (India Standard Time)
+[debug] [2026-10-02T12:41:04.451Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-10-02T12:41:04.452Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-10-02T12:41:04.615Z] Object "/apphosting" in "firebase.json" is missing required property: {"missingProperty":"backendId"}
+[debug] [2026-10-02T12:41:04.615Z] Field "/apphosting" in "firebase.json" is possibly invalid: must be array
+[debug] [2026-10-02T12:41:04.615Z] Field "/apphosting" in "firebase.json" is possibly invalid: must match a schema in anyOf
+[debug] [2026-10-02T12:41:04.618Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-10-02T12:41:04.618Z] > authorizing via signed-in user (vishal@mumbaionweb.com)
+[debug] [2026-10-02T12:41:04.619Z] Checked if tokens are valid: false, expires at: 1790565099677
+[debug] [2026-10-02T12:41:04.619Z] Checked if tokens are valid: false, expires at: 1790565099677
+[debug] [2026-10-02T12:41:04.619Z] > refreshing access token with scopes: []
+[debug] [2026-10-02T12:41:04.620Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-10-02T12:41:04.620Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-10-02T12:41:04.747Z] <<< [apiv2][status] POST https://www.googleapis.com/oauth2/v3/token 400
+[debug] [2026-10-02T12:41:04.747Z] <<< [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-10-02T12:41:04.747Z] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-10-02T12:41:04.897Z] FirebaseError: Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+    at invalidCredentialError (/opt/homebrew/lib/node_modules/firebase-tools/lib/auth.js:167:12)
+    at refreshTokens (/opt/homebrew/lib/node_modules/firebase-tools/lib/auth.js:591:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async getAccessToken (/opt/homebrew/lib/node_modules/firebase-tools/lib/apiv2.js:42:18)
+    at async Client.addAuthHeader (/opt/homebrew/lib/node_modules/firebase-tools/lib/apiv2.js:169:21)
+    at async Client.request (/opt/homebrew/lib/node_modules/firebase-tools/lib/apiv2.js:120:34)
+    at async listFirebaseApps (/opt/homebrew/lib/node_modules/firebase-tools/lib/management/apps.js:354:30)
+    at async Command.actionFn (/opt/homebrew/lib/node_modules/firebase-tools/lib/commands/apps-sdkconfig.js:51:22)
+[error] 
+[error] Error: Failed to list Firebase WEB apps. See firebase-debug.log for more info.

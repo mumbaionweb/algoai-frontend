@@ -173,7 +173,7 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
             
             {/* Navigation Menu Items */}
             <div className="hidden md:flex items-center gap-1">
-              {/* Portfolio - Direct Link */}
+              {/* Home - Direct Link */}
               <Link
                 href="/"
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -182,7 +182,19 @@ export default function DashboardNavigation({ title = 'Algo AI' }: DashboardNavi
                     : 'text-gray-300 hover:bg-gray-700 hover:text-white'
                 }`}
               >
-                Portfolio
+                Home
+              </Link>
+
+              {/* Stocks - Direct Link */}
+              <Link
+                href="/dashboard/stocks"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  pathname?.startsWith('/dashboard/stocks')
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                Stocks
               </Link>
 
               {/* Backtesting - Dropdown */}
