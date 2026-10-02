@@ -145,10 +145,20 @@ export default function ProfilePage() {
   }, [editName, updateUser]);
 
   const handleSavePhone = useCallback(async () => {
+    const trimmedPhone = editPhone.trim();
+    if (!trimmedPhone) return;
+
+    // Basic regex for E.164 standard phone numbers (e.g. +919876543210 or 9876543210)
+    const phoneRegex = /^\+?[1-9]\d{9,14}$/;
+    if (!phoneRegex.test(trimmedPhone)) {
+      setToast({ type: 'error', message: 'Please enter a valid phone number.' });
+      return;
+    }
+
     setSaving(true);
     try {
-      await updateProfile({ phone_number: editPhone.trim() });
-      updateUser({ phone_number: editPhone.trim() });
+      await updateProfile({ phone_number: trimmedPhone });
+      updateUser({ phone_number: trimmedPhone });
       closePanel();
       setToast({ type: 'success', message: 'Phone number updated successfully.' });
     } catch (err: any) {
