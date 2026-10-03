@@ -213,8 +213,9 @@ export default function StocksPage() {
             <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-400 sticky top-0">
               <tr>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Date</th>
+                <th scope="col" className="px-4 py-3 border-b border-gray-700">Stock Name</th>
+                <th scope="col" className="px-4 py-3 border-b border-gray-700">Symbol</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Trx Type</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700">Stock / Symbol</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-blue-900/10 border-l border-r border-gray-700/50 text-center" colSpan={4}>Buy</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-orange-900/10 border-r border-gray-700/50 text-center" colSpan={4}>Sell</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Cur. Unit</th>
@@ -251,8 +252,9 @@ export default function StocksPage() {
                       onClick={() => setSelectedStock(h.tradingsymbol)}
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{h.firstPurchaseDate}</td>
-                      <td className="px-4 py-3">Equity</td>
+                      <td className="px-4 py-3 text-gray-300">{h.name || h.tradingsymbol}</td>
                       <td className="px-4 py-3 font-medium text-white">{h.tradingsymbol}</td>
+                      <td className="px-4 py-3 text-gray-400">Equity</td>
                       <td className="px-3 py-3 text-right border-l border-gray-700/50">{h.buyAvg.toFixed(2)}</td>
                       <td className="px-3 py-3 text-right">{h.buyQty}</td>
                       <td className="px-3 py-3 text-right text-gray-500">-</td>
