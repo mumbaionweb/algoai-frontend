@@ -78,7 +78,7 @@ export default function StocksPage() {
         <div>
           <input 
             type="file" 
-            accept=".csv" 
+            accept=".csv, .xlsx, .xls" 
             className="hidden" 
             ref={fileInputRef} 
             onChange={handleFileUpload} 
