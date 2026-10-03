@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getPortfolio } from '@/lib/api/portfolio';
 import { uploadTransactionsCSV } from '@/lib/api/transactions';
+import DashboardHeader from '@/components/layout/DashboardHeader';
 import type { Holding } from '@/types';
 
 export default function StocksPage() {
@@ -62,10 +63,12 @@ export default function StocksPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex justify-between items-end">
-        <div>
-          <h1 className="text-2xl font-bold text-white mb-2">Stocks</h1>
+    <div className="min-h-screen bg-gray-900">
+      <DashboardHeader title="Stocks" />
+      <main className="container mx-auto px-4 py-8">
+        <div className="mb-6 flex justify-between items-end">
+          <div>
+            <h1 className="text-2xl font-bold text-white mb-2">Stocks</h1>
           <p className="text-gray-400 text-sm">
             Overview of your transacted stocks and current holdings from connected brokers.
           </p>
@@ -180,6 +183,7 @@ export default function StocksPage() {
           </table>
         </div>
       </div>
+      </main>
     </div>
   );
 }
