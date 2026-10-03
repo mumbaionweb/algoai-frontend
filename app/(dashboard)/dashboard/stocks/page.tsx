@@ -8,6 +8,8 @@ import type { Holding } from '@/types';
 
 export default function StocksPage() {
   const [aggregatedStocks, setAggregatedStocks] = useState<any[]>([]);
+  const [rawTransactions, setRawTransactions] = useState<any[]>([]);
+  const [selectedStock, setSelectedStock] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -22,6 +24,7 @@ export default function StocksPage() {
         
         const txRes = await getStoredTransactions().catch(() => ({ transactions: [] }));
         const storedTxs = txRes.transactions || [];
+        setRawTransactions(storedTxs);
 
         const aggMap: Record<string, any> = {};
         storedTxs.forEach((tx: any) => {
@@ -31,6 +34,7 @@ export default function StocksPage() {
               buyCost: 0,
               sellQty: 0,
               sellSale: 0,
+              firstPurchaseDate: null,
             };
           }
           if (tx.trade_type === 'buy') {
@@ -39,6 +43,19 @@ export default function StocksPage() {
           } else if (tx.trade_type === 'sell') {
             aggMap[tx.symbol].sellQty += tx.quantity;
             aggMap[tx.symbol].sellSale += tx.quantity * tx.price;
+          }
+          
+          if (tx.trade_date_raw) {
+             const txDateStr = tx.trade_date_raw.split(' ')[0].split('T')[0];
+             if (!aggMap[tx.symbol].firstPurchaseDate) {
+                 aggMap[tx.symbol].firstPurchaseDate = txDateStr;
+             } else {
+                 const currentBest = new Date(aggMap[tx.symbol].firstPurchaseDate);
+                 const candidate = new Date(txDateStr);
+                 if (!isNaN(candidate.getTime()) && candidate < currentBest) {
+                     aggMap[tx.symbol].firstPurchaseDate = txDateStr;
+                 }
+             }
           }
         });
 
@@ -51,7 +68,7 @@ export default function StocksPage() {
         const allSymbols = Array.from(new Set([...Object.keys(aggMap), ...Object.keys(liveMap)])).sort();
         
         allSymbols.forEach(sym => {
-           const a = aggMap[sym] || { buyQty: 0, buyCost: 0, sellQty: 0, sellSale: 0 };
+           const a = aggMap[sym] || { buyQty: 0, buyCost: 0, sellQty: 0, sellSale: 0, firstPurchaseDate: null };
            const h = liveMap[sym] || { quantity: 0, average_price: 0, last_price: 0, pnl: 0 };
            
            const currentUnit = h.quantity || (a.buyQty - a.sellQty);
@@ -70,7 +87,8 @@ export default function StocksPage() {
              currentValue: currentUnit * h.last_price,
              lastPrice: h.last_price,
              pnl: pnl,
-             pnlPercentage: pnlPercentage
+             pnlPercentage: pnlPercentage,
+             firstPurchaseDate: a.firstPurchaseDate || '-'
            });
         });
 
@@ -194,8 +212,7 @@ export default function StocksPage() {
           <table className="w-full text-left text-sm text-gray-300">
             <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-400 sticky top-0">
               <tr>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700">Month</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700">S/F</th>
+                <th scope="col" className="px-4 py-3 border-b border-gray-700">Date</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Trx Type</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Stock / Symbol</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-blue-900/10 border-l border-r border-gray-700/50 text-center" colSpan={4}>Buy</th>
@@ -228,9 +245,12 @@ export default function StocksPage() {
               ) : (
                 aggregatedStocks.map((h, i) => {
                   return (
-                    <tr key={`${h.tradingsymbol}-${i}`} className="hover:bg-gray-700/30 transition-colors">
-                      <td className="px-4 py-3 whitespace-nowrap">-</td>
-                      <td className="px-4 py-3">s</td>
+                    <tr 
+                      key={`${h.tradingsymbol}-${i}`} 
+                      className="hover:bg-gray-700/30 transition-colors cursor-pointer"
+                      onClick={() => setSelectedStock(h.tradingsymbol)}
+                    >
+                      <td className="px-4 py-3 whitespace-nowrap">{h.firstPurchaseDate}</td>
                       <td className="px-4 py-3">Equity</td>
                       <td className="px-4 py-3 font-medium text-white">{h.tradingsymbol}</td>
                       <td className="px-3 py-3 text-right border-l border-gray-700/50">{h.buyAvg.toFixed(2)}</td>
@@ -258,6 +278,66 @@ export default function StocksPage() {
         </div>
       </div>
       </main>
+
+      {/* Trades Breakdown Modal */}
+      {selectedStock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-gray-800 rounded-xl shadow-xl w-full max-w-2xl border border-gray-700 flex flex-col max-h-[85vh]">
+            <div className="flex justify-between items-center p-6 border-b border-gray-700">
+              <h2 className="text-xl font-semibold text-white">Trade History: {selectedStock}</h2>
+              <button 
+                onClick={() => setSelectedStock(null)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              {rawTransactions.filter(t => t.symbol === selectedStock).length === 0 ? (
+                <p className="text-gray-400 text-center py-8">No specific trade records found for {selectedStock}. (It might only exist in your broker holding)</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-gray-300">
+                    <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-400">
+                      <tr>
+                        <th className="px-4 py-3 border-b border-gray-700">Date</th>
+                        <th className="px-4 py-3 border-b border-gray-700">Type</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-right">Quantity</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-right">Price</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-700/50">
+                      {rawTransactions
+                        .filter(t => t.symbol === selectedStock)
+                        .sort((a, b) => new Date(b.trade_date_raw || 0).getTime() - new Date(a.trade_date_raw || 0).getTime())
+                        .map((tx, idx) => (
+                        <tr key={idx} className="hover:bg-gray-700/30">
+                          <td className="px-4 py-3">{tx.trade_date_raw}</td>
+                          <td className={`px-4 py-3 font-medium uppercase ${tx.trade_type === 'buy' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {tx.trade_type}
+                          </td>
+                          <td className="px-4 py-3 text-right">{tx.quantity}</td>
+                          <td className="px-4 py-3 text-right">₹{tx.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+            <div className="p-4 border-t border-gray-700 flex justify-end">
+              <button 
+                onClick={() => setSelectedStock(null)}
+                className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors font-medium text-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
