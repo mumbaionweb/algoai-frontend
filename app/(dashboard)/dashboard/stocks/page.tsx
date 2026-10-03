@@ -305,23 +305,39 @@ export default function StocksPage() {
                     <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-400">
                       <tr>
                         <th className="px-4 py-3 border-b border-gray-700">Date</th>
+                        <th className="px-4 py-3 border-b border-gray-700">Trade ID</th>
                         <th className="px-4 py-3 border-b border-gray-700">Type</th>
                         <th className="px-4 py-3 border-b border-gray-700 text-right">Quantity</th>
                         <th className="px-4 py-3 border-b border-gray-700 text-right">Price</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-center">Status</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-right">P/L</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-center">Strategy</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-center">Strategy ID</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
                       {rawTransactions
                         .filter(t => t.symbol === selectedStock)
-                        .sort((a, b) => new Date(b.trade_date_raw || 0).getTime() - new Date(a.trade_date_raw || 0).getTime())
+                        .sort((a, b) => new Date(a.trade_date_raw || 0).getTime() - new Date(b.trade_date_raw || 0).getTime())
                         .map((tx, idx) => (
                         <tr key={idx} className="hover:bg-gray-700/30">
                           <td className="px-4 py-3">{tx.trade_date_raw}</td>
+                          <td className="px-4 py-3 font-mono text-gray-400">{tx.order_id || tx.id.substring(0, 8)}</td>
                           <td className={`px-4 py-3 font-medium uppercase ${tx.trade_type === 'buy' ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {tx.trade_type}
                           </td>
                           <td className="px-4 py-3 text-right">{tx.quantity}</td>
                           <td className="px-4 py-3 text-right">₹{tx.price.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-3 text-center">
+                            <span className="px-2 py-1 bg-gray-700/50 text-gray-300 text-xs rounded-full">
+                              {tx.status || 'COMPLETE'}
+                            </span>
+                          </td>
+                          <td className={`px-4 py-3 text-right font-medium ${tx.pnl && tx.pnl >= 0 ? 'text-emerald-400' : tx.pnl && tx.pnl < 0 ? 'text-rose-400' : 'text-gray-500'}`}>
+                            {tx.pnl !== undefined ? (tx.pnl >= 0 ? '+' : '') + tx.pnl.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}
+                          </td>
+                          <td className="px-4 py-3 text-center text-gray-400">{tx.strategy_type || 'Manual'}</td>
+                          <td className="px-4 py-3 text-center text-gray-400 font-mono text-xs">{tx.strategy_id || '-'}</td>
                         </tr>
                       ))}
                     </tbody>
