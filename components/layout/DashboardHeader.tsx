@@ -10,7 +10,7 @@ interface DashboardHeaderProps {
   backButton?: boolean;
 }
 
-export default function DashboardHeader({ title = 'AlgoAI Dashboard', backButton = false }: DashboardHeaderProps) {
+export default function DashboardHeader({ title = 'Algo AI', backButton = false }: DashboardHeaderProps) {
   const { user, logout } = useAuthStore();
   const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
