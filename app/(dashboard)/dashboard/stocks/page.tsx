@@ -10,6 +10,7 @@ export default function StocksPage() {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -39,8 +40,9 @@ export default function StocksPage() {
     try {
       setUploading(true);
       setError('');
+      setSuccessMsg('');
       const res = await uploadTransactionsCSV(file);
-      alert(res.message || 'Successfully imported transactions!');
+      setSuccessMsg(res.message || 'Successfully imported transactions!');
       // Reload or refresh data here once Phase 3 is implemented
     } catch (err: any) {
       console.error('Upload failed:', err);
@@ -98,17 +100,38 @@ export default function StocksPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
                 </svg>
-                Import Tradebook (CSV)
+                Import Tradebook (CSV/Excel)
               </>
             )}
           </button>
         </div>
       </div>
 
+      {successMsg && (
+        <div className="bg-green-500/10 border border-green-500/30 text-green-400 p-4 rounded-lg mb-6 flex justify-between items-start">
+          <div>
+            <h3 className="font-semibold text-lg mb-2">Success</h3>
+            <p>{successMsg}</p>
+          </div>
+          <button onClick={() => setSuccessMsg('')} className="text-green-400 hover:text-green-300">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+      )}
+
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg mb-6">
-          <h3 className="font-semibold text-lg mb-2">Error</h3>
-          <p>{error}</p>
+        <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-lg mb-6 flex justify-between items-start">
+          <div>
+            <h3 className="font-semibold text-lg mb-2">Error</h3>
+            <p>{error}</p>
+          </div>
+          <button onClick={() => setError('')} className="text-red-400 hover:text-red-300">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
         </div>
       )}
 
