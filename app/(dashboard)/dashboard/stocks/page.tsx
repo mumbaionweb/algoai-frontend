@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { getPortfolio } from '@/lib/api/portfolio';
 import { uploadTransactionsCSV } from '@/lib/api/transactions';
-import DashboardHeader from '@/components/layout/DashboardHeader';
+import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import type { Holding } from '@/types';
 
 export default function StocksPage() {
@@ -64,7 +64,7 @@ export default function StocksPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <DashboardHeader title="Stocks" />
+      <DashboardNavigation title="Stocks" />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 flex justify-between items-end">
           <div>
