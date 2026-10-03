@@ -1,37 +1,91 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortfolio } from '@/lib/api/portfolio';
-import { uploadTransactionsCSV } from '@/lib/api/transactions';
+import { uploadTransactionsCSV, getStoredTransactions } from '@/lib/api/transactions';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import type { Holding } from '@/types';
 
 export default function StocksPage() {
-  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [aggregatedStocks, setAggregatedStocks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    async function fetchStocks() {
+  const fetchStocks = useCallback(async () => {
       try {
         setLoading(true);
-        // We'll still fetch the current portfolio holdings to display the live snapshot
-        // Later we can integrate this with the fetched historical transactions
-        const portfolio = await getPortfolio({ broker_type: 'zerodha' });
-        setHoldings(portfolio.holdings || []);
+        const portfolioRes = await getPortfolio({ broker_type: 'zerodha' }).catch(() => ({ holdings: [] }));
+        const liveHoldings = portfolioRes.holdings || [];
+        
+        const txRes = await getStoredTransactions().catch(() => ({ transactions: [] }));
+        const storedTxs = txRes.transactions || [];
+
+        const aggMap: Record<string, any> = {};
+        storedTxs.forEach((tx: any) => {
+          if (!aggMap[tx.symbol]) {
+            aggMap[tx.symbol] = {
+              buyQty: 0,
+              buyCost: 0,
+              sellQty: 0,
+              sellSale: 0,
+            };
+          }
+          if (tx.trade_type === 'buy') {
+            aggMap[tx.symbol].buyQty += tx.quantity;
+            aggMap[tx.symbol].buyCost += tx.quantity * tx.price;
+          } else if (tx.trade_type === 'sell') {
+            aggMap[tx.symbol].sellQty += tx.quantity;
+            aggMap[tx.symbol].sellSale += tx.quantity * tx.price;
+          }
+        });
+
+        const liveMap: Record<string, any> = {};
+        liveHoldings.forEach((h: any) => {
+           liveMap[h.tradingsymbol] = h;
+        });
+
+        const merged: any[] = [];
+        const allSymbols = Array.from(new Set([...Object.keys(aggMap), ...Object.keys(liveMap)])).sort();
+        
+        allSymbols.forEach(sym => {
+           const a = aggMap[sym] || { buyQty: 0, buyCost: 0, sellQty: 0, sellSale: 0 };
+           const h = liveMap[sym] || { quantity: 0, average_price: 0, last_price: 0, pnl: 0 };
+           
+           const currentUnit = h.quantity || (a.buyQty - a.sellQty);
+           const pnl = (a.sellSale + (currentUnit * h.last_price)) - a.buyCost;
+           const pnlPercentage = a.buyCost > 0 ? (pnl / a.buyCost) * 100 : 0;
+           
+           merged.push({
+             tradingsymbol: sym,
+             buyQty: a.buyQty,
+             buyAvg: a.buyQty > 0 ? (a.buyCost / a.buyQty) : 0,
+             buyTotal: a.buyCost,
+             sellQty: a.sellQty,
+             sellAvg: a.sellQty > 0 ? (a.sellSale / a.sellQty) : 0,
+             sellTotal: a.sellSale,
+             currentUnit: currentUnit,
+             currentValue: currentUnit * h.last_price,
+             lastPrice: h.last_price,
+             pnl: pnl,
+             pnlPercentage: pnlPercentage
+           });
+        });
+
+        setAggregatedStocks(merged);
       } catch (err: any) {
         console.error('Failed to fetch stocks:', err);
-        setError(err.message || 'Failed to fetch stocks from broker.');
+        setError(err.message || 'Failed to fetch stocks data.');
       } finally {
         setLoading(false);
       }
-    }
-    
-    fetchStocks();
   }, []);
+
+  useEffect(() => {
+    fetchStocks();
+  }, [fetchStocks]);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -43,7 +97,7 @@ export default function StocksPage() {
       setSuccessMsg('');
       const res = await uploadTransactionsCSV(file);
       setSuccessMsg(res.message || 'Successfully imported transactions!');
-      // Reload or refresh data here once Phase 3 is implemented
+      await fetchStocks();
     } catch (err: any) {
       console.error('Upload failed:', err);
       setError(err.message || 'Failed to upload CSV.');
@@ -165,38 +219,35 @@ export default function StocksPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700/50">
-              {holdings.length === 0 ? (
+              {aggregatedStocks.length === 0 ? (
                 <tr>
                   <td colSpan={16} className="px-4 py-8 text-center text-gray-500">
                     No stock transactions found from your connected broker.
                   </td>
                 </tr>
               ) : (
-                holdings.map((h, i) => {
-                  const invested = h.quantity * h.average_price;
-                  const currentValue = h.quantity * h.last_price;
-                  
+                aggregatedStocks.map((h, i) => {
                   return (
                     <tr key={`${h.tradingsymbol}-${i}`} className="hover:bg-gray-700/30 transition-colors">
                       <td className="px-4 py-3 whitespace-nowrap">-</td>
                       <td className="px-4 py-3">s</td>
                       <td className="px-4 py-3">Equity</td>
                       <td className="px-4 py-3 font-medium text-white">{h.tradingsymbol}</td>
-                      <td className="px-3 py-3 text-right border-l border-gray-700/50">{h.average_price.toFixed(2)}</td>
-                      <td className="px-3 py-3 text-right">{h.quantity}</td>
+                      <td className="px-3 py-3 text-right border-l border-gray-700/50">{h.buyAvg.toFixed(2)}</td>
+                      <td className="px-3 py-3 text-right">{h.buyQty}</td>
                       <td className="px-3 py-3 text-right text-gray-500">-</td>
-                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-blue-300">₹{invested.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-blue-300">₹{h.buyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-3 text-right">{h.sellAvg.toFixed(2)}</td>
+                      <td className="px-3 py-3 text-right">{h.sellQty}</td>
                       <td className="px-3 py-3 text-right text-gray-500">-</td>
-                      <td className="px-3 py-3 text-right text-gray-500">-</td>
-                      <td className="px-3 py-3 text-right text-gray-500">-</td>
-                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-gray-500">-</td>
-                      <td className="px-4 py-3 text-right">{h.quantity}</td>
-                      <td className="px-4 py-3 text-right font-medium">₹{currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-orange-300">₹{h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 text-right">{h.currentUnit}</td>
+                      <td className="px-4 py-3 text-right font-medium">₹{h.currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                       <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
                         {h.pnl >= 0 ? '+' : ''}{h.pnl.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </td>
-                      <td className={`px-4 py-3 text-right font-medium ${h.pnl_percentage >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {h.pnl_percentage >= 0 ? '+' : ''}{h.pnl_percentage.toFixed(2)}%
+                      <td className={`px-4 py-3 text-right font-medium ${h.pnlPercentage >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {h.pnlPercentage >= 0 ? '+' : ''}{h.pnlPercentage.toFixed(2)}%
                       </td>
                     </tr>
                   );
