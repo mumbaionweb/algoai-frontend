@@ -64,7 +64,7 @@ export default function StocksPage() {
 
   return (
     <div className="min-h-screen bg-gray-900">
-      <DashboardNavigation title="Stocks" />
+      <DashboardNavigation />
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 flex justify-between items-end">
           <div>
