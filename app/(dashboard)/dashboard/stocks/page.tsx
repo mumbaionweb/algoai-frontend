@@ -65,13 +65,13 @@ export default function StocksPage() {
         });
 
         const merged: any[] = [];
-        const allSymbols = Array.from(new Set([...Object.keys(aggMap), ...Object.keys(liveMap)])).sort();
+        const allSymbols = Array.from(new Set(Object.keys(aggMap))).sort();
         
         allSymbols.forEach(sym => {
            const a = aggMap[sym] || { buyQty: 0, buyCost: 0, sellQty: 0, sellSale: 0, firstPurchaseDate: null };
            const h = liveMap[sym] || { quantity: 0, average_price: 0, last_price: 0, pnl: 0 };
            
-           const currentUnit = h.quantity || (a.buyQty - a.sellQty);
+           const currentUnit = a.buyQty - a.sellQty;
            const pnl = (a.sellSale + (currentUnit * h.last_price)) - a.buyCost;
            const pnlPercentage = a.buyCost > 0 ? (pnl / a.buyCost) * 100 : 0;
            
