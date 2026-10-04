@@ -1,4 +1,4 @@
-import api from './config';
+import api from './client';
 
 export const getJobs = async () => {
   const response = await api.get('/api/jobs');

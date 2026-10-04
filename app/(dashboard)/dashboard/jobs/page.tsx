@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { getJobs, getJobLogs, runJob, updateJob } from '@/lib/api/jobs';
-import { format } from 'date-fns';
 
 export default function JobsPage() {
   const [activeTab, setActiveTab] = useState<'jobs' | 'logs'>('jobs');
@@ -56,7 +55,11 @@ export default function JobsPage() {
   const formatDate = (dateString: string) => {
     if (!dateString) return '-';
     try {
-      return format(new Date(dateString), 'dd MMM yyyy HH:mm:ss');
+      const date = new Date(dateString);
+      return date.toLocaleString('en-GB', {
+        day: '2-digit', month: 'short', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
     } catch (e) {
       return dateString;
     }
