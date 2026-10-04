@@ -547,6 +547,18 @@ class MyStrategy(bt.Strategy):
                   </div>
                 )}
               </div>
+
+              {/* Datasets - Direct Link */}
+              <Link
+                href="/dashboard/datasets"
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  pathname?.startsWith('/dashboard/datasets')
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+                }`}
+              >
+                Datasets
+              </Link>
             </div>
           </div>
 
