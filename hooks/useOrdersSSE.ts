@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import type { Order } from '@/types';
+import { isTokenExpired, handleAuthFailure } from '@/utils/auth';
 
 export function useOrdersSSE(
   token: string | null,
@@ -78,6 +79,12 @@ export function useOrdersSSE(
     eventSource.onerror = (error) => {
       // Only log errors if connection is actually closed (not just reconnecting)
       if (eventSource.readyState === EventSource.CLOSED) {
+        if (isTokenExpired(token)) {
+          console.error('[SSE_ORDERS] ❌ Token expired');
+          eventSource.close();
+          handleAuthFailure();
+          return;
+        }
         // Connection closed - this might be normal during page refresh
         // Only log if we were previously connected (not initial connection failure)
         if (wasConnectedRef.current) {
@@ -86,6 +93,12 @@ export function useOrdersSSE(
         setConnected(false);
         wasConnectedRef.current = false;
       } else if (eventSource.readyState === EventSource.CONNECTING) {
+        if (isTokenExpired(token)) {
+          console.error('[SSE_ORDERS] ❌ Token expired during reconnect attempt');
+          eventSource.close();
+          handleAuthFailure();
+          return;
+        }
         // Reconnecting - this is normal, don't log as error
         setConnected(false);
       }

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import type { BacktestJob } from '@/types';
+import { isTokenExpired, handleAuthFailure } from '@/utils/auth';
 
 interface UseBacktestJobsSSEProps {
   token: string | null;
@@ -164,6 +165,17 @@ export function useBacktestJobsSSE({
         setError('Authentication failed. Please refresh the page.');
         setLoading(false);
         isIntentionallyClosedRef.current = true;
+        handleAuthFailure();
+        return;
+      }
+      
+      // If we are reconnecting or closed, check if our token just expired
+      if ((eventSource.readyState === EventSource.CONNECTING || eventSource.readyState === EventSource.CLOSED) 
+          && isTokenExpired(token)) {
+        console.error('[SSE_JOBS] ❌ Token expired during reconnect attempt');
+        isIntentionallyClosedRef.current = true;
+        eventSource.close();
+        handleAuthFailure();
         return;
       }
       

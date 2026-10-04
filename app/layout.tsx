@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AlgoAI - Algorithmic Trading Platform",
+  title: "Algo AI - Algorithmic Trading Platform",
   description: "Algorithmic trading platform with Backtrader and Zerodha integration",
 };
 

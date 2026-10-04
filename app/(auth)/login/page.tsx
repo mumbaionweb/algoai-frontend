@@ -198,7 +198,7 @@ function LoginForm() {
       <div className="max-w-md w-full space-y-8 p-8 bg-gray-800 rounded-lg">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            Sign in to AlgoAI
+            Sign in to Algo AI
           </h2>
         </div>
 

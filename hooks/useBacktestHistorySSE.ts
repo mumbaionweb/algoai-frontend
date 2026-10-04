@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import type { BacktestHistoryItem } from '@/types';
+import { isTokenExpired, handleAuthFailure } from '@/utils/auth';
 
 interface UseBacktestHistorySSEProps {
   token: string | null;
@@ -139,6 +140,17 @@ export function useBacktestHistorySSE({
         setError('Authentication failed. Please refresh the page.');
         setLoading(false);
         isIntentionallyClosedRef.current = true;
+        handleAuthFailure();
+        return;
+      }
+      
+      // If we are reconnecting or closed, check if our token just expired
+      if ((eventSource.readyState === EventSource.CONNECTING || eventSource.readyState === EventSource.CLOSED) 
+          && isTokenExpired(token)) {
+        console.error('[SSE_HISTORY] ❌ Token expired during reconnect attempt');
+        isIntentionallyClosedRef.current = true;
+        eventSource.close();
+        handleAuthFailure();
         return;
       }
       
