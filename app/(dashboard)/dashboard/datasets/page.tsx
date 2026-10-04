@@ -1,6 +1,7 @@
 'use client';
 
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
+import Link from 'next/link';
 
 export default function DatasetsPage() {
   const datasets = [
@@ -74,9 +75,11 @@ export default function DatasetsPage() {
                       {dataset.lastUpdated}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
-                        View Data
-                      </button>
+                      <Link href={`/dashboard/datasets/${dataset.id}`}>
+                        <button className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300 transition-colors">
+                          View Data
+                        </button>
+                      </Link>
                     </td>
                   </tr>
                 ))}
