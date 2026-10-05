@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortfolio } from '@/lib/api/portfolio';
 import { uploadTransactionsCSV, getStoredTransactions } from '@/lib/api/transactions';
+import { getDatasetData } from '@/lib/api/datasets';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import type { Holding } from '@/types';
 
@@ -25,6 +26,16 @@ export default function StocksPage() {
         const txRes = await getStoredTransactions().catch(() => ({ transactions: [] }));
         const storedTxs = txRes.transactions || [];
         setRawTransactions(storedTxs);
+
+        // Fetch NSE Equities dataset for stock names
+        const nseRes = await getDatasetData('nse_equities', 5000).catch(() => ({ data: [] }));
+        const nseEquities = nseRes.data || [];
+        const stockNameMap: Record<string, string> = {};
+        nseEquities.forEach((eq: any) => {
+           if (eq.SYMBOL && eq['NAME OF COMPANY']) {
+               stockNameMap[eq.SYMBOL] = eq['NAME OF COMPANY'];
+           }
+        });
 
         const aggMap: Record<string, any> = {};
         storedTxs.forEach((tx: any) => {
@@ -77,6 +88,7 @@ export default function StocksPage() {
            
            merged.push({
              tradingsymbol: sym,
+             name: stockNameMap[sym] || sym,
              buyQty: a.buyQty,
              buyAvg: a.buyQty > 0 ? (a.buyCost / a.buyQty) : 0,
              buyTotal: a.buyCost,
