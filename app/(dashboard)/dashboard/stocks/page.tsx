@@ -257,10 +257,11 @@ export default function StocksPage() {
                 </tr>
               ) : (
                 aggregatedStocks.map((h, i) => {
+                  const isCompleted = h.buyQty > 0 && h.sellQty > 0 && h.currentUnit === 0;
                   return (
                     <tr 
                       key={`${h.tradingsymbol}-${i}`} 
-                      className="hover:bg-gray-700/30 transition-colors cursor-pointer"
+                      className={`transition-colors cursor-pointer ${isCompleted ? 'bg-gray-800/60 hover:bg-gray-700/50' : 'hover:bg-gray-700/30'}`}
                       onClick={() => setSelectedStock(h.tradingsymbol)}
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{h.firstPurchaseDate}</td>
@@ -270,11 +271,11 @@ export default function StocksPage() {
                       <td className="px-3 py-3 text-right border-l border-gray-700/50">{h.buyAvg.toFixed(2)}</td>
                       <td className="px-3 py-3 text-right">{h.buyQty}</td>
                       <td className="px-3 py-3 text-right text-gray-500">-</td>
-                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-blue-300">₹{h.buyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-blue-500 font-semibold">₹{h.buyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                       <td className="px-3 py-3 text-right">{h.sellAvg.toFixed(2)}</td>
                       <td className="px-3 py-3 text-right">{h.sellQty}</td>
                       <td className="px-3 py-3 text-right text-gray-500">-</td>
-                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-orange-300">₹{h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-orange-500 font-semibold">₹{h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                       <td className="px-4 py-3 text-right">{h.currentUnit}</td>
                       <td className="px-4 py-3 text-right font-medium">₹{h.currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                       <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
