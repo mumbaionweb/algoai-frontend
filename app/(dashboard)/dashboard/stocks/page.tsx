@@ -46,8 +46,10 @@ export default function StocksPage() {
               sellQty: 0,
               sellSale: 0,
               firstPurchaseDate: null,
+              sources: new Set()
             };
           }
+          if (tx.source) aggMap[tx.symbol].sources.add(tx.source);
           if (tx.trade_type === 'buy') {
             aggMap[tx.symbol].buyQty += tx.quantity;
             aggMap[tx.symbol].buyCost += tx.quantity * tx.price;
@@ -86,6 +88,9 @@ export default function StocksPage() {
            const pnl = (a.sellSale + (currentUnit * h.last_price)) - a.buyCost;
            const pnlPercentage = a.buyCost > 0 ? (pnl / a.buyCost) * 100 : 0;
            
+           const sourceStrings = Array.from(a.sources || []).map(s => s === 'file_upload' ? 'Upload' : (s === 'api_sync' ? 'API' : 'Unknown'));
+           const sourceDisplay = sourceStrings.length > 0 ? sourceStrings.join(', ') : 'Upload';
+
            merged.push({
              tradingsymbol: sym,
              name: stockNameMap[sym] || sym,
@@ -100,7 +105,8 @@ export default function StocksPage() {
              lastPrice: h.last_price,
              pnl: pnl,
              pnlPercentage: pnlPercentage,
-             firstPurchaseDate: a.firstPurchaseDate || '-'
+             firstPurchaseDate: a.firstPurchaseDate || '-',
+             sourceDisplay: sourceDisplay
            });
         });
 
@@ -230,10 +236,10 @@ export default function StocksPage() {
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Trx Type</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-blue-900/20 border-l border-r border-gray-700/50 text-center" colSpan={4}>Buy</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-orange-900/20 border-r border-gray-700/50 text-center" colSpan={4}>Sell</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Cur. Unit</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Cur. Value</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">P/L</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">% Profit</th>
+                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Source</th>
               </tr>
               <tr className="bg-gray-900/40 text-[11px] text-gray-300 border-b border-gray-700 font-semibold tracking-wider">
                 <th colSpan={4} className="border-r border-gray-700/50"></th>
@@ -276,7 +282,6 @@ export default function StocksPage() {
                       <td className="px-3 py-3 text-right">{h.sellQty > 0 ? h.sellQty : ''}</td>
                       <td className="px-3 py-3 text-right text-gray-500">{h.sellQty > 0 ? '-' : ''}</td>
                       <td className="px-3 py-3 text-right border-r border-gray-700/50 font-semibold">{h.sellQty > 0 ? `₹${h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}</td>
-                      <td className="px-4 py-3 text-right">{h.currentUnit}</td>
                       <td className="px-4 py-3 text-right font-medium">₹{h.currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                       <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
                         {h.pnl >= 0 ? '+' : ''}{h.pnl.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
@@ -284,6 +289,7 @@ export default function StocksPage() {
                       <td className={`px-4 py-3 text-right font-medium ${h.pnlPercentage >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                         {h.pnlPercentage >= 0 ? '+' : ''}{h.pnlPercentage.toFixed(2)}%
                       </td>
+                      <td className="px-4 py-3 text-right text-gray-400">{h.sourceDisplay}</td>
                     </tr>
                   );
                 })
