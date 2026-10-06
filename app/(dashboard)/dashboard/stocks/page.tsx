@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getPortfolio } from '@/lib/api/portfolio';
 import { uploadTransactionsCSV, getStoredTransactions } from '@/lib/api/transactions';
 import { getDatasetData } from '@/lib/api/datasets';
 import { getQuotes } from '@/lib/api/market-data';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
+import { ArrowUpDown, ArrowDown, ArrowUp } from 'lucide-react';
 import type { Holding } from '@/types';
 
 export default function StocksPage() {
@@ -17,6 +18,8 @@ export default function StocksPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc'|'desc' }>({ key: 'buyDate', direction: 'asc' });
 
   const fetchStocks = useCallback(async () => {
       try {
@@ -38,39 +41,11 @@ export default function StocksPage() {
            }
         });
 
-        const aggMap: Record<string, any> = {};
+        // Group all transactions by symbol
+        const txBySymbol: Record<string, any[]> = {};
         storedTxs.forEach((tx: any) => {
-          if (!aggMap[tx.symbol]) {
-            aggMap[tx.symbol] = {
-              buyQty: 0,
-              buyCost: 0,
-              sellQty: 0,
-              sellSale: 0,
-              firstPurchaseDate: null,
-              sources: new Set()
-            };
-          }
-          if (tx.source) aggMap[tx.symbol].sources.add(tx.source);
-          if (tx.trade_type === 'buy') {
-            aggMap[tx.symbol].buyQty += tx.quantity;
-            aggMap[tx.symbol].buyCost += tx.quantity * tx.price;
-          } else if (tx.trade_type === 'sell') {
-            aggMap[tx.symbol].sellQty += tx.quantity;
-            aggMap[tx.symbol].sellSale += tx.quantity * tx.price;
-          }
-          
-          if (tx.trade_date_raw) {
-             const txDateStr = tx.trade_date_raw.split(' ')[0].split('T')[0];
-             if (!aggMap[tx.symbol].firstPurchaseDate) {
-                 aggMap[tx.symbol].firstPurchaseDate = txDateStr;
-             } else {
-                 const currentBest = new Date(aggMap[tx.symbol].firstPurchaseDate);
-                 const candidate = new Date(txDateStr);
-                 if (!isNaN(candidate.getTime()) && candidate < currentBest) {
-                     aggMap[tx.symbol].firstPurchaseDate = txDateStr;
-                 }
-             }
-          }
+            if (!txBySymbol[tx.symbol]) txBySymbol[tx.symbol] = [];
+            txBySymbol[tx.symbol].push(tx);
         });
 
         const liveMap: Record<string, any> = {};
@@ -78,7 +53,7 @@ export default function StocksPage() {
            liveMap[h.tradingsymbol] = h;
         });
 
-        const allSymbols = Array.from(new Set(Object.keys(aggMap))).sort();
+        const allSymbols = Array.from(new Set(Object.keys(txBySymbol))).sort();
 
         // Fetch quotes for symbols not in liveHoldings
         const missingSymbols = allSymbols.filter(sym => !liveMap[sym]);
@@ -101,33 +76,68 @@ export default function StocksPage() {
         const merged: any[] = [];
         
         allSymbols.forEach(sym => {
-           const a = aggMap[sym] || { buyQty: 0, buyCost: 0, sellQty: 0, sellSale: 0, firstPurchaseDate: null };
-           const h = liveMap[sym] || { quantity: 0, average_price: 0, last_price: 0, pnl: 0 };
-           
-           const currentUnit = a.buyQty - a.sellQty;
-           const pnl = (a.sellSale + (currentUnit * h.last_price)) - a.buyCost;
-           const pnlPercentage = a.buyCost > 0 ? (pnl / a.buyCost) * 100 : 0;
-           
-           const sourceStrings = Array.from(a.sources || []).map(s => s === 'file_upload' ? 'Upload' : (s === 'api_sync' ? 'API' : 'Unknown'));
-           const sourceDisplay = sourceStrings.length > 0 ? sourceStrings.join(', ') : 'Upload';
+            const h = liveMap[sym] || { quantity: 0, average_price: 0, last_price: 0, pnl: 0 };
+            const symTxs = txBySymbol[sym];
+            
+            // Sort transactions by date ascending
+            const sortedTxs = symTxs.sort((a, b) => {
+                const dateA = new Date(a.trade_date_raw || 0).getTime();
+                const dateB = new Date(b.trade_date_raw || 0).getTime();
+                return dateA - dateB;
+            });
+            
+            const buys = sortedTxs.filter(t => t.trade_type === 'buy').map(b => ({
+                ...b,
+                allocatedSellQty: 0,
+                allocatedSellValue: 0
+            }));
+            
+            const sells = sortedTxs.filter(t => t.trade_type === 'sell');
+            
+            // FIFO allocation
+            sells.forEach(sell => {
+                let remainingToSell = sell.quantity;
+                for (const buy of buys) {
+                    if (remainingToSell <= 0) break;
+                    const availableInBuy = buy.quantity - buy.allocatedSellQty;
+                    if (availableInBuy > 0) {
+                        const allocate = Math.min(availableInBuy, remainingToSell);
+                        buy.allocatedSellQty += allocate;
+                        buy.allocatedSellValue += allocate * sell.price;
+                        remainingToSell -= allocate;
+                    }
+                }
+            });
+            
+            // Create a row for each buy lot
+            buys.forEach(buy => {
+                const currentUnit = buy.quantity - buy.allocatedSellQty;
+                const buyTotal = buy.quantity * buy.price;
+                const pnl = (buy.allocatedSellValue + (currentUnit * h.last_price)) - buyTotal;
+                const pnlPercentage = buyTotal > 0 ? (pnl / buyTotal) * 100 : 0;
+                
+                const txDateStr = buy.trade_date_raw ? buy.trade_date_raw.split(' ')[0].split('T')[0] : '';
+                const sourceStr = buy.source === 'file_upload' ? 'Upload' : (buy.source === 'api_sync' ? 'API' : 'Unknown');
 
-           merged.push({
-             tradingsymbol: sym,
-             name: stockNameMap[sym] || sym,
-             buyQty: a.buyQty,
-             buyAvg: a.buyQty > 0 ? (a.buyCost / a.buyQty) : 0,
-             buyTotal: a.buyCost,
-             sellQty: a.sellQty,
-             sellAvg: a.sellQty > 0 ? (a.sellSale / a.sellQty) : 0,
-             sellTotal: a.sellSale,
-             currentUnit: currentUnit,
-             currentValue: currentUnit * h.last_price,
-             lastPrice: h.last_price,
-             pnl: pnl,
-             pnlPercentage: pnlPercentage,
-             firstPurchaseDate: a.firstPurchaseDate || '-',
-             sourceDisplay: sourceDisplay
-           });
+                merged.push({
+                    tradingsymbol: sym,
+                    name: stockNameMap[sym] || sym,
+                    buyDate: txDateStr,
+                    buyQty: buy.quantity,
+                    buyAvg: buy.price,
+                    buyTotal: buyTotal,
+                    sellQty: buy.allocatedSellQty,
+                    sellAvg: buy.allocatedSellQty > 0 ? buy.allocatedSellValue / buy.allocatedSellQty : 0,
+                    sellTotal: buy.allocatedSellValue,
+                    currentUnit: currentUnit,
+                    currentValue: currentUnit * h.last_price,
+                    lastPrice: h.last_price,
+                    pnl: pnl,
+                    pnlPercentage: pnlPercentage,
+                    firstPurchaseDate: txDateStr, // Map for compatibility if needed
+                    sourceDisplay: sourceStr
+                });
+            });
         });
 
         setAggregatedStocks(merged);
@@ -163,6 +173,42 @@ export default function StocksPage() {
         fileInputRef.current.value = ''; // Reset input
       }
     }
+  };
+
+  const sortedStocks = useMemo(() => {
+    let sortableItems = [...aggregatedStocks];
+    sortableItems.sort((a, b) => {
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+          return sortConfig.direction === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return sortConfig.direction === 'asc' ? (aVal < bVal ? -1 : 1) : (aVal > bVal ? -1 : 1);
+    });
+    return sortableItems;
+  }, [aggregatedStocks, sortConfig]);
+
+  const SortableHeader = ({ label, sortKey, className = '' }: { label: string, sortKey: string, className?: string }) => {
+    const isActive = sortConfig.key === sortKey;
+    return (
+      <th 
+        scope="col" 
+        className={`px-4 py-3 border-b border-gray-700 cursor-pointer hover:bg-gray-700/50 transition-colors group ${className}`} 
+        onClick={() => setSortConfig({ key: sortKey, direction: isActive && sortConfig.direction === 'asc' ? 'desc' : 'asc' })}
+      >
+        <div className={`flex items-center gap-1 ${className.includes('text-right') ? 'justify-end' : 'justify-between'}`}>
+          <span>{label}</span>
+          <span className="flex-shrink-0 w-4 inline-flex justify-center">
+            {isActive ? (
+              sortConfig.direction === 'asc' ? <ArrowUp className="w-3 h-3 text-blue-400" /> : <ArrowDown className="w-3 h-3 text-blue-400" />
+            ) : (
+              <ArrowUpDown className="w-3 h-3 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+            )}
+          </span>
+        </div>
+      </th>
+    );
   };
 
   if (loading) {
@@ -250,16 +296,16 @@ export default function StocksPage() {
           <table className="w-full text-left text-sm text-gray-300">
             <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-400 sticky top-0">
               <tr>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700">Date</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700 min-w-[200px] max-w-[300px]">Stock Name</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700">Symbol</th>
+                <SortableHeader label="Date" sortKey="buyDate" />
+                <SortableHeader label="Stock Name" sortKey="name" className="min-w-[200px] max-w-[300px]" />
+                <SortableHeader label="Symbol" sortKey="tradingsymbol" />
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Trx Type</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-blue-900/20 border-l border-r border-gray-700/50 text-center" colSpan={4}>Buy</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-orange-900/20 border-r border-gray-700/50 text-center" colSpan={4}>Sell</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Cur. Price</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">P/L</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">% Profit</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Source</th>
+                <SortableHeader label="Cur. Price" sortKey="lastPrice" className="text-right" />
+                <SortableHeader label="P/L" sortKey="pnl" className="text-right" />
+                <SortableHeader label="% Profit" sortKey="pnlPercentage" className="text-right" />
+                <SortableHeader label="Source" sortKey="sourceDisplay" className="text-right" />
               </tr>
               <tr className="bg-gray-900/40 text-[11px] text-gray-300 border-b border-gray-700 font-semibold tracking-wider">
                 <th colSpan={4} className="border-r border-gray-700/50"></th>
@@ -275,14 +321,14 @@ export default function StocksPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-700/50">
-              {aggregatedStocks.length === 0 ? (
+              {sortedStocks.length === 0 ? (
                 <tr>
                   <td colSpan={16} className="px-4 py-8 text-center text-gray-500">
                     No stock transactions found from your connected broker.
                   </td>
                 </tr>
               ) : (
-                aggregatedStocks.map((h, i) => {
+                sortedStocks.map((h, i) => {
                   const isCompleted = h.buyQty > 0 && h.buyQty === h.sellQty;
                   return (
                     <tr 
@@ -290,7 +336,7 @@ export default function StocksPage() {
                       className={`transition-colors cursor-pointer ${isCompleted ? 'bg-black/10 hover:bg-black/20' : 'hover:bg-gray-800'}`}
                       onClick={() => setSelectedStock(h.tradingsymbol)}
                     >
-                      <td className="px-4 py-3 whitespace-nowrap">{h.firstPurchaseDate}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{h.buyDate}</td>
                       <td className="px-4 py-3 text-gray-300 min-w-[200px] max-w-[300px] truncate" title={h.name || h.tradingsymbol}>{h.name || h.tradingsymbol}</td>
                       <td className="px-4 py-3 font-medium text-white">{h.tradingsymbol}</td>
                       <td className="px-4 py-3 text-gray-400">Equity</td>
