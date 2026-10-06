@@ -19,7 +19,7 @@ export default function StocksPage() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc'|'desc' }>({ key: 'buyDate', direction: 'asc' });
+  const [sortConfig, setSortConfig] = useState<{ key: string, direction: 'asc'|'desc' }>({ key: 'buyDate', direction: 'desc' });
 
   const fetchStocks = useCallback(async () => {
       try {
@@ -336,7 +336,7 @@ export default function StocksPage() {
                       className={`transition-colors cursor-pointer ${isCompleted ? 'bg-black/10 hover:bg-black/20' : 'hover:bg-gray-800'}`}
                       onClick={() => setSelectedStock(h.tradingsymbol)}
                     >
-                      <td className="px-4 py-3 whitespace-nowrap">{h.buyDate}</td>
+                      <td className="px-4 py-3 whitespace-nowrap">{h.buyDate ? h.buyDate.split('-').reverse().join('-') : '-'}</td>
                       <td className="px-4 py-3 text-gray-300 min-w-[200px] max-w-[300px] truncate" title={h.name || h.tradingsymbol}>{h.name || h.tradingsymbol}</td>
                       <td className="px-4 py-3 font-medium text-white">{h.tradingsymbol}</td>
                       <td className="px-4 py-3 text-gray-400">Equity</td>
