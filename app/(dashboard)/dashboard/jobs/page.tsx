@@ -13,9 +13,21 @@ export default function JobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  const hasRunningJobs = jobs.some(j => j.status === 'running');
+
   useEffect(() => {
     fetchData();
   }, [activeTab]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (activeTab === 'jobs' && hasRunningJobs) {
+      interval = setInterval(() => {
+        getJobs().then(res => setJobs(res.jobs || [])).catch(console.error);
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [activeTab, hasRunningJobs]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -68,6 +80,7 @@ export default function JobsPage() {
   const getStatusColor = (status: string) => {
     status = status?.toLowerCase() || '';
     if (status === 'active' || status === 'success') return 'bg-green-100 text-green-800 border-green-200';
+    if (status === 'running') return 'bg-blue-100 text-blue-800 border-blue-200';
     if (status === 'failed' || status === 'error') return 'bg-red-100 text-red-800 border-red-200';
     return 'bg-gray-100 text-gray-800 border-gray-200';
   };
@@ -150,9 +163,24 @@ export default function JobsPage() {
                         </td>
                         <td className="px-6 py-4 font-mono">{job.cron_schedule || '-'}</td>
                         <td className="px-6 py-4">
-                          <span className={`px-2 py-1 border rounded text-xs font-semibold uppercase ${getStatusColor(job.status)}`}>
-                            {job.status}
-                          </span>
+                          <div className="flex flex-col gap-2">
+                            <span className={`px-2 py-1 border rounded text-xs font-semibold uppercase w-max ${getStatusColor(job.status)}`}>
+                              {job.status === 'running' ? (
+                                <span className="flex items-center gap-1.5">
+                                  <div className="w-3 h-3 border-[1.5px] border-blue-800/30 border-t-blue-800 rounded-full animate-spin"></div>
+                                  RUNNING {job.progress_percent !== undefined ? `(${job.progress_percent}%)` : ''}
+                                </span>
+                              ) : job.status}
+                            </span>
+                            {job.status === 'running' && job.progress_percent !== undefined && (
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                                <div className="bg-blue-600 h-1.5 rounded-full transition-all duration-500 ease-out" style={{ width: `${job.progress_percent}%` }}></div>
+                              </div>
+                            )}
+                            {job.status === 'running' && job.message && (
+                                <span className="text-[10px] text-gray-500 font-medium">{job.message}</span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 text-right space-x-3">
                           <button 
