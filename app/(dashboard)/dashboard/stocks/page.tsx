@@ -261,7 +261,7 @@ export default function StocksPage() {
                   return (
                     <tr 
                       key={`${h.tradingsymbol}-${i}`} 
-                      className={`transition-colors cursor-pointer ${isCompleted ? 'bg-gray-800/60 hover:bg-gray-700/50' : 'hover:bg-gray-700/30'}`}
+                      className={`transition-colors cursor-pointer ${isCompleted ? 'bg-gray-900/40 hover:bg-gray-700' : 'hover:bg-gray-800'}`}
                       onClick={() => setSelectedStock(h.tradingsymbol)}
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{h.firstPurchaseDate}</td>
