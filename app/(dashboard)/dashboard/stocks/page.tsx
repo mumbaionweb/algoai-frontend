@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { getPortfolio } from '@/lib/api/portfolio';
 import { uploadTransactionsCSV, getStoredTransactions } from '@/lib/api/transactions';
 import { getDatasetData } from '@/lib/api/datasets';
+import { getQuotes } from '@/lib/api/market-data';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import type { Holding } from '@/types';
 
@@ -77,8 +78,27 @@ export default function StocksPage() {
            liveMap[h.tradingsymbol] = h;
         });
 
-        const merged: any[] = [];
         const allSymbols = Array.from(new Set(Object.keys(aggMap))).sort();
+
+        // Fetch quotes for symbols not in liveHoldings
+        const missingSymbols = allSymbols.filter(sym => !liveMap[sym]);
+        if (missingSymbols.length > 0) {
+           const quotesData = await getQuotes(missingSymbols);
+           if (Array.isArray(quotesData)) {
+               quotesData.forEach(q => {
+                   if (q.symbol && q.last_price) {
+                       liveMap[q.symbol] = {
+                           quantity: 0,
+                           average_price: 0,
+                           last_price: q.last_price,
+                           pnl: 0
+                       };
+                   }
+               });
+           }
+        }
+
+        const merged: any[] = [];
         
         allSymbols.forEach(sym => {
            const a = aggMap[sym] || { buyQty: 0, buyCost: 0, sellQty: 0, sellSale: 0, firstPurchaseDate: null };
@@ -282,7 +302,7 @@ export default function StocksPage() {
                       <td className="px-3 py-3 text-right">{h.sellQty > 0 ? h.sellQty : ''}</td>
                       <td className="px-3 py-3 text-right text-gray-500">{h.sellQty > 0 ? '-' : ''}</td>
                       <td className="px-3 py-3 text-right border-r border-gray-700/50 font-semibold">{h.sellQty > 0 ? `₹${h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}</td>
-                      <td className="px-4 py-3 text-right font-medium">₹{h.lastPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 text-right font-medium">{h.lastPrice > 0 ? `₹${h.lastPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '-'}</td>
                       <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
                         {h.pnl >= 0 ? '+' : ''}{h.pnl.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </td>
