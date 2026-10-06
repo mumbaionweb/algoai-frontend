@@ -12,6 +12,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [transactions, setTransactions] = useState<any[]>([]);
+  const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
   
   // Sort and filter state
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'asc' });
@@ -114,12 +115,67 @@ export default function OrdersPage() {
     return 0;
   });
 
+  const handleSaveEdit = async (updatedTx: any) => {
+    // Optimistic update in UI
+    setTransactions(transactions.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setEditingTransaction(null);
+    alert("Transaction update functionality will be fully saved to database once API is implemented.");
+  };
+
   if (!isInitialized) return null;
 
   return (
     <div className="min-h-screen bg-[#F5F2E8] font-sans">
       <DashboardNavigation />
       
+      {/* Edit Modal */}
+      {editingTransaction && (
+        <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+          <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setEditingTransaction(null)}></div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">Edit Transaction</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700">Symbol</label>
+                    <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500" value={editingTransaction.symbol} onChange={(e) => setEditingTransaction({...editingTransaction, symbol: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Type</label>
+                    <select className="mt-1 block w-full border border-gray-300 rounded-md p-2" value={editingTransaction.trade_type} onChange={(e) => setEditingTransaction({...editingTransaction, trade_type: e.target.value})}>
+                      <option value="buy">BUY</option>
+                      <option value="sell">SELL</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Date</label>
+                    <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" value={editingTransaction.trade_date_raw || ''} onChange={(e) => setEditingTransaction({...editingTransaction, trade_date_raw: e.target.value})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Quantity</label>
+                    <input type="number" className="mt-1 block w-full border border-gray-300 rounded-md p-2" value={editingTransaction.quantity} onChange={(e) => setEditingTransaction({...editingTransaction, quantity: Number(e.target.value)})} />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Price (₹)</label>
+                    <input type="number" step="0.01" className="mt-1 block w-full border border-gray-300 rounded-md p-2" value={editingTransaction.price} onChange={(e) => setEditingTransaction({...editingTransaction, price: Number(e.target.value)})} />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button type="button" className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm" onClick={() => handleSaveEdit(editingTransaction)}>
+                  Save Changes
+                </button>
+                <button type="button" className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm" onClick={() => setEditingTransaction(null)}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-7xl mx-auto px-4 py-8">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
           <div>
@@ -151,6 +207,7 @@ export default function OrdersPage() {
             <table className="w-full text-left text-sm text-gray-600">
               <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase font-semibold text-gray-500 select-none">
                 <tr>
+                  <th className="px-4 py-4 w-12 text-center">Action</th>
                   <th className="px-6 py-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('date')}>
                     Date {getSortIcon('date')}
                   </th>
@@ -175,7 +232,6 @@ export default function OrdersPage() {
                   <th className="px-6 py-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('order_id')}>
                     Order ID {getSortIcon('order_id')}
                   </th>
-                  <th className="px-6 py-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -195,6 +251,15 @@ export default function OrdersPage() {
                 ) : (
                   sortedTransactions.map((tx, idx) => (
                     <tr key={tx.id || idx} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-4 py-4 text-center">
+                        <button 
+                          onClick={() => setEditingTransaction(tx)}
+                          className="text-gray-400 hover:text-blue-600 transition-colors inline-flex p-1 rounded-md hover:bg-blue-50"
+                          title="Edit Transaction"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                        </button>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">{tx.trade_date_raw?.split(' ')[0] || '-'}</td>
                       <td className="px-6 py-4 font-medium text-gray-900">{tx.symbol}</td>
                       <td className="px-6 py-4">
@@ -209,15 +274,6 @@ export default function OrdersPage() {
                         {tx.broker_id || tx.broker || 'Default'} <span className="text-gray-300 mx-1">|</span> {tx.profile_id || 'Default'}
                       </td>
                       <td className="px-6 py-4 text-xs font-mono text-gray-400">{tx.order_id || '-'}</td>
-                      <td className="px-6 py-4 text-right">
-                        <button 
-                          onClick={() => alert('View/Edit details coming soon')}
-                          className="text-gray-400 hover:text-blue-600 transition-colors inline-flex p-1 rounded-md hover:bg-blue-50"
-                          title="Actions"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"></path></svg>
-                        </button>
-                      </td>
                     </tr>
                   ))
                 )}
