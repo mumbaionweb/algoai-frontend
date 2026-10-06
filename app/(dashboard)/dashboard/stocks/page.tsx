@@ -236,7 +236,7 @@ export default function StocksPage() {
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Trx Type</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-blue-900/20 border-l border-r border-gray-700/50 text-center" colSpan={4}>Buy</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-orange-900/20 border-r border-gray-700/50 text-center" colSpan={4}>Sell</th>
-                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Cur. Value</th>
+                <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Cur. Price</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">P/L</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">% Profit</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 text-right">Source</th>
@@ -282,7 +282,7 @@ export default function StocksPage() {
                       <td className="px-3 py-3 text-right">{h.sellQty > 0 ? h.sellQty : ''}</td>
                       <td className="px-3 py-3 text-right text-gray-500">{h.sellQty > 0 ? '-' : ''}</td>
                       <td className="px-3 py-3 text-right border-r border-gray-700/50 font-semibold">{h.sellQty > 0 ? `₹${h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}</td>
-                      <td className="px-4 py-3 text-right font-medium">₹{h.currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 text-right font-medium">₹{h.lastPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                       <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
                         {h.pnl >= 0 ? '+' : ''}{h.pnl.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </td>
