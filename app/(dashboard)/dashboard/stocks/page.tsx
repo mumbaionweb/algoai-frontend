@@ -257,11 +257,11 @@ export default function StocksPage() {
                 </tr>
               ) : (
                 aggregatedStocks.map((h, i) => {
-                  const isCompleted = h.buyQty > 0 && h.sellQty > 0 && h.currentUnit === 0;
+                  const isCompleted = h.buyQty > 0 && h.buyQty === h.sellQty;
                   return (
                     <tr 
                       key={`${h.tradingsymbol}-${i}`} 
-                      className={`transition-colors cursor-pointer ${isCompleted ? 'bg-gray-900/40 hover:bg-gray-700' : 'hover:bg-gray-800'}`}
+                      className={`transition-colors cursor-pointer ${isCompleted ? 'bg-gray-800 hover:bg-gray-700' : 'hover:bg-gray-800'}`}
                       onClick={() => setSelectedStock(h.tradingsymbol)}
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{h.firstPurchaseDate}</td>
