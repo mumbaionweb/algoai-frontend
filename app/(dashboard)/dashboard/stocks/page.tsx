@@ -272,10 +272,10 @@ export default function StocksPage() {
                       <td className="px-3 py-3 text-right">{h.buyQty}</td>
                       <td className="px-3 py-3 text-right text-gray-500">-</td>
                       <td className="px-3 py-3 text-right border-r border-gray-700/50 text-blue-500 font-semibold">₹{h.buyTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
-                      <td className="px-3 py-3 text-right">{h.sellQty > 0 ? h.sellAvg.toFixed(2) : '-'}</td>
-                      <td className="px-3 py-3 text-right">{h.sellQty > 0 ? h.sellQty : '-'}</td>
-                      <td className="px-3 py-3 text-right text-gray-500">-</td>
-                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-orange-500 font-semibold">{h.sellQty > 0 ? `₹${h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '-'}</td>
+                      <td className="px-3 py-3 text-right">{h.sellQty > 0 ? h.sellAvg.toFixed(2) : ''}</td>
+                      <td className="px-3 py-3 text-right">{h.sellQty > 0 ? h.sellQty : ''}</td>
+                      <td className="px-3 py-3 text-right text-gray-500">{h.sellQty > 0 ? '-' : ''}</td>
+                      <td className="px-3 py-3 text-right border-r border-gray-700/50 text-orange-500 font-semibold">{h.sellQty > 0 ? `₹${h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}</td>
                       <td className="px-4 py-3 text-right">{h.currentUnit}</td>
                       <td className="px-4 py-3 text-right font-medium">₹{h.currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</td>
                       <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
