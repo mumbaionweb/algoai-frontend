@@ -297,8 +297,7 @@ export default function StocksPage() {
             <thead className="bg-gray-900/50 text-xs uppercase font-semibold text-gray-400 sticky top-0">
               <tr>
                 <SortableHeader label="Date" sortKey="buyDate" />
-                <SortableHeader label="Stock Name" sortKey="name" className="min-w-[200px] max-w-[300px]" />
-                <SortableHeader label="Symbol" sortKey="tradingsymbol" />
+                <SortableHeader label="Stock" sortKey="name" className="min-w-[200px]" />
                 <th scope="col" className="px-4 py-3 border-b border-gray-700">Trx Type</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-blue-900/20 border-l border-r border-gray-700/50 text-center" colSpan={4}>Buy</th>
                 <th scope="col" className="px-4 py-3 border-b border-gray-700 bg-orange-900/20 border-r border-gray-700/50 text-center" colSpan={4}>Sell</th>
@@ -308,7 +307,7 @@ export default function StocksPage() {
                 <SortableHeader label="Source" sortKey="sourceDisplay" className="text-right" />
               </tr>
               <tr className="bg-gray-900/40 text-[11px] text-gray-300 border-b border-gray-700 font-semibold tracking-wider">
-                <th colSpan={4} className="border-r border-gray-700/50"></th>
+                <th colSpan={3} className="border-r border-gray-700/50"></th>
                 <th className="px-3 py-2 text-right bg-blue-900/10">Unit</th>
                 <th className="px-3 py-2 text-right bg-blue-900/10">Qty</th>
                 <th className="px-3 py-2 text-right bg-blue-900/10">Chgs</th>
@@ -323,7 +322,7 @@ export default function StocksPage() {
             <tbody className="divide-y divide-gray-700/50">
               {sortedStocks.length === 0 ? (
                 <tr>
-                  <td colSpan={16} className="px-4 py-8 text-center text-gray-500">
+                  <td colSpan={15} className="px-4 py-8 text-center text-gray-500">
                     No stock transactions found from your connected broker.
                   </td>
                 </tr>
@@ -337,8 +336,10 @@ export default function StocksPage() {
                       onClick={() => setSelectedStock(h.tradingsymbol)}
                     >
                       <td className="px-4 py-3 whitespace-nowrap">{h.buyDate ? h.buyDate.split('-').reverse().join('-') : '-'}</td>
-                      <td className="px-4 py-3 text-gray-300 min-w-[200px] max-w-[300px] truncate" title={h.name || h.tradingsymbol}>{h.name || h.tradingsymbol}</td>
-                      <td className="px-4 py-3 font-medium text-white">{h.tradingsymbol}</td>
+                      <td className="px-4 py-3 min-w-[200px] truncate" title={h.name || h.tradingsymbol}>
+                        <div className="font-medium text-gray-200">{h.name || h.tradingsymbol}</div>
+                        <div className="text-xs text-gray-500 mt-0.5">{h.tradingsymbol}</div>
+                      </td>
                       <td className="px-4 py-3 text-gray-400">Equity</td>
                       <td className="px-3 py-3 text-right border-l border-gray-700/50">{h.buyAvg.toFixed(2)}</td>
                       <td className="px-3 py-3 text-right">{h.buyQty}</td>
