@@ -44,6 +44,15 @@ export default function OrdersPage() {
     return type?.toLowerCase() === 'buy' ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-orange-600 bg-orange-50 border-orange-200';
   };
 
+  const formatDate = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const parts = dateStr.split(' ')[0].split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+    return dateStr;
+  };
+
   const requestSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
@@ -77,8 +86,9 @@ export default function OrdersPage() {
     
     switch (sortConfig.key) {
       case 'date':
-        aVal = new Date(a.trade_date_raw || 0).getTime();
-        bVal = new Date(b.trade_date_raw || 0).getTime();
+        // Standardize sorting by parsing YYYY-MM-DD correctly
+        aVal = new Date(a.trade_date_raw?.split(' ')[0] || 0).getTime();
+        bVal = new Date(b.trade_date_raw?.split(' ')[0] || 0).getTime();
         break;
       case 'symbol':
         aVal = a.symbol || '';
@@ -151,7 +161,7 @@ export default function OrdersPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Date</label>
-                    <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" value={editingTransaction.trade_date_raw || ''} onChange={(e) => setEditingTransaction({...editingTransaction, trade_date_raw: e.target.value})} />
+                    <input type="text" className="mt-1 block w-full border border-gray-300 rounded-md p-2" value={formatDate(editingTransaction.trade_date_raw)} onChange={(e) => setEditingTransaction({...editingTransaction, trade_date_raw: e.target.value})} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Quantity</label>
@@ -260,7 +270,7 @@ export default function OrdersPage() {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                         </button>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">{tx.trade_date_raw?.split(' ')[0] || '-'}</td>
+                      <td className="px-6 py-4 whitespace-nowrap">{formatDate(tx.trade_date_raw)}</td>
                       <td className="px-6 py-4 font-medium text-gray-900">{tx.symbol}</td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 border rounded text-xs font-semibold uppercase ${getTransactionColor(tx.trade_type)}`}>
