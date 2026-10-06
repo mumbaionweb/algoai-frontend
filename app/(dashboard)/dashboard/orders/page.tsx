@@ -13,6 +13,7 @@ export default function OrdersPage() {
   const [error, setError] = useState('');
   const [transactions, setTransactions] = useState<any[]>([]);
   const [editingTransaction, setEditingTransaction] = useState<any | null>(null);
+  const [selectedTransactions, setSelectedTransactions] = useState<string[]>([]);
   
   // Sort and filter state
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({ key: 'date', direction: 'asc' });
@@ -132,6 +133,38 @@ export default function OrdersPage() {
     alert("Transaction update functionality will be fully saved to database once API is implemented.");
   };
 
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedTransactions(sortedTransactions.map(tx => tx.id));
+    } else {
+      setSelectedTransactions([]);
+    }
+  };
+
+  const handleSelectOne = (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
+    if (e.target.checked) {
+      setSelectedTransactions(prev => [...prev, id]);
+    } else {
+      setSelectedTransactions(prev => prev.filter(tId => tId !== id));
+    }
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm("Are you sure you want to delete this transaction?")) {
+      setTransactions(transactions.filter(t => t.id !== id));
+      setSelectedTransactions(prev => prev.filter(tId => tId !== id));
+      alert("Transaction delete functionality will be fully saved to database once API is implemented.");
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (confirm(`Are you sure you want to delete ${selectedTransactions.length} transactions?`)) {
+      setTransactions(transactions.filter(t => !selectedTransactions.includes(t.id)));
+      setSelectedTransactions([]);
+      alert("Bulk delete functionality will be fully saved to database once API is implemented.");
+    }
+  };
+
   if (!isInitialized) return null;
 
   return (
@@ -212,12 +245,32 @@ export default function OrdersPage() {
           </div>
         )}
 
+        {selectedTransactions.length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 px-4 py-3 rounded-lg mb-4 flex items-center justify-between shadow-sm animate-fade-in-up">
+            <span className="text-sm font-medium text-blue-800">{selectedTransactions.length} transactions selected</span>
+            <button onClick={handleBulkDelete} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-1.5">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              Delete Selected
+            </button>
+          </div>
+        )}
+
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
           <div className="overflow-x-auto min-h-[400px]">
             <table className="w-full text-left text-sm text-gray-600">
               <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase font-semibold text-gray-500 select-none">
                 <tr>
-                  <th className="px-4 py-4 w-12 text-center">Action</th>
+                  <th className="px-4 py-4 w-24 text-center">
+                    <div className="flex items-center justify-center gap-3">
+                      <input 
+                        type="checkbox" 
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                        checked={sortedTransactions.length > 0 && selectedTransactions.length === sortedTransactions.length}
+                        onChange={handleSelectAll} 
+                      />
+                      <span>Action</span>
+                    </div>
+                  </th>
                   <th className="px-6 py-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('date')}>
                     Date {getSortIcon('date')}
                   </th>
@@ -260,15 +313,30 @@ export default function OrdersPage() {
                   </tr>
                 ) : (
                   sortedTransactions.map((tx, idx) => (
-                    <tr key={tx.id || idx} className="hover:bg-gray-50 transition-colors">
+                    <tr key={tx.id || idx} className={`hover:bg-gray-50 transition-colors ${selectedTransactions.includes(tx.id) ? 'bg-blue-50/50' : ''}`}>
                       <td className="px-4 py-4 text-center">
-                        <button 
-                          onClick={() => setEditingTransaction(tx)}
-                          className="text-gray-400 hover:text-blue-600 transition-colors inline-flex p-1 rounded-md hover:bg-blue-50"
-                          title="Edit Transaction"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-                        </button>
+                        <div className="flex items-center justify-center gap-3">
+                          <input 
+                            type="checkbox" 
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer" 
+                            checked={selectedTransactions.includes(tx.id)}
+                            onChange={(e) => handleSelectOne(e, tx.id)} 
+                          />
+                          <button 
+                            onClick={() => setEditingTransaction(tx)}
+                            className="text-gray-400 hover:text-blue-600 transition-colors inline-flex p-1 rounded-md hover:bg-blue-100"
+                            title="Edit Transaction"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(tx.id)}
+                            className="text-gray-400 hover:text-red-600 transition-colors inline-flex p-1 rounded-md hover:bg-red-100"
+                            title="Delete Transaction"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                          </button>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">{formatDate(tx.trade_date_raw)}</td>
                       <td className="px-6 py-4 font-medium text-gray-900">{tx.symbol}</td>
