@@ -42,6 +42,11 @@ export async function deleteTransaction(transactionId: string) {
   return response.data;
 }
 
+export async function updateTransaction(transactionId: string, data: any) {
+  const response = await apiClient.put(`/api/transactions/${transactionId}`, data);
+  return response.data;
+}
+
 export async function bulkDeleteTransactions(transactionIds: string[]) {
   const response = await apiClient.post('/api/transactions/bulk_delete', { transaction_ids: transactionIds });
   return response.data;
