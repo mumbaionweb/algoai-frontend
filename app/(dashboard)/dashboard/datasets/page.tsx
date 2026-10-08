@@ -36,6 +36,14 @@ export default function DatasetsPage() {
       source: 'Zerodha',
       status: 'Pending Sync',
       lastUpdated: 'Not synced yet',
+    },
+    {
+      id: 'bigquery_cache',
+      name: 'BigQuery Backtest Cache',
+      description: 'Historical OHLCV data automatically cached during past user backtests. Contains diverse ticker data at various timeframes.',
+      source: 'AlgoAI / BigQuery',
+      status: 'Available',
+      lastUpdated: 'Real-time',
     }
   ];
 
