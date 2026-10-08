@@ -399,6 +399,8 @@ export default function StocksPage() {
                         <th className="px-4 py-3 border-b border-gray-700 text-right">P/L</th>
                         <th className="px-4 py-3 border-b border-gray-700 text-center">Strategy</th>
                         <th className="px-4 py-3 border-b border-gray-700 text-center">Strategy ID</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-center">Broker</th>
+                        <th className="px-4 py-3 border-b border-gray-700 text-center">Profile Name</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-700/50">
@@ -424,6 +426,8 @@ export default function StocksPage() {
                           </td>
                           <td className="px-4 py-3 text-center text-gray-400">{tx.strategy_type || 'Manual'}</td>
                           <td className="px-4 py-3 text-center text-gray-400 font-mono text-xs">{tx.strategy_id || '-'}</td>
+                          <td className="px-4 py-3 text-center text-gray-400 capitalize">{tx.broker || tx.broker_id || 'Zerodha'}</td>
+                          <td className="px-4 py-3 text-center text-gray-400">{tx.profile_name || tx.profile_id || 'Priyam Vinod Nagadiya'}</td>
                         </tr>
                       ))}
                     </tbody>

@@ -142,7 +142,7 @@ export default function OrdersPage() {
       setEditingTransaction(null);
     } catch (err: any) {
       console.error('Update failed:', err);
-      alert('Failed to update: ' + (err.message || 'Unknown error'));
+      setError('Failed to update: ' + (err.message || 'Unknown error'));
     }
   };
 
@@ -186,7 +186,7 @@ export default function OrdersPage() {
       }
     } catch (err: any) {
       console.error('Delete failed:', err);
-      alert('Failed to delete: ' + (err.message || 'Unknown error'));
+      setError('Failed to delete: ' + (err.message || 'Unknown error'));
     } finally {
       setIsDeleting(false);
       setDeleteConfirmation(null);
@@ -367,7 +367,10 @@ export default function OrdersPage() {
                     Total Value {getSortIcon('value')}
                   </th>
                   <th className="px-6 py-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('broker')}>
-                    Broker / Profile {getSortIcon('broker')}
+                    Broker {getSortIcon('broker')}
+                  </th>
+                  <th className="px-6 py-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('profile_name')}>
+                    Profile Name {getSortIcon('profile_name')}
                   </th>
                   <th className="px-6 py-4 cursor-pointer hover:bg-gray-100" onClick={() => requestSort('order_id')}>
                     Order ID {getSortIcon('order_id')}
@@ -425,8 +428,11 @@ export default function OrdersPage() {
                       <td className="px-6 py-4 text-right font-medium">{tx.quantity}</td>
                       <td className="px-6 py-4 text-right text-gray-900">₹{tx.price?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                       <td className="px-6 py-4 text-right font-medium text-gray-900">₹{(tx.quantity * tx.price)?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                      <td className="px-6 py-4 capitalize text-gray-500">
-                        {tx.broker_id || tx.broker || 'Default'} <span className="text-gray-300 mx-1">|</span> {tx.profile_id || 'Default'}
+                      <td className="px-6 py-4 capitalize text-gray-700">
+                        {tx.broker || tx.broker_id || 'Zerodha'}
+                      </td>
+                      <td className="px-6 py-4 text-gray-700">
+                        {tx.profile_name || tx.profile_id || 'Priyam Vinod Nagadiya'}
                       </td>
                       <td className="px-6 py-4 text-xs font-mono text-gray-400">{tx.order_id || '-'}</td>
                     </tr>
