@@ -12,6 +12,30 @@ export default function DatasetsPage() {
       source: 'NSE India',
       status: 'Available',
       lastUpdated: 'Updated via Job',
+    },
+    {
+      id: 'nifty50_historical',
+      name: 'NIFTY 50 Historical',
+      description: '5 Years of historical data for NIFTY 50 index across multiple timeframes (1m, 5m, 1h, 1D, 1W, 1M).',
+      source: 'Zerodha',
+      status: 'Pending Sync',
+      lastUpdated: 'Not synced yet',
+    },
+    {
+      id: 'nse_historical',
+      name: 'NSE Stocks Historical',
+      description: '5 Years of historical data for NSE equities across multiple timeframes (1m, 5m, 1h, 1D, 1W, 1M).',
+      source: 'Zerodha',
+      status: 'Pending Sync',
+      lastUpdated: 'Not synced yet',
+    },
+    {
+      id: 'bse_historical',
+      name: 'BSE Stocks Historical',
+      description: '5 Years of historical data for BSE equities across multiple timeframes (1m, 5m, 1h, 1D, 1W, 1M).',
+      source: 'Zerodha',
+      status: 'Pending Sync',
+      lastUpdated: 'Not synced yet',
     }
   ];
 
