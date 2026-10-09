@@ -1,19 +1,27 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { getDatasetData, getBigqueryCacheRawData } from '@/lib/api/datasets';
 
 export default function DatasetViewPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  const symbolParam = searchParams.get('symbol');
+  const intervalParam = searchParams.get('interval');
+  const exchangeParam = searchParams.get('exchange') || 'NSE';
+  
+  const isDirectRawView = params.id === 'bigquery_cache' && symbolParam && intervalParam;
+
   const [data, setData] = useState<any[]>([]);
   const [datasetInfo, setDatasetInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Raw data modal state
+  // Raw data modal state (only used in summary view)
   const [selectedGroup, setSelectedGroup] = useState<any>(null);
   const [rawData, setRawData] = useState<any[]>([]);
   const [rawLoading, setRawLoading] = useState(false);
@@ -21,9 +29,13 @@ export default function DatasetViewPage() {
 
   useEffect(() => {
     if (params.id) {
-      fetchData(params.id as string);
+      if (isDirectRawView) {
+        fetchDirectRawData(symbolParam as string, exchangeParam as string, intervalParam as string);
+      } else {
+        fetchData(params.id as string);
+      }
     }
-  }, [params.id]);
+  }, [params.id, symbolParam, intervalParam, exchangeParam]);
 
   const fetchData = async (datasetId: string) => {
     setLoading(true);
@@ -34,6 +46,23 @@ export default function DatasetViewPage() {
       setDatasetInfo({
         name: res.name || 'Dataset',
         count: res.count || 0
+      });
+    } catch (err: any) {
+      setError(err.message || 'Failed to load dataset data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchDirectRawData = async (symbol: string, exchange: string, interval: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await getBigqueryCacheRawData(symbol, exchange, interval);
+      setData(res.data || []);
+      setDatasetInfo({
+        name: `${symbol} (${exchange}) - ${interval}`,
+        count: res.data?.length || 0
       });
     } catch (err: any) {
       setError(err.message || 'Failed to load dataset data');
@@ -74,7 +103,11 @@ export default function DatasetViewPage() {
   }
 
   // Extract keys for table headers based on the first data row
-  const headers = data.length > 0 ? Object.keys(data[0]).filter(k => k !== 'id') : [];
+  let headers = data.length > 0 ? Object.keys(data[0]).filter(k => k !== 'id') : [];
+  
+  if (isDirectRawView) {
+    headers = ['timestamp', 'open', 'high', 'low', 'close', 'volume'];
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -122,12 +155,12 @@ export default function DatasetViewPage() {
                       <th 
                         key={header} 
                         scope="col" 
-                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap"
+                        className={`px-6 py-3 text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap ${isDirectRawView && header !== 'timestamp' ? 'text-right' : 'text-left'}`}
                       >
                         {header.replace(/_/g, ' ')}
                       </th>
                     ))}
-                    {params.id === 'bigquery_cache' && (
+                    {!isDirectRawView && params.id === 'bigquery_cache' && (
                       <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                         Actions
                       </th>
@@ -137,12 +170,25 @@ export default function DatasetViewPage() {
                 <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {data.map((row, index) => (
                     <tr key={index} className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors">
-                      {headers.map((header) => (
-                        <td key={`${index}-${header}`} className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300">
-                          {row[header] !== null && row[header] !== undefined ? String(row[header]) : '-'}
-                        </td>
-                      ))}
-                      {params.id === 'bigquery_cache' && (
+                      {headers.map((header) => {
+                        let value = row[header];
+                        if (isDirectRawView) {
+                          if (header === 'timestamp' && value) {
+                            value = new Date(value).toLocaleString();
+                          } else if (['open', 'high', 'low', 'close'].includes(header) && value !== null && value !== undefined) {
+                            value = Number(value).toFixed(2);
+                          } else if (header === 'volume' && value !== null && value !== undefined) {
+                            value = Number(value).toLocaleString();
+                          }
+                        }
+                        
+                        return (
+                          <td key={`${index}-${header}`} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-300 ${isDirectRawView && header !== 'timestamp' ? 'text-right' : ''}`}>
+                            {value !== null && value !== undefined ? String(value) : '-'}
+                          </td>
+                        );
+                      })}
+                      {!isDirectRawView && params.id === 'bigquery_cache' && (
                         <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                           <button 
                             onClick={() => fetchRawData(row)}
@@ -161,7 +207,7 @@ export default function DatasetViewPage() {
         )}
       </main>
 
-      {/* Raw Data Modal */}
+      {/* Raw Data Modal for Summary View */}
       {selectedGroup && (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
