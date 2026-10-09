@@ -70,7 +70,7 @@ export default function DatasetsPage() {
                   onClick={() => setActiveCategory(category.id)}
                   className={`w-full flex justify-between items-center px-4 py-3 text-sm font-medium rounded-md transition-colors ${
                     activeCategory === category.id
-                      ? 'bg-blue-700 text-white shadow-sm'
+                      ? 'bg-blue-600 text-white shadow-sm'
                       : 'bg-white dark:bg-gray-800 text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700 border border-gray-200 dark:border-gray-700 mb-2'
                   }`}
                 >
@@ -110,7 +110,7 @@ export default function DatasetsPage() {
                         <div className="flex justify-between items-center text-xs text-gray-500 dark:text-gray-400">
                           <span>Source: {dataset.source}</span>
                           <Link href={`/dashboard/datasets/${dataset.id}`}>
-                            <button className="text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
+                            <button className="text-blue-500 hover:text-blue-600 dark:text-blue-400 dark:hover:text-blue-300 font-medium">
                               View Dataset &rarr;
                             </button>
                           </Link>
@@ -131,7 +131,7 @@ export default function DatasetsPage() {
                       <div key={equity.symbol} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden bg-gray-50 dark:bg-gray-900/50">
                         <div className="p-5 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                           <div className="flex items-center space-x-4">
-                            <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-400 font-bold text-xl border border-blue-200 dark:border-blue-800">
+                            <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-500 dark:text-blue-400 font-bold text-xl border border-blue-200 dark:border-blue-800">
                               {equity.logo}
                             </div>
                             <div>
@@ -149,9 +149,9 @@ export default function DatasetsPage() {
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
                             {equity.intervals.map((interval) => (
                               <Link key={interval} href={`/dashboard/datasets/bigquery_cache?symbol=${equity.symbol}&interval=${interval.toLowerCase()}`}>
-                                <div className="flex flex-col items-center justify-center py-3 px-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-700 dark:hover:border-blue-500 hover:shadow-sm cursor-pointer transition-all group">
-                                  <ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-700 dark:group-hover:text-blue-500 mb-1" />
-                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-500">{interval}</span>
+                                <div className="flex flex-col items-center justify-center py-3 px-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-sm cursor-pointer transition-all group">
+                                  <ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 mb-1" />
+                                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-500 dark:group-hover:text-blue-400">{interval}</span>
                                 </div>
                               </Link>
                             ))}
