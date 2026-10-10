@@ -590,6 +590,11 @@ function BrokerPageContent() {
     }
   };
 
+  const handlePaytmMoneyOAuth = async (credentialsId: string) => {
+    setError('Paytm Money OAuth integration is currently under construction. Please try again later.');
+    return;
+  };
+
   const handleViewProfile = async (credentialsId: string) => {
     try {
       const cred = credentials.find(c => c.id === credentialsId);
@@ -1006,6 +1011,32 @@ function BrokerPageContent() {
                                   Health
                                 </button>
                               </>
+                            )}
+                          </>
+                        )}
+                        {cred.broker_type === 'paytm_money' && (
+                          <>
+                            {/* Show "Connect" button only if OAuth is NOT connected */}
+                            {!oauthConnectionStatus[cred.id] && (
+                            <button
+                              onClick={() => handlePaytmMoneyOAuth(cred.id)}
+                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                              disabled={loading}
+                              title="Connect to Paytm Money using these credentials"
+                            >
+                              Connect
+                            </button>
+                            )}
+                            {/* Show "Refresh Token" button only if OAuth IS connected */}
+                            {oauthConnectionStatus[cred.id] && (
+                              <button
+                                onClick={() => handlePaytmMoneyOAuth(cred.id)}
+                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                                disabled={loading}
+                                title="Refresh Paytm Money access token"
+                              >
+                                Refresh Token
+                              </button>
                             )}
                           </>
                         )}
