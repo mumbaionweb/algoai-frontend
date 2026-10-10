@@ -638,6 +638,7 @@ function BrokerPageContent() {
         profileData = await getZerodhaUserProfile(credentialsId);
       }
       setProfile(profileData);
+    } catch (err: any) {
       console.error('Failed to fetch profile:', err);
       const errorDetail = err.response?.data?.detail || '';
       
@@ -1272,6 +1273,7 @@ function BrokerPageContent() {
                     )}
                   </div>
                 )
+              ) : null}
             </div>
           </div>
         </div>
