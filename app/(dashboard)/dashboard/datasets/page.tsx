@@ -2,6 +2,7 @@
 
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import Link from 'next/link';
+import { getDatasetData } from '@/lib/api/datasets';
 import { useState, useEffect } from 'react';
 import { ChartBarIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
@@ -42,9 +43,8 @@ export default function DatasetsPage() {
   const fetchBigQueryCache = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/datasets/bigquery_cache?limit=1000');
-      const resData = await response.json();
-      if (resData.data) {
+      const resData = await getDatasetData('bigquery_cache', 1000);
+      if (resData && resData.data) {
         // Group by symbol
         const symbolMap: Record<string, any> = {};
         resData.data.forEach((row: any) => {
