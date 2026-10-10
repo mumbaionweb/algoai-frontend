@@ -1170,12 +1170,66 @@ function BrokerPageContent() {
               ) : profile ? (
                 credentials.find(c => c.id === profileCredentialsId)?.broker_type === 'paytm_money' ? (
                   <div className="space-y-6">
-                    <div className="bg-gray-700 rounded-lg p-4 overflow-x-auto">
-                      <h3 className="text-lg font-semibold text-white mb-4">Paytm Money Profile Data</h3>
-                      <pre className="text-sm text-gray-300">
-                        {JSON.stringify(profile, null, 2)}
-                      </pre>
+                    {/* Basic Info */}
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">User ID</p>
+                          <p className="text-white font-medium">{profile.data?.userId || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Name</p>
+                          <p className="text-white font-medium">{profile.data?.kycName || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Email</p>
+                          <p className="text-white font-medium">N/A</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">User Type</p>
+                          <p className="text-white font-medium capitalize">N/A</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Broker</p>
+                          <p className="text-white font-medium">PAYTM MONEY</p>
+                        </div>
+                      </div>
                     </div>
+
+                    {/* Exchanges */}
+                    {profile.data?.activeSegments && (
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <h3 className="text-lg font-semibold text-white mb-4">Enabled Exchanges</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {profile.data.activeSegments.map((exchange: string) => (
+                            <span
+                              key={exchange}
+                              className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-medium"
+                            >
+                              {exchange}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Metadata */}
+                    {profile.meta && (
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <h3 className="text-lg font-semibold text-white mb-4">Additional Information</h3>
+                        <div className="space-y-2">
+                          <div>
+                            <p className="text-sm text-gray-400 mb-1">Status Code</p>
+                            <p className="text-white font-medium">{profile.meta.code || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-gray-400 mb-1">Message</p>
+                            <p className="text-white font-medium">{profile.meta.message || 'N/A'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="space-y-6">
