@@ -59,11 +59,12 @@ export default function DatasetsPage() {
               name: meta.name,
               description: meta.description,
               logo: meta.logo,
-              intervals: []
+              intervals: [] // store objects with interval and exchange
             };
           }
-          if (!symbolMap[row.symbol].intervals.includes(row.interval)) {
-            symbolMap[row.symbol].intervals.push(row.interval);
+          const hasInterval = symbolMap[row.symbol].intervals.some((i: any) => i.interval === row.interval && i.exchange === row.exchange);
+          if (!hasInterval) {
+            symbolMap[row.symbol].intervals.push({ interval: row.interval, exchange: row.exchange });
           }
         });
         setEquities(Object.values(symbolMap));
@@ -194,11 +195,13 @@ export default function DatasetsPage() {
                           <div className="p-5">
                             <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Available Datasets</h4>
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                              {equity.intervals.map((interval: string) => (
-                                <Link key={interval} href={`/dashboard/datasets/bigquery_cache?symbol=${equity.symbol}&interval=${interval.toLowerCase()}`}>
+                              {equity.intervals.map((dataset: any) => (
+                                <Link key={`${dataset.interval}-${dataset.exchange}`} href={`/dashboard/datasets/bigquery_cache?symbol=${equity.symbol}&interval=${dataset.interval.toLowerCase()}&exchange=${dataset.exchange || ''}`}>
                                   <div className="flex flex-col items-center justify-center py-3 px-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-blue-500 dark:hover:border-blue-400 hover:shadow-sm cursor-pointer transition-all group">
                                     <ChartBarIcon className="h-5 w-5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400 mb-1" />
-                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-500 dark:group-hover:text-blue-400">{interval}</span>
+                                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-500 dark:group-hover:text-blue-400">
+                                      {dataset.interval} {dataset.exchange && dataset.exchange !== 'NSE' ? `(${dataset.exchange})` : ''}
+                                    </span>
                                   </div>
                                 </Link>
                               ))}

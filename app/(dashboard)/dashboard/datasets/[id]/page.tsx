@@ -12,7 +12,7 @@ export default function DatasetViewPage() {
   
   const symbolParam = searchParams.get('symbol');
   const intervalParam = searchParams.get('interval');
-  const exchangeParam = searchParams.get('exchange') || 'NSE';
+  const exchangeParam = searchParams.get('exchange') !== null ? searchParams.get('exchange') : 'NSE';
   
   const isDirectRawView = params.id === 'bigquery_cache' && symbolParam && intervalParam;
 
