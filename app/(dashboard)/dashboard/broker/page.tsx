@@ -592,11 +592,18 @@ function BrokerPageContent() {
 
   const handleViewProfile = async (credentialsId: string) => {
     try {
+      const cred = credentials.find(c => c.id === credentialsId);
       setProfileLoading(true);
       setProfileError('');
       setProfile(null);
       setProfileCredentialsId(credentialsId);
       setShowProfileModal(true);
+
+      if (cred?.broker_type === 'paytm_money') {
+        setProfileLoading(false);
+        setProfileError('Paytm Money backend integration is currently under construction. Please try again later.');
+        return;
+      }
 
       const profileData = await getZerodhaUserProfile(credentialsId);
       setProfile(profileData);
@@ -625,11 +632,18 @@ function BrokerPageContent() {
 
   const handleCheckTokenHealth = async (credentialsId: string) => {
     try {
+      const cred = credentials.find(c => c.id === credentialsId);
       setHealthLoading(true);
       setHealthError('');
       setHealth(null);
       setHealthCredentialsId(credentialsId);
       setShowHealthModal(true);
+
+      if (cred?.broker_type === 'paytm_money') {
+        setHealthLoading(false);
+        setHealthError('Paytm Money backend integration is currently under construction. Please try again later.');
+        return;
+      }
 
       const healthData = await getTokenHealth(credentialsId);
       setHealth(healthData);
@@ -1054,7 +1068,9 @@ function BrokerPageContent() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-white">Zerodha User Profile</h2>
+              <h2 className="text-xl font-semibold text-white">
+                {credentials.find(c => c.id === profileCredentialsId)?.broker_type === 'paytm_money' ? 'Paytm Money' : 'Zerodha'} User Profile
+              </h2>
               <button
                 onClick={() => {
                   setShowProfileModal(false);
@@ -1201,7 +1217,9 @@ function BrokerPageContent() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-white">Token Health Diagnostics</h2>
+              <h2 className="text-xl font-semibold text-white">
+                {credentials.find(c => c.id === healthCredentialsId)?.broker_type === 'paytm_money' ? 'Paytm Money' : 'Zerodha'} Token Health Diagnostics
+              </h2>
               <button
                 onClick={() => {
                   setShowHealthModal(false);
