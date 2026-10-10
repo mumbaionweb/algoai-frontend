@@ -995,6 +995,26 @@ function BrokerPageContent() {
                             )}
                           </>
                         )}
+                        {cred.broker_type === 'paytm_money' && (
+                          <>
+                            <button
+                              onClick={() => handleViewProfile(cred.id)}
+                              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                              disabled={loading}
+                              title="View Paytm Money user profile"
+                            >
+                              Profile
+                            </button>
+                            <button
+                              onClick={() => handleCheckTokenHealth(cred.id)}
+                              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                              disabled={loading}
+                              title="Check Paytm Money token health and diagnostics"
+                            >
+                              Health
+                            </button>
+                          </>
+                        )}
                         <button
                           onClick={() => handleEdit(cred)}
                           className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
