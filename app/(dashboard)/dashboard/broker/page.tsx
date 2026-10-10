@@ -17,6 +17,10 @@ import {
   getOAuthStatus,
   getZerodhaUserProfile,
   getTokenHealth,
+  initiatePaytmMoneyOAuth,
+  getPaytmMoneyOAuthStatus,
+  getPaytmMoneyUserProfile,
+  getPaytmMoneyTokenHealth,
 } from '@/lib/api/broker';
 import type {
   BrokerInfo,
@@ -186,19 +190,23 @@ function BrokerPageContent() {
       setAvailableBrokers(brokers);
       setCredentials(creds);
       
-      // Check OAuth token status from backend for each Zerodha credential
-      const zerodhaCreds = creds.filter((cred) => cred.broker_type === 'zerodha');
+      // Check OAuth token status from backend for each credential
+      const brokerCreds = creds.filter((cred) => cred.broker_type === 'zerodha' || cred.broker_type === 'paytm_money');
       
-      if (zerodhaCreds.length > 0) {
-        console.log('🔍 Checking OAuth status for Zerodha credentials:', zerodhaCreds.map(c => ({ id: c.id, is_active: c.is_active })));
+      if (brokerCreds.length > 0) {
+        console.log('🔍 Checking OAuth status for credentials:', brokerCreds.map(c => ({ id: c.id, broker_type: c.broker_type, is_active: c.is_active })));
         
         const tokenStatusChecks = await Promise.allSettled(
-          zerodhaCreds.map(async (cred) => {
+          brokerCreds.map(async (cred) => {
             try {
-              // Get OAuth status (now includes optional token_details)
-              const status = await getOAuthStatus(cred.id);
+              let status: OAuthStatus;
               
-              // Store full OAuth status for display (includes token_details if available)
+              if (cred.broker_type === 'paytm_money') {
+                status = await getPaytmMoneyOAuthStatus(cred.id);
+              } else {
+                status = await getOAuthStatus(cred.id);
+              }
+              
               setOauthStatuses((prev) => ({
                 ...prev,
                 [cred.id]: status,
@@ -211,14 +219,18 @@ function BrokerPageContent() {
                 user_id: status.user_id,
                 token_details: status.token_details || 'Not available',
               });
-              
+
               // Validate that tokens are actually usable by trying to fetch profile
               // This catches cases where tokens exist but are expired/invalid
               let isTokenValid = status.is_connected && status.has_tokens;
               if (isTokenValid) {
                 try {
                   // Try to fetch profile to validate token is actually usable
-                  await getZerodhaUserProfile(cred.id);
+                  if (cred.broker_type === 'paytm_money') {
+                    await getPaytmMoneyUserProfile(cred.id);
+                  } else {
+                    await getZerodhaUserProfile(cred.id);
+                  }
                   console.log(`✅ Token validation successful for credential ${cred.id}`);
                 } catch (profileErr: any) {
                   const errorDetail = profileErr.response?.data?.detail || '';
@@ -591,8 +603,23 @@ function BrokerPageContent() {
   };
 
   const handlePaytmMoneyOAuth = async (credentialsId: string) => {
-    setError('Paytm Money OAuth integration is currently under construction. Please try again later.');
-    return;
+    try {
+      setLoading(true);
+      setError('');
+      
+      const response = await initiatePaytmMoneyOAuth(credentialsId);
+      
+      if (response.login_url) {
+        window.location.href = response.login_url;
+      } else {
+        setError('Failed to get login URL from server');
+      }
+    } catch (err: any) {
+      console.error('Failed to initiate Paytm Money OAuth:', err);
+      setError(err.response?.data?.detail || err.message || 'Failed to initiate Paytm Money OAuth');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleViewProfile = async (credentialsId: string) => {

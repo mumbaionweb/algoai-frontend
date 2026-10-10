@@ -219,3 +219,51 @@ export async function getTokenHealth(credentialsId?: string): Promise<TokenHealt
   return response.data;
 }
 
+
+/**
+ * Initiate Paytm Money OAuth flow
+ */
+export async function initiatePaytmMoneyOAuth(credentialsId?: string): Promise<{
+  login_url: string;
+  message: string;
+}> {
+  const params = new URLSearchParams();
+  if (credentialsId) params.append('credentials_id', credentialsId);
+  const queryString = params.toString();
+  const url = `/api/paytm_money/oauth/initiate${queryString ? `?${queryString}` : ''}`;
+  const response = await apiClient.get(url);
+  return response.data;
+}
+
+/**
+ * Get OAuth status for Paytm Money
+ */
+export async function getPaytmMoneyOAuthStatus(credentialsId: string): Promise<OAuthStatus> {
+  const params = new URLSearchParams();
+  params.append('credentials_id', credentialsId);
+  const url = `/api/paytm_money/oauth/status?${params.toString()}`;
+  const response = await apiClient.get<OAuthStatus>(url);
+  return response.data;
+}
+
+/**
+ * Get Paytm Money user profile
+ */
+export async function getPaytmMoneyUserProfile(credentialsId: string): Promise<any> {
+  const params = new URLSearchParams();
+  params.append('credentials_id', credentialsId);
+  const url = `/api/paytm_money/user/profile?${params.toString()}`;
+  const response = await apiClient.get(url);
+  return response.data;
+}
+
+/**
+ * Get Paytm Money token health
+ */
+export async function getPaytmMoneyTokenHealth(credentialsId: string): Promise<TokenHealthResponse> {
+  const params = new URLSearchParams();
+  params.append('credentials_id', credentialsId);
+  const url = `/api/paytm_money/oauth/health?${params.toString()}`;
+  const response = await apiClient.get<TokenHealthResponse>(url);
+  return response.data;
+}
