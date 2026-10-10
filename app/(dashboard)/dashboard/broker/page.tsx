@@ -53,7 +53,7 @@ function BrokerPageContent() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
-  const [profile, setProfile] = useState<ZerodhaUserProfile | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
   const [profileCredentialsId, setProfileCredentialsId] = useState<string | null>(null);
 
   // Token health modal state
@@ -631,15 +631,13 @@ function BrokerPageContent() {
       setProfileCredentialsId(credentialsId);
       setShowProfileModal(true);
 
+      let profileData;
       if (cred?.broker_type === 'paytm_money') {
-        setProfileLoading(false);
-        setProfileError('Paytm Money backend integration is currently under construction. Please try again later.');
-        return;
+        profileData = await getPaytmMoneyUserProfile(credentialsId);
+      } else {
+        profileData = await getZerodhaUserProfile(credentialsId);
       }
-
-      const profileData = await getZerodhaUserProfile(credentialsId);
       setProfile(profileData);
-    } catch (err: any) {
       console.error('Failed to fetch profile:', err);
       const errorDetail = err.response?.data?.detail || '';
       
@@ -671,13 +669,12 @@ function BrokerPageContent() {
       setHealthCredentialsId(credentialsId);
       setShowHealthModal(true);
 
+      let healthData;
       if (cred?.broker_type === 'paytm_money') {
-        setHealthLoading(false);
-        setHealthError('Paytm Money backend integration is currently under construction. Please try again later.');
-        return;
+        healthData = await getPaytmMoneyTokenHealth(credentialsId);
+      } else {
+        healthData = await getTokenHealth(credentialsId);
       }
-
-      const healthData = await getTokenHealth(credentialsId);
       setHealth(healthData);
     } catch (err: any) {
       console.error('Failed to check token health:', err);
@@ -1170,101 +1167,111 @@ function BrokerPageContent() {
                   )}
                 </div>
               ) : profile ? (
-                <div className="space-y-6">
-                  {/* Basic Info */}
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">User ID</p>
-                        <p className="text-white font-medium">{profile.user_id}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">Name</p>
-                        <p className="text-white font-medium">{profile.user_name}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">Email</p>
-                        <p className="text-white font-medium">{profile.email}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">User Type</p>
-                        <p className="text-white font-medium capitalize">{profile.user_type}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-gray-400 mb-1">Broker</p>
-                        <p className="text-white font-medium">{profile.broker}</p>
-                      </div>
-                      {profile.avatar_url && (
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">Avatar</p>
-                          <img src={profile.avatar_url} alt="Profile" className="w-16 h-16 rounded-full" />
-                        </div>
-                      )}
+                credentials.find(c => c.id === profileCredentialsId)?.broker_type === 'paytm_money' ? (
+                  <div className="space-y-6">
+                    <div className="bg-gray-700 rounded-lg p-4 overflow-x-auto">
+                      <h3 className="text-lg font-semibold text-white mb-4">Paytm Money Profile Data</h3>
+                      <pre className="text-sm text-gray-300">
+                        {JSON.stringify(profile, null, 2)}
+                      </pre>
                     </div>
                   </div>
-
-                  {/* Exchanges */}
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-white mb-4">Enabled Exchanges</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.exchanges.map((exchange) => (
-                        <span
-                          key={exchange}
-                          className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-medium"
-                        >
-                          {exchange}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Products */}
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-white mb-4">Enabled Products</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.products.map((product) => (
-                        <span
-                          key={product}
-                          className="px-3 py-1 bg-green-500/20 text-green-300 rounded-lg text-sm font-medium"
-                        >
-                          {product}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Order Types */}
-                  <div className="bg-gray-700 rounded-lg p-4">
-                    <h3 className="text-lg font-semibold text-white mb-4">Enabled Order Types</h3>
-                    <div className="flex flex-wrap gap-2">
-                      {profile.order_types.map((orderType) => (
-                        <span
-                          key={orderType}
-                          className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-lg text-sm font-medium"
-                        >
-                          {orderType}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Metadata */}
-                  {profile.meta && (
+                ) : (
+                  <div className="space-y-6">
+                    {/* Basic Info */}
                     <div className="bg-gray-700 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-4">Additional Information</h3>
-                      <div className="space-y-2">
-                        {profile.meta.demat_consent && (
+                      <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">User ID</p>
+                          <p className="text-white font-medium">{profile.user_id}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Name</p>
+                          <p className="text-white font-medium">{profile.user_name}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Email</p>
+                          <p className="text-white font-medium">{profile.email}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">User Type</p>
+                          <p className="text-white font-medium capitalize">{profile.user_type}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Broker</p>
+                          <p className="text-white font-medium">{profile.broker}</p>
+                        </div>
+                        {profile.avatar_url && (
                           <div>
-                            <p className="text-sm text-gray-400 mb-1">Demat Consent</p>
-                            <p className="text-white font-medium capitalize">{profile.meta.demat_consent}</p>
+                            <p className="text-sm text-gray-400 mb-1">Avatar</p>
+                            <img src={profile.avatar_url} alt="Profile" className="w-16 h-16 rounded-full" />
                           </div>
                         )}
                       </div>
                     </div>
-                  )}
-                </div>
-              ) : null}
+
+                    {/* Exchanges */}
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Enabled Exchanges</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {profile.exchanges?.map((exchange: string) => (
+                          <span
+                            key={exchange}
+                            className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-medium"
+                          >
+                            {exchange}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Products */}
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Enabled Products</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {profile.products?.map((product: string) => (
+                          <span
+                            key={product}
+                            className="px-3 py-1 bg-green-500/20 text-green-300 rounded-lg text-sm font-medium"
+                          >
+                            {product}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Order Types */}
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Enabled Order Types</h3>
+                      <div className="flex flex-wrap gap-2">
+                        {profile.order_types?.map((orderType: string) => (
+                          <span
+                            key={orderType}
+                            className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-lg text-sm font-medium"
+                          >
+                            {orderType}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Metadata */}
+                    {profile.meta && (
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <h3 className="text-lg font-semibold text-white mb-4">Additional Information</h3>
+                        <div className="space-y-2">
+                          {profile.meta.demat_consent && (
+                            <div>
+                              <p className="text-sm text-gray-400 mb-1">Demat Consent</p>
+                              <p className="text-white font-medium capitalize">{profile.meta.demat_consent}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
             </div>
           </div>
         </div>
