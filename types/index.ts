@@ -539,7 +539,7 @@ export interface BacktestJob {
 }
 
 // Broker Types
-export type BrokerType = 'zerodha' | string;
+export type BrokerType = 'zerodha' | 'paytm_money' | string;
 
 export interface BrokerInfo {
   type: BrokerType;
