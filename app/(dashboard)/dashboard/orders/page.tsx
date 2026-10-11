@@ -196,7 +196,7 @@ export default function OrdersPage() {
   if (!isInitialized) return null;
 
   return (
-    <div className="min-h-screen bg-[#F5F2E8] font-sans">
+    <div className="min-h-screen bg-gray-900 font-sans">
       <DashboardNavigation />
       
       {/* Delete Confirmation Modal */}

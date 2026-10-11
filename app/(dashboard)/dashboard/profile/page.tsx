@@ -21,8 +21,8 @@ import {
 type ActivePanel = null | 'name' | 'email' | 'phone' | 'password';
 
 const THEMES: { key: ThemeType; label: string; dot: string }[] = [
-  { key: 'dark', label: 'Dark', dot: '#1f2937' },
-  { key: 'light', label: 'Light', dot: '#f9fafb' },
+  { key: 'dark', label: 'Black', dot: '#000000' },
+  { key: 'light', label: 'White', dot: '#ffffff' },
   { key: 'solarized-light', label: 'Solarized', dot: '#fdf6e3' },
 ];
 
@@ -58,7 +58,7 @@ function Toast({ type, message, onClose }: { type: 'success' | 'error'; message:
 function ChangePanel({ open, children }: { open: boolean; children: React.ReactNode }) {
   if (!open) return null;
   return (
-    <div className="mt-4 p-5 bg-gray-900/60 rounded-xl border border-gray-700/50 animate-slide-down backdrop-blur-sm">
+    <div className="mt-4 p-5 bg-gray-700 rounded-xl border border-gray-600 animate-slide-down">
       {children}
     </div>
   );
@@ -251,7 +251,7 @@ export default function ProfilePage() {
         <div className="max-w-2xl mx-auto space-y-6">
 
           {/* ===== Profile Header Card ===== */}
-          <div className="bg-gradient-to-br from-gray-800 to-gray-800/80 rounded-2xl p-8 border border-gray-700/50 shadow-lg">
+          <div className="bg-gray-800 rounded-2xl p-8 border border-gray-700 shadow-lg">
             <div className="flex items-center gap-5">
               {/* Avatar */}
               <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-blue-500/20 shrink-0">
@@ -276,8 +276,8 @@ export default function ProfilePage() {
           </div>
 
           {/* ===== Profile Details Card ===== */}
-          <div className="bg-gray-800/80 rounded-2xl border border-gray-700/50 shadow-lg overflow-hidden">
-            <div className="px-8 py-5 border-b border-gray-700/50">
+          <div className="bg-gray-800 rounded-2xl border border-gray-700 shadow-lg overflow-hidden">
+            <div className="px-8 py-5 border-b border-gray-700">
               <h2 className="text-lg font-semibold text-white">Profile Details</h2>
             </div>
 
@@ -490,12 +490,12 @@ export default function ProfilePage() {
             </ProfileRow>
 
             {/* --- Theme --- */}
-            <div className="px-8 py-5 border-b border-gray-700/30">
+            <div className="px-8 py-5 border-b border-gray-700">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-400">Appearance</span>
                 </div>
-                <div className="flex items-center bg-gray-900/60 rounded-lg p-1 border border-gray-700/50">
+                <div className="flex items-center bg-gray-700 rounded-lg p-1 border border-gray-600">
                   {THEMES.map((t) => (
                     <button
                       key={t.key}
@@ -503,7 +503,7 @@ export default function ProfilePage() {
                       className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                         theme === t.key
                           ? 'bg-blue-600 !text-white shadow-sm'
-                          : 'text-gray-500 hover:text-gray-300'
+                          : 'text-gray-400 hover:text-gray-200'
                       }`}
                     >
                       <span
@@ -564,7 +564,7 @@ function ProfileRow({
   children?: React.ReactNode;
 }) {
   return (
-    <div className={`px-8 py-5 ${!isLast ? 'border-b border-gray-700/30' : ''}`}>
+    <div className={`px-8 py-5 ${!isLast ? 'border-b border-gray-700' : ''}`}>
       <div className="flex items-center justify-between">
         <div className="min-w-0">
           <span className="text-sm text-gray-400">{label}</span>

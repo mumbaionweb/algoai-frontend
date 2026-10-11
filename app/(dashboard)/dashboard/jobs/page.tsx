@@ -86,7 +86,7 @@ export default function JobsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F2E8] font-sans">
+    <div className="min-h-screen bg-gray-900 font-sans">
       <DashboardNavigation />
       
       <main className="max-w-7xl mx-auto px-4 py-8">

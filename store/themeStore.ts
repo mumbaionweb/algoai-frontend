@@ -23,6 +23,7 @@ export const useThemeStore = create<ThemeState>((set) => {
       if (typeof window !== 'undefined') {
         localStorage.setItem('algoai_theme', theme);
         document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.classList.toggle('dark', theme === 'dark');
       }
       set({ theme });
     },
