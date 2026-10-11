@@ -6,6 +6,7 @@ import type {
   BrokerCredentialsUpdate,
   BrokerType,
   OAuthStatus,
+  BrokerUserProfile,
   ZerodhaUserProfile,
   TokenHealthResponse,
 } from '@/types';
@@ -126,8 +127,12 @@ export async function initiateZerodhaOAuth(credentialsId?: string): Promise<{
 /**
  * Refresh Zerodha access token
  */
-export async function refreshZerodhaToken(): Promise<any> {
-  const response = await apiClient.post('/api/zerodha/oauth/refresh');
+export async function refreshZerodhaToken(credentialsId?: string): Promise<any> {
+  const params = new URLSearchParams();
+  if (credentialsId) params.append('credentials_id', credentialsId);
+  const queryString = params.toString();
+  const url = `/api/zerodha/oauth/refresh${queryString ? `?${queryString}` : ''}`;
+  const response = await apiClient.post(url);
   return response.data;
 }
 
@@ -138,24 +143,99 @@ export async function refreshZerodhaToken(): Promise<any> {
  * @param credentialsId Optional credentials ID to check status for
  * @returns OAuth status with is_connected, has_credentials, has_tokens, and user_id
  */
-export async function getOAuthStatus(credentialsId?: string): Promise<OAuthStatus> {
-  const params = new URLSearchParams();
-  if (credentialsId) {
-    params.append('credentials_id', credentialsId);
+export function getBrokerRoutePrefix(brokerType?: string): string {
+  if (brokerType === 'paytm_money') {
+    return 'paytm_money';
   }
+  return 'zerodha';
+}
+
+/**
+ * Unified Broker OAuth Initiation
+ */
+export async function initiateBrokerOAuth(
+  brokerType: string,
+  credentialsId?: string
+): Promise<{
+  login_url: string;
+  redirect_url?: string;
+  session_id?: string;
+  message?: string;
+}> {
+  const prefix = getBrokerRoutePrefix(brokerType);
+  const params = new URLSearchParams();
+  if (credentialsId) params.append('credentials_id', credentialsId);
   const queryString = params.toString();
-  const url = `/api/zerodha/oauth/status${queryString ? `?${queryString}` : ''}`;
-  
+  const url = `/api/${prefix}/oauth/initiate${queryString ? `?${queryString}` : ''}`;
+  const response = await apiClient.get(url);
+  return response.data;
+}
+
+/**
+ * Unified Broker OAuth Status Check
+ */
+export async function getBrokerOAuthStatus(
+  brokerType: string,
+  credentialsId: string
+): Promise<OAuthStatus> {
+  const prefix = getBrokerRoutePrefix(brokerType);
+  const params = new URLSearchParams();
+  params.append('credentials_id', credentialsId);
+  const url = `/api/${prefix}/oauth/status?${params.toString()}`;
   const response = await apiClient.get<OAuthStatus>(url);
   return response.data;
 }
 
 /**
- * Check if Zerodha OAuth tokens exist and are valid
- * Returns status information about the OAuth connection
- * 
- * @deprecated Use getOAuthStatus instead for more comprehensive status
+ * Unified Broker User Profile
  */
+export async function getBrokerUserProfile(
+  brokerType: string,
+  credentialsId: string
+): Promise<BrokerUserProfile> {
+  const prefix = getBrokerRoutePrefix(brokerType);
+  const params = new URLSearchParams();
+  params.append('credentials_id', credentialsId);
+  const url = `/api/${prefix}/user/profile?${params.toString()}`;
+  const response = await apiClient.get<BrokerUserProfile>(url);
+  return response.data;
+}
+
+/**
+ * Unified Broker Token Health Diagnostics
+ */
+export async function getBrokerTokenHealth(
+  brokerType: string,
+  credentialsId: string
+): Promise<TokenHealthResponse> {
+  const prefix = getBrokerRoutePrefix(brokerType);
+  const params = new URLSearchParams();
+  params.append('credentials_id', credentialsId);
+  const url = `/api/${prefix}/oauth/health?${params.toString()}`;
+  const response = await apiClient.get<TokenHealthResponse>(url);
+  return response.data;
+}
+
+/**
+ * Refresh Broker Token
+ */
+export async function refreshBrokerToken(
+  brokerType: string,
+  credentialsId?: string
+): Promise<any> {
+  const prefix = getBrokerRoutePrefix(brokerType);
+  if (prefix === 'zerodha') {
+    return refreshZerodhaToken(credentialsId);
+  }
+  // For Paytm Money, re-initiate OAuth flow as refresh requires login
+  return initiateBrokerOAuth(brokerType, credentialsId);
+}
+
+// Backward compatibility wrappers
+export async function getOAuthStatus(credentialsId?: string): Promise<OAuthStatus> {
+  return getBrokerOAuthStatus('zerodha', credentialsId || '');
+}
+
 export async function checkZerodhaTokenStatus(credentialsId?: string): Promise<{
   has_tokens: boolean;
   is_valid: boolean;
@@ -163,17 +243,13 @@ export async function checkZerodhaTokenStatus(credentialsId?: string): Promise<{
   message?: string;
 }> {
   const params = new URLSearchParams();
-  if (credentialsId) {
-    params.append('credentials_id', credentialsId);
-  }
+  if (credentialsId) params.append('credentials_id', credentialsId);
   const queryString = params.toString();
   const url = `/api/zerodha/oauth/status${queryString ? `?${queryString}` : ''}`;
-  
   try {
     const response = await apiClient.get(url);
     return response.data;
   } catch (err: any) {
-    // If endpoint doesn't exist or returns error, assume no tokens
     if (err.response?.status === 404) {
       return { has_tokens: false, is_valid: false };
     }
@@ -181,89 +257,26 @@ export async function checkZerodhaTokenStatus(credentialsId?: string): Promise<{
   }
 }
 
-/**
- * Get Zerodha user profile
- * Returns user information including user_id, name, email, exchanges, products, order types, etc.
- * 
- * @param credentialsId Optional credentials ID to use (if user has multiple Zerodha accounts)
- * @returns Zerodha user profile information
- */
 export async function getZerodhaUserProfile(credentialsId?: string): Promise<ZerodhaUserProfile> {
-  const params = new URLSearchParams();
-  if (credentialsId) {
-    params.append('credentials_id', credentialsId);
-  }
-  const queryString = params.toString();
-  const url = `/api/zerodha/user/profile${queryString ? `?${queryString}` : ''}`;
-  
-  const response = await apiClient.get<ZerodhaUserProfile>(url);
-  return response.data;
+  return getBrokerUserProfile('zerodha', credentialsId || '');
 }
 
-/**
- * Get comprehensive token health diagnostics
- * Returns detailed information about token status, validation, and recommendations
- * 
- * @param credentialsId Optional credentials ID to check health for
- * @returns Token health response with detailed diagnostics
- */
 export async function getTokenHealth(credentialsId?: string): Promise<TokenHealthResponse> {
-  const params = new URLSearchParams();
-  if (credentialsId) {
-    params.append('credentials_id', credentialsId);
-  }
-  const queryString = params.toString();
-  const url = `/api/zerodha/oauth/health${queryString ? `?${queryString}` : ''}`;
-  
-  const response = await apiClient.get<TokenHealthResponse>(url);
-  return response.data;
+  return getBrokerTokenHealth('zerodha', credentialsId || '');
 }
 
-
-/**
- * Initiate Paytm Money OAuth flow
- */
-export async function initiatePaytmMoneyOAuth(credentialsId?: string): Promise<{
-  login_url: string;
-  message: string;
-}> {
-  const params = new URLSearchParams();
-  if (credentialsId) params.append('credentials_id', credentialsId);
-  const queryString = params.toString();
-  const url = `/api/paytm_money/oauth/initiate${queryString ? `?${queryString}` : ''}`;
-  const response = await apiClient.get(url);
-  return response.data;
+export async function initiatePaytmMoneyOAuth(credentialsId?: string) {
+  return initiateBrokerOAuth('paytm_money', credentialsId);
 }
 
-/**
- * Get OAuth status for Paytm Money
- */
 export async function getPaytmMoneyOAuthStatus(credentialsId: string): Promise<OAuthStatus> {
-  const params = new URLSearchParams();
-  params.append('credentials_id', credentialsId);
-  const url = `/api/paytm_money/oauth/status?${params.toString()}`;
-  const response = await apiClient.get<OAuthStatus>(url);
-  return response.data;
+  return getBrokerOAuthStatus('paytm_money', credentialsId);
 }
 
-/**
- * Get Paytm Money user profile
- */
 export async function getPaytmMoneyUserProfile(credentialsId: string): Promise<any> {
-  const params = new URLSearchParams();
-  params.append('credentials_id', credentialsId);
-  const url = `/api/paytm_money/user/profile?${params.toString()}`;
-  const response = await apiClient.get(url);
-  return response.data;
+  return getBrokerUserProfile('paytm_money', credentialsId);
 }
 
-/**
- * Get Paytm Money token health
- */
 export async function getPaytmMoneyTokenHealth(credentialsId: string): Promise<TokenHealthResponse> {
-  const params = new URLSearchParams();
-  params.append('credentials_id', credentialsId);
-  const url = `/api/paytm_money/oauth/health?${params.toString()}`;
-  const response = await apiClient.get<TokenHealthResponse>(url);
-  return response.data;
+  return getBrokerTokenHealth('paytm_money', credentialsId);
 }

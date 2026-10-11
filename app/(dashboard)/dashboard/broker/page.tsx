@@ -12,15 +12,11 @@ import {
   createBrokerCredentials,
   updateBrokerCredentials,
   deleteBrokerCredentials,
-  initiateZerodhaOAuth,
-  refreshZerodhaToken,
-  getOAuthStatus,
-  getZerodhaUserProfile,
-  getTokenHealth,
-  initiatePaytmMoneyOAuth,
-  getPaytmMoneyOAuthStatus,
-  getPaytmMoneyUserProfile,
-  getPaytmMoneyTokenHealth,
+  initiateBrokerOAuth,
+  refreshBrokerToken,
+  getBrokerOAuthStatus,
+  getBrokerUserProfile,
+  getBrokerTokenHealth,
 } from '@/lib/api/broker';
 import type {
   BrokerInfo,
@@ -28,7 +24,7 @@ import type {
   BrokerCredentialsCreate,
   BrokerCredentialsUpdate,
   BrokerType,
-  ZerodhaUserProfile,
+  BrokerUserProfile,
   TokenHealthResponse,
   OAuthStatus,
 } from '@/types';
@@ -53,7 +49,7 @@ function BrokerPageContent() {
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState('');
-  const [profile, setProfile] = useState<any | null>(null);
+  const [profile, setProfile] = useState<BrokerUserProfile | null>(null);
   const [profileCredentialsId, setProfileCredentialsId] = useState<string | null>(null);
 
   // Token health modal state
@@ -74,102 +70,35 @@ function BrokerPageContent() {
     api_key: '',
     api_secret: '',
     label: '',
+    broker_user_id: '',
     zerodha_user_id: '',
     is_active: true,
   });
 
-  // Handle OAuth callback from Zerodha
+  // Handle OAuth callback for any broker
   useEffect(() => {
-    // 🔍 DEBUG: Log ALL URL parameters to see what Zerodha/backend sent
-    const allParams: Record<string, string> = {};
-    searchParams.forEach((value, key) => {
-      allParams[key] = value;
-    });
-    
-    console.log('🔍 OAuth Callback - Full URL Parameters:', {
-      fullUrl: typeof window !== 'undefined' ? window.location.href : 'N/A',
-      searchString: typeof window !== 'undefined' ? window.location.search : 'N/A',
-      allParams: allParams,
-      paramsCount: Object.keys(allParams).length,
-      timestamp: new Date().toISOString(),
-    });
-    
-    // Log each parameter individually for easy inspection
-    console.log('🔍 OAuth Callback - Individual Parameters:');
-    Object.entries(allParams).forEach(([key, value]) => {
-      console.log(`  - ${key}: ${value}`);
-    });
-    
-    // Note: The actual Zerodha response (request_token, user_id, etc.) is handled by the backend
-    // and not passed to the frontend. The backend processes it and only sends us oauth=success/error.
-    // To see the full Zerodha response, check the backend logs at the callback endpoint.
-    console.log('ℹ️ Note: Full Zerodha response (request_token, user_id, etc.) is handled by backend.');
-    console.log('ℹ️ Check backend logs at /api/zerodha/oauth/callback to see what Zerodha sent.');
-
     const oauthStatus = searchParams.get('oauth');
-    const broker = searchParams.get('broker');
-    const message = searchParams.get('message');
+    const isSuccess = oauthStatus === 'success' || searchParams.get('success') === 'true';
+    const isError = oauthStatus === 'error' || searchParams.get('error') !== null;
+    const broker = searchParams.get('broker') || 'broker';
+    const brokerName = broker === 'paytm_money' ? 'Paytm Money' : broker === 'zerodha' ? 'Zerodha' : broker;
+    const message = searchParams.get('message') || searchParams.get('error');
 
-    if (oauthStatus === 'success' && broker === 'zerodha') {
-      setSuccess('Zerodha connected successfully!');
-      console.log('✅ OAuth success detected - reloading data to check status');
-      // Clean up URL first
+    if (isSuccess) {
+      setSuccess(`${brokerName} connected successfully!`);
       router.replace('/dashboard/broker');
-      // Reload broker data to check actual token status from backend
-      // This ensures we get the accurate status from the backend
       if (isAuthenticated) {
-        // Small delay to ensure backend has processed the OAuth callback
         setTimeout(() => {
-          console.log('🔄 Reloading broker data after OAuth success...');
-        loadData();
-        }, 1000); // Increased delay to ensure backend has processed
+          loadData();
+        }, 1000);
       }
-    } else if (oauthStatus === 'error') {
-      // Mark OAuth as not connected for all Zerodha credentials when error occurs
-      setOauthConnectionStatus((prev) => {
-        const updated = { ...prev };
-        credentials
-          .filter((cred) => cred.broker_type === 'zerodha')
-          .forEach((cred) => {
-            updated[cred.id] = false;
-          });
-        return updated;
-      });
+    } else if (isError) {
       const decodedMessage = message ? decodeURIComponent(message) : 'Unknown error';
-      
-      // Handle decryption failure from OAuth callback
-      if (decodedMessage.includes('decrypt') || decodedMessage.includes('re-add')) {
-        setError('Your credentials need to be re-added due to a security update. Please update your API keys.');
-      // Clean up URL
+      setError(`Failed to connect ${brokerName}: ${decodedMessage}`);
       router.replace('/dashboard/broker');
-        // Optionally show a prompt to update credentials after a delay
-        setTimeout(() => {
-          if (credentials.length > 0) {
-            // Show message to update credentials
-            setError('Please update your Zerodha API credentials to continue.');
-          }
-        }, 2000);
-      } 
-      // Handle backend errors (Python errors, missing imports, etc.)
-      else if (decodedMessage.includes('hashlib') || 
-               decodedMessage.includes('cannot access local variable') ||
-               decodedMessage.includes('NameError') ||
-               decodedMessage.includes('ImportError') ||
-               decodedMessage.includes('AttributeError')) {
-        setError('Backend error during OAuth connection. This is a server-side issue. Please contact support or try again later. The backend team needs to fix this error.');
-        console.error('🔴 Backend OAuth Error:', decodedMessage);
-        // Clean up URL
-        router.replace('/dashboard/broker');
-      } 
-      // Handle other errors
-      else {
-        setError(`Failed to connect Zerodha: ${decodedMessage}`);
-        // Clean up URL
-        router.replace('/dashboard/broker');
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, router, isAuthenticated, credentials]);
+  }, [searchParams, router, isAuthenticated]);
 
   useEffect(() => {
     if (isInitialized && !isAuthenticated) {
@@ -190,108 +119,54 @@ function BrokerPageContent() {
       setAvailableBrokers(brokers);
       setCredentials(creds);
       
-      // Check OAuth token status from backend for each credential
+      // Check OAuth token status from backend for all credentials
       const brokerCreds = creds.filter((cred) => cred.broker_type === 'zerodha' || cred.broker_type === 'paytm_money');
       
       if (brokerCreds.length > 0) {
-        console.log('🔍 Checking OAuth status for credentials:', brokerCreds.map(c => ({ id: c.id, broker_type: c.broker_type, is_active: c.is_active })));
-        
         const tokenStatusChecks = await Promise.allSettled(
           brokerCreds.map(async (cred) => {
             try {
-              let status: OAuthStatus;
-              
-              if (cred.broker_type === 'paytm_money') {
-                status = await getPaytmMoneyOAuthStatus(cred.id);
-              } else {
-                status = await getOAuthStatus(cred.id);
-              }
+              const status = await getBrokerOAuthStatus(cred.broker_type, cred.id);
               
               setOauthStatuses((prev) => ({
                 ...prev,
                 [cred.id]: status,
               }));
-              
-              console.log(`✅ OAuth status for credential ${cred.id}:`, {
-                is_connected: status.is_connected,
-                has_tokens: status.has_tokens,
-                has_credentials: status.has_credentials,
-                user_id: status.user_id,
-                token_details: status.token_details || 'Not available',
-              });
 
-              // Validate that tokens are actually usable by trying to fetch profile
-              // This catches cases where tokens exist but are expired/invalid
               let isTokenValid = status.is_connected && status.has_tokens;
               if (isTokenValid) {
                 try {
-                  // Try to fetch profile to validate token is actually usable
-                  if (cred.broker_type === 'paytm_money') {
-                    await getPaytmMoneyUserProfile(cred.id);
-                  } else {
-                    await getZerodhaUserProfile(cred.id);
-                  }
-                  console.log(`✅ Token validation successful for credential ${cred.id}`);
+                  await getBrokerUserProfile(cred.broker_type, cred.id);
                 } catch (profileErr: any) {
                   const errorDetail = profileErr.response?.data?.detail || '';
-                  // If we get "Access token not found" or similar, token is not usable
-                  if (errorDetail.includes('Access token not found') || 
-                      errorDetail.includes('OAuth') ||
-                      errorDetail.includes('token')) {
-                    console.warn(`⚠️ Token exists but is not usable for credential ${cred.id}:`, errorDetail);
+                  if (
+                    errorDetail.includes('Access token not found') || 
+                    errorDetail.includes('OAuth') ||
+                    errorDetail.includes('token') ||
+                    profileErr.response?.status === 401
+                  ) {
                     isTokenValid = false;
-                  } else {
-                    // Other errors (like 500) might be temporary, so keep the status
-                    console.warn(`⚠️ Token validation failed for credential ${cred.id}, but keeping status:`, errorDetail);
                   }
                 }
               }
               
               return { credId: cred.id, isConnected: isTokenValid };
             } catch (err: any) {
-              console.warn(`⚠️ Failed to check OAuth status for credential ${cred.id}:`, {
-                error: err,
-                message: err.message,
-                response: err.response?.data,
-                status: err.response?.status,
-              });
-              // If 404 or other error, assume not connected
               return { credId: cred.id, isConnected: false };
             }
           })
         );
         
-        // Update OAuth connection status based on backend check
         setOauthConnectionStatus((prev) => {
           const updated = { ...prev };
-          
-          // Update status based on backend OAuth checks
           tokenStatusChecks.forEach((result) => {
             if (result.status === 'fulfilled') {
               const { credId, isConnected } = result.value;
               updated[credId] = isConnected;
-              console.log(`📝 Updated OAuth status for ${credId}: ${isConnected ? '✅ Connected' : '❌ Not Connected'}`);
-            } else {
-              // If promise was rejected, mark as not connected
-              console.warn(`⚠️ OAuth status check failed for a credential`);
             }
           });
-          
-          // Initialize any new Zerodha credentials that weren't checked
-          creds.forEach((cred) => {
-            if (cred.broker_type === 'zerodha' && updated[cred.id] === undefined) {
-              // Default to false for new credentials
-              updated[cred.id] = false;
-              console.log(`📝 Initialized OAuth status for ${cred.id}: ❌ Not Connected (default)`);
-            }
-          });
-          
-          console.log('📊 Final OAuth connection status map:', updated);
-          console.log('📊 Current credentials:', creds.map(c => ({ id: c.id, broker_type: c.broker_type, is_active: c.is_active })));
           return updated;
         });
-      } else {
-        console.log('ℹ️ No Zerodha credentials found to check OAuth status');
       }
     } catch (err: any) {
       console.error('Failed to load broker data:', err);
@@ -314,12 +189,6 @@ function BrokerPageContent() {
       }
     }
 
-    // Validate that zerodha_user_id is not provided for non-Zerodha brokers
-    if (formData.broker_type !== 'zerodha' && formData.zerodha_user_id) {
-      setError('Zerodha User ID should only be provided for Zerodha broker');
-      return;
-    }
-
     try {
       if (editingId) {
         // Update existing
@@ -330,9 +199,12 @@ function BrokerPageContent() {
           is_active: formData.is_active,
         };
         
-        // Include zerodha_user_id if broker type is Zerodha
+        // Include broker_user_id and zerodha_user_id
         if (formData.broker_type === 'zerodha') {
           updatePayload.zerodha_user_id = formData.zerodha_user_id || null;
+          updatePayload.broker_user_id = formData.zerodha_user_id || null;
+        } else if (formData.broker_user_id) {
+          updatePayload.broker_user_id = formData.broker_user_id || null;
         }
         
         await updateBrokerCredentials(editingId, updatePayload);
@@ -347,9 +219,12 @@ function BrokerPageContent() {
           is_active: formData.is_active,
         };
         
-        // Include zerodha_user_id only for Zerodha
+        // Include broker_user_id and zerodha_user_id
         if (formData.broker_type === 'zerodha') {
           newCreds.zerodha_user_id = formData.zerodha_user_id || null;
+          newCreds.broker_user_id = formData.zerodha_user_id || null;
+        } else if (formData.broker_user_id) {
+          newCreds.broker_user_id = formData.broker_user_id || null;
         }
         
         await createBrokerCredentials(newCreds);
@@ -362,6 +237,7 @@ function BrokerPageContent() {
         api_key: '',
         api_secret: '',
         label: '',
+        broker_user_id: '',
         zerodha_user_id: '',
         is_active: true,
       });
@@ -370,7 +246,7 @@ function BrokerPageContent() {
       await loadData();
       
       // Show success message
-      setSuccess('Credentials saved successfully! You can now connect to Zerodha.');
+      setSuccess('Credentials saved successfully! You can now connect to your broker account.');
     } catch (err: any) {
       console.error('Failed to save credentials:', err);
       const errorDetail = err.response?.data?.detail || '';
@@ -391,7 +267,8 @@ function BrokerPageContent() {
       api_key: cred.api_key, // This will be masked, user needs to re-enter
       api_secret: '', // Secret is never shown, user needs to re-enter
       label: cred.label || '',
-      zerodha_user_id: cred.zerodha_user_id || '',
+      broker_user_id: cred.broker_user_id || cred.zerodha_user_id || '',
+      zerodha_user_id: cred.zerodha_user_id || cred.broker_user_id || '',
       is_active: cred.is_active,
     });
     setShowAddForm(true);
@@ -412,250 +289,73 @@ function BrokerPageContent() {
     }
   };
 
-  const handleZerodhaOAuth = async (credentialsId?: string) => {
+  const handleConnect = async (cred: BrokerCredentials) => {
     try {
       setError('');
       setSuccess('');
       setLoading(true);
-      
-      // Debug: Check if token is available
-      const token = localStorage.getItem('firebase_token');
-      if (!token) {
-        throw new Error('No authentication token found. Please log in again.');
-      }
-      
-      // Debug: Verify credentials exist before calling OAuth
-      if (credentialsId) {
-        const credExists = credentials.find(c => c.id === credentialsId);
-        if (!credExists) {
-          throw new Error(`Credentials with ID ${credentialsId} not found. Please refresh the page.`);
-        }
-        console.log('🔍 Initiating OAuth with credentials:', {
-          credentialsId,
-          brokerType: credExists.broker_type,
-          isActive: credExists.is_active,
-          hasToken: !!token,
-        });
-      }
-      
-      console.log('🔍 Calling initiateZerodhaOAuth:', {
-        credentialsId,
-        hasToken: !!token,
-        tokenPreview: token.substring(0, 20) + '...',
-      });
-      
-      const response = await initiateZerodhaOAuth(credentialsId);
-      
-      // 🔍 DEBUG: Log the FULL OAuth initiation response
-      console.log('✅ OAuth Initiation - Full Response:', {
-        fullResponse: response,
-        loginUrl: response.login_url,
-        redirectUrl: response.redirect_url,
-        message: response.message,
-        loginUrlParsed: (() => {
-          try {
-            const url = new URL(response.login_url);
-            return {
-              origin: url.origin,
-              pathname: url.pathname,
-              searchParams: Object.fromEntries(url.searchParams.entries()),
-              fullSearchString: url.search,
-            };
-          } catch (e) {
-            return { error: 'Failed to parse login_url', url: response.login_url };
-          }
-        })(),
-        redirectUrlParsed: (() => {
-          try {
-            const url = new URL(response.redirect_url);
-            return {
-              origin: url.origin,
-              pathname: url.pathname,
-              searchParams: Object.fromEntries(url.searchParams.entries()),
-              fullSearchString: url.search,
-            };
-          } catch (e) {
-            return { error: 'Failed to parse redirect_url', url: response.redirect_url };
-          }
-        })(),
-        timestamp: new Date().toISOString(),
-      });
-      
-      // 🔍 DEBUG: Extract and log session_id from redirect_url if present
-      try {
-        const redirectUrl = new URL(response.redirect_url);
-        const sessionId = redirectUrl.searchParams.get('session_id');
-        if (sessionId) {
-          console.log('🔍 OAuth Initiation - Session ID from redirect_url:', sessionId);
-        } else {
-          console.log('⚠️ OAuth Initiation - No session_id found in redirect_url');
-        }
-      } catch (e) {
-        console.warn('⚠️ OAuth Initiation - Could not parse redirect_url for session_id:', e);
-      }
-      
-      // Redirect user to Zerodha login page (not popup, as per backend docs)
-      // The backend will handle the callback and redirect back to our frontend
-      console.log('🔍 OAuth Initiation - Redirecting to Zerodha login URL:', response.login_url);
-      window.location.href = response.login_url;
-      
-    } catch (err: any) {
-      console.error('❌ Failed to initiate OAuth:', err);
-      console.error('❌ Error details:', {
-        message: err.message,
-        response: err.response,
-        status: err.response?.status,
-        statusText: err.response?.statusText,
-        data: err.response?.data,
-        config: err.config,
-      });
-      
-      setLoading(false);
-      
-        const errorDetail = err.response?.data?.detail || '';
-      const status = err.response?.status;
-      
-      // Handle decryption failure (500 error with decrypt message)
-      if (status === 500 && (errorDetail.includes('decrypt') || errorDetail.includes('re-add'))) {
-        setError('Your credentials need to be re-added due to a security update. Please update your API keys.');
-        // Optionally redirect to edit the credentials
-        setTimeout(() => {
-          const cred = credentials.find(c => c.id === credentialsId);
-          if (cred) {
-            handleEdit(cred);
-          }
-        }, 2000);
-        return;
-      }
-      
-      // Handle 404 - credentials not found
-      if (status === 404) {
-        if (errorDetail.includes('credentials not found') || errorDetail.includes('not found')) {
-          setError(`${errorDetail} The credentials list may be out of sync. Refreshing...`);
-          // Refresh credentials list to sync with backend
-          setTimeout(() => {
-            loadData();
-          }, 1000);
-        } else if (errorDetail.includes('No Zerodha credentials')) {
-          setError('No Zerodha credentials found. Please add your Zerodha API credentials first.');
-        } else {
-          setError(errorDetail || 'Zerodha credentials not found. Please check if the credentials ID is correct.');
-        }
-        return;
-      }
-      
-      // Handle 403 - credentials don't belong to user
-      if (status === 403) {
-        if (errorDetail.includes('do not belong') || errorDetail.includes('not belong')) {
-          setError('Security warning: These credentials do not belong to your account. Please contact support if this is unexpected.');
-      } else {
-          setError(errorDetail || 'Access denied. You do not have permission to use these credentials.');
-        }
-        return;
-      }
-      
-      // Handle 400 - credentials inactive
-      if (status === 400) {
-        if (errorDetail.includes('inactive')) {
-          setError('These credentials are inactive. Please activate them first.');
-          // Optionally redirect to edit the credentials
-          setTimeout(() => {
-            const cred = credentials.find(c => c.id === credentialsId);
-            if (cred) {
-              handleEdit(cred);
-            }
-          }, 2000);
-        } else {
-          setError(errorDetail || 'Invalid request. Please check your credentials.');
-        }
-        return;
-      }
-      
-      // Handle 401 - authentication failed
-      if (status === 401) {
-        setError('Authentication failed. Your session may have expired. Please log in again.');
-        return;
-      }
-      
-      // Handle other errors
-      if (err.message) {
-        setError(err.message);
-      } else {
-        setError(errorDetail || 'Failed to initiate OAuth flow. Please try again.');
-      }
-    }
-  };
 
-  const handleRefreshToken = async (credentialsId?: string) => {
-    // Use the same OAuth flow as Connect button
-    // This will re-authenticate and get fresh tokens
-    if (credentialsId) {
-      await handleZerodhaOAuth(credentialsId);
-    } else {
-      // If no credentials ID provided, find the first Zerodha credential
-      const zerodhaCred = credentials.find(c => c.broker_type === 'zerodha');
-      if (zerodhaCred) {
-        await handleZerodhaOAuth(zerodhaCred.id);
-      } else {
-        setError('No Zerodha credentials found. Please add credentials first.');
-      }
-    }
-  };
-
-  const handlePaytmMoneyOAuth = async (credentialsId: string) => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const response = await initiatePaytmMoneyOAuth(credentialsId);
-      
+      const response = await initiateBrokerOAuth(cred.broker_type, cred.id);
       if (response.login_url) {
         window.location.href = response.login_url;
       } else {
         setError('Failed to get login URL from server');
       }
     } catch (err: any) {
-      console.error('Failed to initiate Paytm Money OAuth:', err);
-      setError(err.response?.data?.detail || err.message || 'Failed to initiate Paytm Money OAuth');
+      console.error('Failed to initiate OAuth:', err);
+      const errorDetail = err.response?.data?.detail || err.message || 'Failed to initiate broker connection';
+      setError(errorDetail);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRefresh = async (cred: BrokerCredentials) => {
+    try {
+      setError('');
+      setSuccess('');
+      setLoading(true);
+
+      const res = await refreshBrokerToken(cred.broker_type, cred.id);
+      if (res?.login_url) {
+        window.location.href = res.login_url;
+      } else {
+        setSuccess('Token refreshed successfully!');
+        await loadData();
+      }
+    } catch (err: any) {
+      console.error('Failed to refresh token:', err);
+      // Fallback to full OAuth connect flow
+      await handleConnect(cred);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Backward compatibility alias
+  const handleZerodhaOAuth = async (credentialsId?: string) => {
+    const cred = credentials.find(c => c.id === credentialsId) || credentials.find(c => c.broker_type === 'zerodha');
+    if (cred) {
+      await handleConnect(cred);
     }
   };
 
   const handleViewProfile = async (credentialsId: string) => {
     try {
       const cred = credentials.find(c => c.id === credentialsId);
+      if (!cred) return;
       setProfileLoading(true);
       setProfileError('');
       setProfile(null);
       setProfileCredentialsId(credentialsId);
       setShowProfileModal(true);
 
-      let profileData;
-      if (cred?.broker_type === 'paytm_money') {
-        profileData = await getPaytmMoneyUserProfile(credentialsId);
-      } else {
-        profileData = await getZerodhaUserProfile(credentialsId);
-      }
+      const profileData = await getBrokerUserProfile(cred.broker_type, credentialsId);
       setProfile(profileData);
     } catch (err: any) {
       console.error('Failed to fetch profile:', err);
-      const errorDetail = err.response?.data?.detail || '';
-      
-      // Handle specific errors
-      if (err.response?.status === 400) {
-        if (errorDetail.includes('credentials not found') || errorDetail.includes('Zerodha credentials not found')) {
-          setProfileError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
-        } else if (errorDetail.includes('Access token not found') || errorDetail.includes('OAuth')) {
-          setProfileError('Please complete OAuth flow to connect your Zerodha account.');
-      } else {
-          setProfileError(errorDetail || 'Failed to fetch profile. Please check your Zerodha connection.');
-        }
-      } else if (err.response?.status === 500) {
-        setProfileError('Server error. Please try again later.');
-      } else {
-        setProfileError(errorDetail || 'Failed to fetch profile. Please try again.');
-      }
+      const errorDetail = err.response?.data?.detail || err.message || 'Failed to fetch user profile';
+      setProfileError(errorDetail);
     } finally {
       setProfileLoading(false);
     }
@@ -664,35 +364,19 @@ function BrokerPageContent() {
   const handleCheckTokenHealth = async (credentialsId: string) => {
     try {
       const cred = credentials.find(c => c.id === credentialsId);
+      if (!cred) return;
       setHealthLoading(true);
       setHealthError('');
       setHealth(null);
       setHealthCredentialsId(credentialsId);
       setShowHealthModal(true);
 
-      let healthData;
-      if (cred?.broker_type === 'paytm_money') {
-        healthData = await getPaytmMoneyTokenHealth(credentialsId);
-      } else {
-        healthData = await getTokenHealth(credentialsId);
-      }
+      const healthData = await getBrokerTokenHealth(cred.broker_type, credentialsId);
       setHealth(healthData);
     } catch (err: any) {
       console.error('Failed to check token health:', err);
-      const errorDetail = err.response?.data?.detail || '';
-      
-      // Handle specific errors
-      if (err.response?.status === 400) {
-        if (errorDetail.includes('credentials not found') || errorDetail.includes('Zerodha credentials not found')) {
-          setHealthError('Zerodha credentials not found. Please add your Zerodha API credentials first.');
-        } else {
-          setHealthError(errorDetail || 'Failed to check token health. Please check your Zerodha connection.');
-        }
-      } else if (err.response?.status === 500) {
-        setHealthError('Server error. Please try again later.');
-      } else {
-        setHealthError(errorDetail || 'Failed to check token health. Please try again.');
-      }
+      const errorDetail = err.response?.data?.detail || err.message || 'Failed to check token health';
+      setHealthError(errorDetail);
     } finally {
       setHealthLoading(false);
     }
@@ -706,6 +390,7 @@ function BrokerPageContent() {
       api_key: '',
       api_secret: '',
       label: '',
+      broker_user_id: '',
       zerodha_user_id: '',
       is_active: true,
     });
@@ -789,8 +474,8 @@ function BrokerPageContent() {
                       setFormData({
                         ...formData,
                         broker_type: newBrokerType,
-                        // Clear zerodha_user_id if switching away from Zerodha
-                        zerodha_user_id: newBrokerType === 'zerodha' ? formData.zerodha_user_id : '',
+                        broker_user_id: '',
+                        zerodha_user_id: '',
                       });
                     }}
                     required
@@ -814,7 +499,7 @@ function BrokerPageContent() {
                     type="text"
                     value={formData.label}
                     onChange={(e) => setFormData({ ...formData, label: e.target.value })}
-                    placeholder="e.g., My Zerodha Account"
+                    placeholder="e.g., My Trading Account"
                     className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -852,8 +537,8 @@ function BrokerPageContent() {
                   )}
                 </div>
 
-                {/* Zerodha User ID - Only show for Zerodha broker */}
-                {formData.broker_type === 'zerodha' && (
+                {/* Broker User ID */}
+                {formData.broker_type === 'zerodha' ? (
                   <div>
                     <label className="block text-sm font-medium text-gray-300 mb-2">
                       Zerodha User ID <span className="text-red-400">*</span>
@@ -861,7 +546,7 @@ function BrokerPageContent() {
                     <input
                       type="text"
                       value={formData.zerodha_user_id}
-                      onChange={(e) => setFormData({ ...formData, zerodha_user_id: e.target.value })}
+                      onChange={(e) => setFormData({ ...formData, zerodha_user_id: e.target.value, broker_user_id: e.target.value })}
                       required
                       placeholder="Enter your Zerodha User ID (e.g., AB1234)"
                       className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -870,7 +555,23 @@ function BrokerPageContent() {
                       This is your Zerodha user ID. You can find it in your Zerodha Kite Connect app settings or after completing OAuth.
                     </p>
                   </div>
-                )}
+                ) : formData.broker_type === 'paytm_money' ? (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Paytm Money User ID <span className="text-xs text-gray-400 font-normal">(Optional)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.broker_user_id}
+                      onChange={(e) => setFormData({ ...formData, broker_user_id: e.target.value })}
+                      placeholder="Enter your Paytm Money User ID (optional)"
+                      className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      Auto-populated once you complete OAuth login, or you can enter it here.
+                    </p>
+                  </div>
+                ) : null}
 
                 <div className="flex items-center">
                   <input
@@ -920,25 +621,11 @@ function BrokerPageContent() {
             <div className="space-y-4">
               {credentials.map((cred) => {
                 const broker = availableBrokers.find((b) => b.type === cred.broker_type);
-                // For Zerodha, check both is_active AND OAuth connection status
-                // For other brokers, just check is_active
-                const isOAuthConnected = cred.broker_type === 'zerodha' 
-                  ? oauthConnectionStatus[cred.id] === true 
-                  : true; // Non-Zerodha brokers don't need OAuth
-                const isFullyActive = cred.is_active && isOAuthConnected;
-                
-                // Debug logging for status calculation
-                if (cred.broker_type === 'zerodha') {
-                  console.log(`🔍 Status check for credential ${cred.id}:`, {
-                    credId: cred.id,
-                    is_active: cred.is_active,
-                    oauthStatus: oauthConnectionStatus[cred.id],
-                    isOAuthConnected,
-                    isFullyActive,
-                    willShow: isFullyActive ? 'Active' : 'Inactive',
-                  });
-                }
-                
+                const isConnected = oauthConnectionStatus[cred.id] === true;
+                const isFullyActive = cred.is_active && isConnected;
+                const brokerUserId = cred.broker_user_id || cred.zerodha_user_id || oauthStatuses[cred.id]?.user_id;
+                const brokerTitle = broker?.name || (cred.broker_type === 'paytm_money' ? 'Paytm Money' : cred.broker_type === 'zerodha' ? 'Zerodha' : cred.broker_type);
+
                 return (
                   <div
                     key={cred.id}
@@ -948,7 +635,7 @@ function BrokerPageContent() {
                       <div className="flex-1 min-w-0">
                         <div className="flex flex-wrap items-center gap-3 mb-2">
                           <h3 className="text-lg font-semibold text-white">
-                            {broker?.name || cred.broker_type}
+                            {brokerTitle}
                           </h3>
                           {cred.label && (
                             <span className="text-sm text-gray-400">({cred.label})</span>
@@ -966,13 +653,13 @@ function BrokerPageContent() {
                         <p className="text-sm text-gray-400 mb-2 break-words">
                           API Key: {cred.api_key.substring(0, 8)}...
                         </p>
-                        {cred.broker_type === 'zerodha' && cred.zerodha_user_id && (
+                        {brokerUserId && (
                           <p className="text-sm text-gray-400 mb-2">
-                            Zerodha User ID: <span className="text-white font-medium">{cred.zerodha_user_id}</span>
+                            {brokerTitle} User ID: <span className="text-white font-medium">{brokerUserId}</span>
                           </p>
                         )}
                         {/* Display token details if available from OAuth status */}
-                        {cred.broker_type === 'zerodha' && oauthStatuses[cred.id]?.token_details && (
+                        {oauthStatuses[cred.id]?.token_details && (
                           <div className="text-xs text-gray-500 mb-2 space-y-1">
                             <div>
                               Access Token: {oauthStatuses[cred.id].token_details!.access_token_present ? (
@@ -995,83 +682,30 @@ function BrokerPageContent() {
                         </p>
                       </div>
                       <div className="flex flex-wrap gap-2 lg:flex-nowrap">
-                        {cred.broker_type === 'zerodha' && (
+                        {!isConnected ? (
+                          <button
+                            onClick={() => handleConnect(cred)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                            disabled={loading}
+                            title={`Connect to ${brokerTitle} using these credentials`}
+                          >
+                            Connect
+                          </button>
+                        ) : (
                           <>
-                            {/* Show "Connect" button only if OAuth is NOT connected */}
-                            {!oauthConnectionStatus[cred.id] && (
                             <button
-                              onClick={() => handleZerodhaOAuth(cred.id)}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                              onClick={() => handleRefresh(cred)}
+                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
                               disabled={loading}
-                                title="Connect to Zerodha using these credentials"
-                            >
-                              Connect
-                            </button>
-                            )}
-                            {/* Show "Refresh Token" button only if OAuth IS connected */}
-                            {oauthConnectionStatus[cred.id] && (
-                              <>
-                            <button
-                                  onClick={() => handleRefreshToken(cred.id)}
-                                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                              disabled={loading}
-                                  title="Refresh Zerodha access token"
+                              title={`Refresh ${brokerTitle} access token`}
                             >
                               Refresh Token
                             </button>
-                                <button
-                                  onClick={() => handleViewProfile(cred.id)}
-                                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                                  disabled={loading}
-                                  title="View Zerodha user profile"
-                                >
-                                  Profile
-                                </button>
-                                <button
-                                  onClick={() => handleCheckTokenHealth(cred.id)}
-                                  className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                                  disabled={loading}
-                                  title="Check token health and diagnostics"
-                                >
-                                  Health
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                        {cred.broker_type === 'paytm_money' && (
-                          <>
-                            {/* Show "Connect" button only if OAuth is NOT connected */}
-                            {!oauthConnectionStatus[cred.id] && (
-                            <button
-                              onClick={() => handlePaytmMoneyOAuth(cred.id)}
-                              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                              disabled={loading}
-                              title="Connect to Paytm Money using these credentials"
-                            >
-                              Connect
-                            </button>
-                            )}
-                            {/* Show "Refresh Token" button only if OAuth IS connected */}
-                            {oauthConnectionStatus[cred.id] && (
-                              <button
-                                onClick={() => handlePaytmMoneyOAuth(cred.id)}
-                                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                                disabled={loading}
-                                title="Refresh Paytm Money access token"
-                              >
-                                Refresh Token
-                              </button>
-                            )}
-                          </>
-                        )}
-                        {cred.broker_type === 'paytm_money' && (
-                          <>
                             <button
                               onClick={() => handleViewProfile(cred.id)}
                               className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
                               disabled={loading}
-                              title="View Paytm Money user profile"
+                              title={`View ${brokerTitle} user profile`}
                             >
                               Profile
                             </button>
@@ -1079,7 +713,7 @@ function BrokerPageContent() {
                               onClick={() => handleCheckTokenHealth(cred.id)}
                               className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
                               disabled={loading}
-                              title="Check Paytm Money token health and diagnostics"
+                              title={`Check ${brokerTitle} token health and diagnostics`}
                             >
                               Health
                             </button>
@@ -1125,7 +759,11 @@ function BrokerPageContent() {
           <div className="bg-gray-800 rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">
-                {credentials.find(c => c.id === profileCredentialsId)?.broker_type === 'paytm_money' ? 'Paytm Money' : 'Zerodha'} User Profile
+                {(() => {
+                  const cred = credentials.find(c => c.id === profileCredentialsId);
+                  const broker = availableBrokers.find(b => b.type === cred?.broker_type);
+                  return `${broker?.name || (cred?.broker_type === 'paytm_money' ? 'Paytm Money' : cred?.broker_type === 'zerodha' ? 'Zerodha' : 'Broker')} User Profile`;
+                })()}
               </h2>
               <button
                 onClick={() => {
@@ -1153,124 +791,63 @@ function BrokerPageContent() {
                   {profileError}
                   {profileError.includes('OAuth') && (
                     <div className="mt-4">
-                      <button
-                        onClick={() => {
-                          const cred = credentials.find(c => c.id === profileCredentialsId);
-                          if (cred) {
-                            handleZerodhaOAuth(cred.id);
-                          }
-                        }}
-                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
-                      >
-                        Connect to Zerodha
-                      </button>
+                      {(() => {
+                        const cred = credentials.find(c => c.id === profileCredentialsId);
+                        const broker = availableBrokers.find(b => b.type === cred?.broker_type);
+                        const title = broker?.name || (cred?.broker_type === 'paytm_money' ? 'Paytm Money' : 'Zerodha');
+                        return cred ? (
+                          <button
+                            onClick={() => handleConnect(cred)}
+                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm"
+                          >
+                            Connect to {title}
+                          </button>
+                        ) : null;
+                      })()}
                     </div>
                   )}
                 </div>
               ) : profile ? (
-                credentials.find(c => c.id === profileCredentialsId)?.broker_type === 'paytm_money' ? (
-                  <div className="space-y-6">
-                    {/* Basic Info */}
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">User ID</p>
-                          <p className="text-white font-medium">{profile.data?.userId || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">Name</p>
-                          <p className="text-white font-medium">{profile.data?.kycName || 'N/A'}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">Email</p>
-                          <p className="text-white font-medium">N/A</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">User Type</p>
-                          <p className="text-white font-medium capitalize">N/A</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">Broker</p>
-                          <p className="text-white font-medium">PAYTM MONEY</p>
-                        </div>
+                <div className="space-y-6">
+                  {/* Basic Info */}
+                  <div className="bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">User ID</p>
+                        <p className="text-white font-medium">{profile.user_id || 'N/A'}</p>
                       </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Name</p>
+                        <p className="text-white font-medium">{profile.user_name || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Email</p>
+                        <p className="text-white font-medium">{profile.email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">User Type</p>
+                        <p className="text-white font-medium capitalize">{profile.user_type || 'individual'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-400 mb-1">Broker</p>
+                        <p className="text-white font-medium">{profile.broker || 'N/A'}</p>
+                      </div>
+                      {profile.avatar_url && (
+                        <div>
+                          <p className="text-sm text-gray-400 mb-1">Avatar</p>
+                          <img src={profile.avatar_url} alt="Profile" className="w-16 h-16 rounded-full" />
+                        </div>
+                      )}
                     </div>
-
-                    {/* Exchanges */}
-                    {profile.data?.activeSegments && (
-                      <div className="bg-gray-700 rounded-lg p-4">
-                        <h3 className="text-lg font-semibold text-white mb-4">Enabled Exchanges</h3>
-                        <div className="flex flex-wrap gap-2">
-                          {profile.data.activeSegments.map((exchange: string) => (
-                            <span
-                              key={exchange}
-                              className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-medium"
-                            >
-                              {exchange}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Metadata */}
-                    {profile.meta && (
-                      <div className="bg-gray-700 rounded-lg p-4">
-                        <h3 className="text-lg font-semibold text-white mb-4">Additional Information</h3>
-                        <div className="space-y-2">
-                          <div>
-                            <p className="text-sm text-gray-400 mb-1">Status Code</p>
-                            <p className="text-white font-medium">{profile.meta.code || 'N/A'}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-400 mb-1">Message</p>
-                            <p className="text-white font-medium">{profile.meta.message || 'N/A'}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
-                ) : (
-                  <div className="space-y-6">
-                    {/* Basic Info */}
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-4">Basic Information</h3>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">User ID</p>
-                          <p className="text-white font-medium">{profile.user_id}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">Name</p>
-                          <p className="text-white font-medium">{profile.user_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">Email</p>
-                          <p className="text-white font-medium">{profile.email}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">User Type</p>
-                          <p className="text-white font-medium capitalize">{profile.user_type}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-400 mb-1">Broker</p>
-                          <p className="text-white font-medium">{profile.broker}</p>
-                        </div>
-                        {profile.avatar_url && (
-                          <div>
-                            <p className="text-sm text-gray-400 mb-1">Avatar</p>
-                            <img src={profile.avatar_url} alt="Profile" className="w-16 h-16 rounded-full" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
 
-                    {/* Exchanges */}
+                  {/* Exchanges */}
+                  {profile.exchanges && profile.exchanges.length > 0 && (
                     <div className="bg-gray-700 rounded-lg p-4">
-                      <h3 className="text-lg font-semibold text-white mb-4">Enabled Exchanges</h3>
+                      <h3 className="text-lg font-semibold text-white mb-4">Enabled Exchanges / Segments</h3>
                       <div className="flex flex-wrap gap-2">
-                        {profile.exchanges?.map((exchange: string) => (
+                        {profile.exchanges.map((exchange: string) => (
                           <span
                             key={exchange}
                             className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-medium"
@@ -1280,12 +857,14 @@ function BrokerPageContent() {
                         ))}
                       </div>
                     </div>
+                  )}
 
-                    {/* Products */}
+                  {/* Products */}
+                  {profile.products && profile.products.length > 0 && (
                     <div className="bg-gray-700 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-white mb-4">Enabled Products</h3>
                       <div className="flex flex-wrap gap-2">
-                        {profile.products?.map((product: string) => (
+                        {profile.products.map((product: string) => (
                           <span
                             key={product}
                             className="px-3 py-1 bg-green-500/20 text-green-300 rounded-lg text-sm font-medium"
@@ -1295,12 +874,14 @@ function BrokerPageContent() {
                         ))}
                       </div>
                     </div>
+                  )}
 
-                    {/* Order Types */}
+                  {/* Order Types */}
+                  {profile.order_types && profile.order_types.length > 0 && (
                     <div className="bg-gray-700 rounded-lg p-4">
                       <h3 className="text-lg font-semibold text-white mb-4">Enabled Order Types</h3>
                       <div className="flex flex-wrap gap-2">
-                        {profile.order_types?.map((orderType: string) => (
+                        {profile.order_types.map((orderType: string) => (
                           <span
                             key={orderType}
                             className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-lg text-sm font-medium"
@@ -1310,23 +891,23 @@ function BrokerPageContent() {
                         ))}
                       </div>
                     </div>
+                  )}
 
-                    {/* Metadata */}
-                    {profile.meta && (
-                      <div className="bg-gray-700 rounded-lg p-4">
-                        <h3 className="text-lg font-semibold text-white mb-4">Additional Information</h3>
-                        <div className="space-y-2">
-                          {profile.meta.demat_consent && (
-                            <div>
-                              <p className="text-sm text-gray-400 mb-1">Demat Consent</p>
-                              <p className="text-white font-medium capitalize">{profile.meta.demat_consent}</p>
-                            </div>
-                          )}
-                        </div>
+                  {/* Additional Information / Metadata */}
+                  {profile.meta && Object.keys(profile.meta).length > 0 && (
+                    <div className="bg-gray-700 rounded-lg p-4">
+                      <h3 className="text-lg font-semibold text-white mb-4">Additional Information</h3>
+                      <div className="space-y-2">
+                        {Object.entries(profile.meta).map(([key, value]) => (
+                          <div key={key}>
+                            <p className="text-sm text-gray-400 mb-1 capitalize">{key.replace(/_/g, ' ')}</p>
+                            <p className="text-white font-medium">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</p>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                )
+                    </div>
+                  )}
+                </div>
               ) : null}
             </div>
           </div>
@@ -1339,7 +920,11 @@ function BrokerPageContent() {
           <div className="bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
               <h2 className="text-xl font-semibold text-white">
-                {credentials.find(c => c.id === healthCredentialsId)?.broker_type === 'paytm_money' ? 'Paytm Money' : 'Zerodha'} Token Health Diagnostics
+                {(() => {
+                  const cred = credentials.find(c => c.id === healthCredentialsId);
+                  const broker = availableBrokers.find(b => b.type === cred?.broker_type);
+                  return `${broker?.name || (cred?.broker_type === 'paytm_money' ? 'Paytm Money' : cred?.broker_type === 'zerodha' ? 'Zerodha' : 'Broker')} Token Health Diagnostics`;
+                })()}
               </h2>
               <button
                 onClick={() => {

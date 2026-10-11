@@ -556,6 +556,7 @@ export interface BrokerCredentials {
   api_key: string;
   is_active: boolean;
   label?: string | null;
+  broker_user_id?: string | null;
   zerodha_user_id?: string | null;
   created_at: string;
   updated_at: string;
@@ -571,6 +572,7 @@ export interface BrokerCredentialsCreate {
   api_secret: string;
   is_active?: boolean;
   label?: string | null;
+  broker_user_id?: string | null;
   zerodha_user_id?: string | null;
 }
 
@@ -579,6 +581,7 @@ export interface BrokerCredentialsUpdate {
   api_secret?: string;
   is_active?: boolean;
   label?: string | null;
+  broker_user_id?: string | null;
   zerodha_user_id?: string | null;
 }
 
@@ -631,22 +634,23 @@ export interface TokenHealthResponse {
   recommendation?: string;
 }
 
-// Zerodha User Profile Types
-export interface ZerodhaUserProfile {
+// Unified Broker User Profile Types
+export interface BrokerUserProfile {
   user_id: string;
-  user_type: string;
-  email: string;
+  user_type?: string;
+  email?: string;
   user_name: string;
-  user_shortname: string;
+  user_shortname?: string;
   broker: string;
-  exchanges: string[];
-  products: string[];
-  order_types: string[];
-  avatar_url: string | null;
-  meta: {
-    demat_consent: string;
-  };
+  exchanges?: string[];
+  products?: string[];
+  order_types?: string[];
+  avatar_url?: string | null;
+  meta?: Record<string, any>;
+  raw?: any;
 }
+
+export type ZerodhaUserProfile = BrokerUserProfile;
 
 // Marketplace API Types
 export type MarketplaceApiType = 'yahoo_finance' | string;
