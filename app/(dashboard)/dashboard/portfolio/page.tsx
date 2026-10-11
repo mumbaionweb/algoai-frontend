@@ -7,6 +7,7 @@ import Link from 'next/link';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import { getPortfolio } from '@/lib/api/portfolio';
 import type { Portfolio } from '@/types';
+import HoldingsTable from '@/components/portfolio/HoldingsTable';
 
 function PortfolioPageContent() {
   const { isAuthenticated, isInitialized } = useAuthStore();
@@ -251,50 +252,12 @@ function PortfolioPageContent() {
             )}
           </div>
 
-          {/* Holdings */}
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-2xl font-semibold text-white">Holdings ({portfolio.holdings.length})</h2>
-              <button
-                onClick={loadPortfolio}
-                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm"
-              >
-                Refresh
-              </button>
-            </div>
-            {portfolio.holdings.length === 0 ? (
-              <p className="text-gray-400 text-center py-8">No holdings</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-700">
-                      <th className="text-left py-3 px-4 text-gray-300 font-semibold">Symbol</th>
-                      <th className="text-left py-3 px-4 text-gray-300 font-semibold">Exchange</th>
-                      <th className="text-right py-3 px-4 text-gray-300 font-semibold">Quantity</th>
-                      <th className="text-right py-3 px-4 text-gray-300 font-semibold">Avg Price</th>
-                      <th className="text-right py-3 px-4 text-gray-300 font-semibold">Last Price</th>
-                      <th className="text-right py-3 px-4 text-gray-300 font-semibold">P&L</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {portfolio.holdings.map((holding) => (
-                      <tr key={holding.tradingsymbol} className="border-b border-gray-700 hover:bg-gray-700/50">
-                        <td className="py-3 px-4 text-white font-medium">{holding.tradingsymbol}</td>
-                        <td className="py-3 px-4 text-gray-400">{holding.exchange}</td>
-                        <td className="py-3 px-4 text-white text-right">{holding.quantity}</td>
-                        <td className="py-3 px-4 text-white text-right">₹{holding.average_price.toFixed(2)}</td>
-                        <td className="py-3 px-4 text-white text-right">₹{holding.last_price.toFixed(2)}</td>
-                        <td className={`py-3 px-4 text-right font-semibold ${holding.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                          ₹{holding.pnl.toFixed(2)} ({holding.pnl_percentage >= 0 ? '+' : ''}{holding.pnl_percentage.toFixed(2)}%)
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {/* Holdings Section */}
+          <HoldingsTable
+            holdings={portfolio.holdings}
+            onRefresh={loadPortfolio}
+            refreshing={loading}
+          />
         </div>
       </main>
     </div>

@@ -288,6 +288,7 @@ export interface Position {
 
 export interface Holding {
   tradingsymbol: string;
+  stock_name?: string;
   exchange: string;
   quantity: number;
   average_price: number;
