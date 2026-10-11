@@ -411,7 +411,7 @@ export default function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => handleSort('stock_name')}
-                      className="flex items-center gap-1.5 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
                     >
                       <span>Stock Name</span>
                       {renderSortIndicator('stock_name')}
@@ -479,7 +479,7 @@ export default function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => handleSort('broker')}
-                      className="flex items-center gap-1 hover:text-white transition-colors"
+                      className="flex items-center gap-1 hover:text-white transition-colors focus:outline-none"
                     >
                       <span>Broker</span>
                       {renderSortIndicator('broker')}
@@ -553,7 +553,7 @@ export default function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => handleSort('quantity')}
-                      className="flex items-center gap-1.5 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
                     >
                       <span>Quantity</span>
                       {renderSortIndicator('quantity')}
@@ -640,7 +640,7 @@ export default function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => handleSort('average_price')}
-                      className="flex items-center gap-1.5 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
                     >
                       <span>Avg Price</span>
                       {renderSortIndicator('average_price')}
@@ -727,7 +727,7 @@ export default function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => handleSort('last_price')}
-                      className="flex items-center gap-1.5 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
                     >
                       <span>Last Price</span>
                       {renderSortIndicator('last_price')}
@@ -814,7 +814,7 @@ export default function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => handleSort('pnl')}
-                      className="flex items-center gap-1.5 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
                     >
                       <span>P&L Amt</span>
                       {renderSortIndicator('pnl')}
@@ -923,7 +923,7 @@ export default function HoldingsTable({
                     <button
                       type="button"
                       onClick={() => handleSort('pnl_percentage')}
-                      className="flex items-center gap-1.5 hover:text-white transition-colors"
+                      className="flex items-center gap-1.5 hover:text-white transition-colors focus:outline-none"
                     >
                       <span>P&L %</span>
                       {renderSortIndicator('pnl_percentage')}
@@ -1084,7 +1084,7 @@ export default function HoldingsTable({
                     {/* 6. P&L Amt */}
                     <td
                       className={`py-3 px-4 text-right font-mono font-semibold ${
-                        isProfit ? 'text-emerald-400' : 'text-rose-400'
+                        isProfit ? 'text-profit' : 'text-loss'
                       }`}
                     >
                       {isProfit ? '+' : ''}₹
@@ -1095,17 +1095,13 @@ export default function HoldingsTable({
                     </td>
 
                     {/* 7. P&L % */}
-                    <td className="py-3 px-4 text-right">
-                      <span
-                        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded text-xs font-mono font-bold ${
-                          isProfit
-                            ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25'
-                            : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'
-                        }`}
-                      >
-                        {isProfit ? '+' : ''}
-                        {holding.pnl_percentage.toFixed(2)}%
-                      </span>
+                    <td
+                      className={`py-3 px-4 text-right font-mono font-semibold ${
+                        isProfit ? 'text-profit' : 'text-loss'
+                      }`}
+                    >
+                      {isProfit ? '+' : ''}
+                      {holding.pnl_percentage.toFixed(2)}%
                     </td>
                   </tr>
                 );

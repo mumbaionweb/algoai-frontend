@@ -167,8 +167,8 @@ export default function PortfolioSummaryCard({
         <div
           className={`p-3 rounded-lg border transition-all ${
             isProfit
-              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-              : 'bg-rose-500/10 border-rose-500/30 text-rose-400'
+              ? 'bg-profit-subtle border-profit text-profit'
+              : 'bg-loss-subtle border-loss text-loss'
           }`}
         >
           <div className="flex items-center justify-between mb-1">
@@ -176,13 +176,13 @@ export default function PortfolioSummaryCard({
             <div className="flex items-center gap-1 text-[11px] font-bold">
               {isProfit ? (
                 <>
-                  <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
-                  <span className="text-emerald-400">PROFIT</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-profit" />
+                  <span className="text-profit">PROFIT</span>
                 </>
               ) : (
                 <>
-                  <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
-                  <span className="text-rose-400">LOSS</span>
+                  <ArrowDownRight className="w-3.5 h-3.5 text-loss" />
+                  <span className="text-loss">LOSS</span>
                 </>
               )}
             </div>
@@ -190,7 +190,7 @@ export default function PortfolioSummaryCard({
           <div className="flex items-baseline justify-between">
             <span
               className={`text-xl sm:text-2xl font-extrabold tracking-tight ${
-                isProfit ? 'text-emerald-400' : 'text-rose-400'
+                isProfit ? 'text-profit' : 'text-loss'
               }`}
             >
               {isProfit ? '+' : ''}₹
@@ -200,10 +200,8 @@ export default function PortfolioSummaryCard({
               })}
             </span>
             <span
-              className={`text-sm sm:text-base font-bold px-2 py-0.5 rounded ${
-                isProfit
-                  ? 'bg-emerald-500/20 text-emerald-300'
-                  : 'bg-rose-500/20 text-rose-300'
+              className={`text-sm sm:text-base font-bold font-mono px-2 py-0.5 rounded ${
+                isProfit ? 'badge-profit' : 'badge-loss'
               }`}
             >
               {portfolio.total_pnl_percentage >= 0 ? '+' : ''}

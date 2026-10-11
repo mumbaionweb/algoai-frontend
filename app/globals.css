@@ -21,6 +21,14 @@
   --palette-gray-300: #d0d7de;
   --palette-gray-200: #e6edf3;
   --palette-gray-100: #f0f6fc;
+
+  /* Financial Semantic Colors */
+  --color-profit: #10b981;
+  --color-profit-subtle: rgba(16, 185, 129, 0.15);
+  --color-profit-border: rgba(16, 185, 129, 0.35);
+  --color-loss: #f43f5e;
+  --color-loss-subtle: rgba(244, 63, 94, 0.15);
+  --color-loss-border: rgba(244, 63, 94, 0.35);
 }
 
 [data-theme="light"] {
@@ -43,6 +51,14 @@
   --palette-gray-300: #475569;
   --palette-gray-200: #1e293b;
   --palette-gray-100: #0f172a;
+
+  /* Financial Semantic Colors - High Contrast for White Theme */
+  --color-profit: #15803d;
+  --color-profit-subtle: rgba(21, 128, 61, 0.12);
+  --color-profit-border: rgba(21, 128, 61, 0.3);
+  --color-loss: #b91c1c;
+  --color-loss-subtle: rgba(185, 28, 28, 0.12);
+  --color-loss-border: rgba(185, 28, 28, 0.3);
 }
 
 [data-theme="solarized-light"] {
@@ -65,6 +81,14 @@
   --palette-gray-300: #586e75;
   --palette-gray-200: #073642;
   --palette-gray-100: #002b36;
+
+  /* Financial Semantic Colors - Authentic Ethan Schoonover Solarized */
+  --color-profit: #859900;
+  --color-profit-subtle: rgba(133, 153, 0, 0.15);
+  --color-profit-border: rgba(133, 153, 0, 0.35);
+  --color-loss: #dc322f;
+  --color-loss-subtle: rgba(220, 50, 47, 0.15);
+  --color-loss-border: rgba(220, 50, 47, 0.35);
 }
 
 @theme inline {
@@ -80,8 +104,50 @@
   --color-gray-300: var(--palette-gray-300);
   --color-gray-200: var(--palette-gray-200);
   --color-gray-100: var(--palette-gray-100);
+  --color-profit: var(--color-profit);
+  --color-loss: var(--color-loss);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+}
+
+/* ============================================================
+   GLOBAL FINANCIAL & P&L SEMANTIC CLASSES
+   Eliminating ad-hoc page-specific pill & color hacks
+   ============================================================ */
+.text-profit {
+  color: var(--color-profit) !important;
+}
+
+.text-loss {
+  color: var(--color-loss) !important;
+}
+
+.border-profit {
+  border-color: var(--color-profit-border) !important;
+}
+
+.border-loss {
+  border-color: var(--color-loss-border) !important;
+}
+
+.bg-profit-subtle {
+  background-color: var(--color-profit-subtle) !important;
+}
+
+.bg-loss-subtle {
+  background-color: var(--color-loss-subtle) !important;
+}
+
+.badge-profit {
+  background-color: var(--color-profit-subtle) !important;
+  color: var(--color-profit) !important;
+  border: 1px solid var(--color-profit-border) !important;
+}
+
+.badge-loss {
+  background-color: var(--color-loss-subtle) !important;
+  color: var(--color-loss) !important;
+  border: 1px solid var(--color-loss-border) !important;
 }
 
 body {
@@ -247,6 +313,33 @@ body {
   color: #334155 !important;
 }
 
+/* High-contrast financial & status colors for Light White */
+[data-theme="light"] .text-profit,
+[data-theme="light"] .text-emerald-200,
+[data-theme="light"] .text-emerald-300,
+[data-theme="light"] .text-emerald-400,
+[data-theme="light"] .text-emerald-500,
+[data-theme="light"] .text-emerald-600,
+[data-theme="light"] .text-green-300,
+[data-theme="light"] .text-green-400,
+[data-theme="light"] .text-green-500,
+[data-theme="light"] .text-green-600 {
+  color: #15803d !important;
+}
+
+[data-theme="light"] .text-loss,
+[data-theme="light"] .text-rose-200,
+[data-theme="light"] .text-rose-300,
+[data-theme="light"] .text-rose-400,
+[data-theme="light"] .text-rose-500,
+[data-theme="light"] .text-rose-600,
+[data-theme="light"] .text-red-300,
+[data-theme="light"] .text-red-400,
+[data-theme="light"] .text-red-500,
+[data-theme="light"] .text-red-600 {
+  color: #b91c1c !important;
+}
+
 
 /* ============================================================
    SOLARIZED LIGHT THEME OVERRIDES
@@ -402,13 +495,30 @@ body {
   color: #cb4b16 !important;
 }
 
+/* High-contrast financial & status colors for Solarized Light */
+[data-theme="solarized-light"] .text-profit,
+[data-theme="solarized-light"] .text-emerald-200,
+[data-theme="solarized-light"] .text-emerald-300,
 [data-theme="solarized-light"] .text-emerald-400,
-[data-theme="solarized-light"] .text-emerald-500 {
+[data-theme="solarized-light"] .text-emerald-500,
+[data-theme="solarized-light"] .text-emerald-600,
+[data-theme="solarized-light"] .text-green-300,
+[data-theme="solarized-light"] .text-green-400,
+[data-theme="solarized-light"] .text-green-500,
+[data-theme="solarized-light"] .text-green-600 {
   color: #859900 !important;
 }
 
+[data-theme="solarized-light"] .text-loss,
+[data-theme="solarized-light"] .text-rose-200,
+[data-theme="solarized-light"] .text-rose-300,
 [data-theme="solarized-light"] .text-rose-400,
-[data-theme="solarized-light"] .text-rose-500 {
+[data-theme="solarized-light"] .text-rose-500,
+[data-theme="solarized-light"] .text-rose-600,
+[data-theme="solarized-light"] .text-red-300,
+[data-theme="solarized-light"] .text-red-400,
+[data-theme="solarized-light"] .text-red-500,
+[data-theme="solarized-light"] .text-red-600 {
   color: #dc322f !important;
 }
 
@@ -493,6 +603,23 @@ body {
 [data-theme="dark"] .text-gray-400,
 [data-theme="dark"] [class*="text-gray-400"] {
   color: #9ca3af !important;
+}
+
+/* Financial & status colors for Dark */
+[data-theme="dark"] .text-profit,
+[data-theme="dark"] .text-emerald-400,
+[data-theme="dark"] .text-emerald-500,
+[data-theme="dark"] .text-green-400,
+[data-theme="dark"] .text-green-500 {
+  color: #10b981 !important;
+}
+
+[data-theme="dark"] .text-loss,
+[data-theme="dark"] .text-rose-400,
+[data-theme="dark"] .text-rose-500,
+[data-theme="dark"] .text-red-400,
+[data-theme="dark"] .text-red-500 {
+  color: #f43f5e !important;
 }
 
 /* Dark theme table & container normalization */
