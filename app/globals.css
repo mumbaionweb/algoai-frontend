@@ -93,7 +93,9 @@ body {
   background-color: #f1f5f9 !important;
 }
 
-[data-theme="light"] .hover\:bg-gray-700:hover {
+[data-theme="light"] .hover\:bg-gray-700:hover,
+[data-theme="light"] .hover\:bg-gray-700\/50:hover,
+[data-theme="light"] .hover\:bg-gray-600:hover {
   background-color: #e2e8f0 !important;
 }
 
@@ -228,7 +230,9 @@ body {
   background-color: #e4ddc8 !important;
 }
 
-[data-theme="solarized-light"] .hover\:bg-gray-700:hover {
+[data-theme="solarized-light"] .hover\:bg-gray-700:hover,
+[data-theme="solarized-light"] .hover\:bg-gray-700\/50:hover,
+[data-theme="solarized-light"] .hover\:bg-gray-600:hover {
   background-color: #d8d1be !important;
 }
 
