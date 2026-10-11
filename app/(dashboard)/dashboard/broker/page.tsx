@@ -138,15 +138,9 @@ function BrokerPageContent() {
                 try {
                   await getBrokerUserProfile(cred.broker_type, cred.id);
                 } catch (profileErr: any) {
-                  const errorDetail = profileErr.response?.data?.detail || '';
-                  if (
-                    errorDetail.includes('Access token not found') || 
-                    errorDetail.includes('OAuth') ||
-                    errorDetail.includes('token') ||
-                    profileErr.response?.status === 401
-                  ) {
-                    isTokenValid = false;
-                  }
+                  // Any profile fetch failure means broker token is expired or invalid
+                  console.warn(`Broker token expired or invalid for [${cred.broker_type}:${cred.id}]:`, profileErr.response?.data?.detail || profileErr.message);
+                  isTokenValid = false;
                 }
               }
               

@@ -1,5 +1,6 @@
 import axios, { AxiosError, AxiosResponse } from 'axios';
 import { getOrCreateDeviceId } from '@/utils/device';
+import { isTokenExpired } from '@/utils/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';
 
@@ -344,10 +345,53 @@ apiClient.interceptors.response.use(
     }
     
     if (axiosError.response?.status === 401) {
-      // Handle unauthorized - redirect to login
-      console.warn('⚠️ Unauthorized (401) - Clearing token and redirecting to login');
-      localStorage.removeItem('firebase_token');
-      window.location.href = '/login';
+      const requestUrl = axiosError.config?.url || '';
+      const responseDetail = (axiosError.response?.data as any)?.detail || '';
+      
+      // 1. Never logout if the 401 is from a third-party broker endpoint or broker token check
+      const isBrokerRequest = 
+        requestUrl.includes('/paytm_money/') ||
+        requestUrl.includes('/zerodha/') ||
+        requestUrl.includes('/broker/') ||
+        requestUrl.includes('credentials_id') ||
+        (typeof responseDetail === 'string' && (
+          responseDetail.toLowerCase().includes('broker') ||
+          responseDetail.toLowerCase().includes('paytm') ||
+          responseDetail.toLowerCase().includes('zerodha') ||
+          responseDetail.toLowerCase().includes('oauth')
+        ));
+
+      if (isBrokerRequest) {
+        console.warn(`⚠️ Broker token unauthorized/expired for [${requestUrl}]:`, responseDetail);
+        return Promise.reject(error);
+      }
+
+      // 2. Check if the user's AlgoAI Firebase token is actually still valid
+      const token = typeof window !== 'undefined' ? localStorage.getItem('firebase_token') : null;
+      if (token && !isTokenExpired(token)) {
+        // If the Firebase JWT has not expired, only log out if the backend explicitly rejected app auth
+        const isAppAuthFailure = 
+          typeof responseDetail === 'string' && (
+            responseDetail.includes('Missing authentication token') ||
+            responseDetail.includes('Invalid authentication token') ||
+            responseDetail.includes('Device session has been revoked') ||
+            responseDetail.includes('Invalid token format')
+          );
+        
+        if (!isAppAuthFailure) {
+          console.warn(`⚠️ 401 received for [${requestUrl}], but Firebase session is still valid. Skipping logout.`);
+          return Promise.reject(error);
+        }
+      }
+
+      // 3. True AlgoAI session expiry - redirect to login (only if not already on login page)
+      console.warn('⚠️ AlgoAI session expired (401) - Clearing token and redirecting to login');
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('firebase_token');
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+      }
     }
     return Promise.reject(error);
   }
