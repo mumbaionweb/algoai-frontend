@@ -283,6 +283,7 @@ export interface Position {
   pnl: number;
   pnl_percentage: number;
   instrument_token?: number;
+  broker?: string;
 }
 
 export interface Holding {
@@ -294,6 +295,7 @@ export interface Holding {
   pnl: number;
   pnl_percentage: number;
   instrument_token?: number;
+  broker?: string;
 }
 
 export interface Portfolio {
@@ -305,11 +307,12 @@ export interface Portfolio {
   margins?: PortfolioMargins;
   positions: Position[];
   holdings: Holding[];
+  brokers?: string[];
 }
 
 // Portfolio API Parameters
 export interface PortfolioParams {
-  broker_type?: 'zerodha' | string;
+  broker_type?: 'all' | 'zerodha' | 'paytm_money' | string;
   credentials_id?: string;
 }
 
