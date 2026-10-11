@@ -9,13 +9,8 @@ import { getPortfolio } from '@/lib/api/portfolio';
 import { getBrokerCredentials, getBrokerOAuthStatus } from '@/lib/api/broker';
 import type { Portfolio, PortfolioParams } from '@/types';
 import { ChevronDown, Check, RefreshCw } from 'lucide-react';
-
-interface BrokerOption {
-  id: string; // 'all' or specific credential ID
-  brokerType: 'all' | 'zerodha' | 'paytm_money' | string;
-  name: string;
-  subText?: string;
-}
+import PortfolioPerformanceChart from '@/components/charts/PortfolioPerformanceChart';
+import PortfolioSummaryCard, { type BrokerOption } from '@/components/charts/PortfolioSummaryCard';
 
 const DEFAULT_ALL_OPTION: BrokerOption = {
   id: 'all',
@@ -33,22 +28,9 @@ function HomePageContent() {
   const [error, setError] = useState('');
   const [portfolio, setPortfolio] = useState<Portfolio | null>(null);
 
-  // Broker selection dropdown state
+  // Broker selection state
   const [brokerOptions, setBrokerOptions] = useState<BrokerOption[]>([DEFAULT_ALL_OPTION]);
   const [selectedOption, setSelectedOption] = useState<BrokerOption>(DEFAULT_ALL_OPTION);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsDropdownOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   // Handle OAuth callback redirects
   useEffect(() => {
@@ -160,7 +142,6 @@ function HomePageContent() {
 
   const handleSelectBroker = (option: BrokerOption) => {
     setSelectedOption(option);
-    setIsDropdownOpen(false);
     loadPortfolio(option, false);
   };
 
@@ -242,112 +223,28 @@ function HomePageContent() {
 
       <main className="container mx-auto px-4 py-8">
         <div className="max-w-7xl mx-auto space-y-6">
-          {/* Portfolio Summary */}
-          <div className="bg-gray-800 rounded-lg p-6">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
-              <h2 className="text-2xl font-semibold text-white">Portfolio Summary</h2>
-
-              {/* Top Right Controls: Broker Dropdown & Refresh */}
-              <div className="flex items-center gap-3">
-                <div className="relative" ref={dropdownRef}>
-                  <button
-                    type="button"
-                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-medium flex items-center gap-2 focus:outline-none"
-                    aria-expanded={isDropdownOpen}
-                  >
-                    <span>{selectedOption.name}{selectedOption.subText ? ` (${selectedOption.subText})` : ''}</span>
-                    <ChevronDown className={`w-4 h-4 text-gray-300 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-                  </button>
-
-                  {isDropdownOpen && (
-                    <div className="absolute right-0 mt-2 w-56 rounded-lg bg-gray-800 border border-gray-700 shadow-xl p-1 z-50">
-                      <div className="px-3 py-1.5 border-b border-gray-700 text-[11px] font-semibold text-gray-400 uppercase">
-                        Select Broker
-                      </div>
-                      <div className="py-1">
-                        {brokerOptions.map((opt) => {
-                          const isSelected = selectedOption.id === opt.id;
-                          return (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => handleSelectBroker(opt)}
-                              className={`w-full flex items-center justify-between px-3 py-2 rounded text-sm text-white hover:bg-gray-700 transition-colors ${
-                                isSelected ? 'bg-gray-700 font-medium' : ''
-                              }`}
-                            >
-                              <div className="flex flex-col text-left">
-                                <span className="text-white">{opt.name}</span>
-                                {opt.subText && (
-                                  <span className="text-[11px] text-gray-400">{opt.subText}</span>
-                                )}
-                              </div>
-                              {isSelected && <Check className="w-4 h-4 text-blue-400 shrink-0" />}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => loadPortfolio(selectedOption, true)}
-                  disabled={refreshing || loading}
-                  className="px-3 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm disabled:opacity-50 flex items-center justify-center"
-                  title="Refresh"
-                >
-                  <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-                </button>
-              </div>
+          {/* First Row: 66% Portfolio Performance Chart (Left) + 33% Consolidated Portfolio Summary Card (Right) */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-stretch">
+            {/* Left: 66% space for TradingView Portfolio Performance Chart */}
+            <div className="lg:col-span-2 flex flex-col">
+              <PortfolioPerformanceChart
+                portfolio={portfolio}
+                brokerName={selectedOption.name}
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-gray-700 rounded-lg p-4">
-                <p className="text-gray-400 text-sm mb-1">Total Value</p>
-                <p className="text-2xl font-bold text-white">₹{portfolio.total_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-              <div className="bg-gray-700 rounded-lg p-4">
-                <p className="text-gray-400 text-sm mb-1">Invested Value</p>
-                <p className="text-2xl font-bold text-white">₹{portfolio.invested_value.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-              </div>
-              <div className={`bg-gray-700 rounded-lg p-4 ${portfolio.total_pnl >= 0 ? 'border-l-4 border-green-500' : 'border-l-4 border-red-500'}`}>
-                <p className="text-gray-400 text-sm mb-1">Total P&L</p>
-                <p className={`text-2xl font-bold ${portfolio.total_pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  ₹{portfolio.total_pnl.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
-                  <span className="text-lg ml-2">({portfolio.total_pnl_percentage >= 0 ? '+' : ''}{portfolio.total_pnl_percentage.toFixed(2)}%)</span>
-                </p>
-              </div>
+            {/* Right: 33% space for Consolidated Total Value, Invested Value, and Total P&L Card */}
+            <div className="lg:col-span-1 flex flex-col">
+              <PortfolioSummaryCard
+                portfolio={portfolio}
+                selectedOption={selectedOption}
+                brokerOptions={brokerOptions}
+                onSelectBroker={handleSelectBroker}
+                onRefresh={() => loadPortfolio(selectedOption, true)}
+                refreshing={refreshing}
+                loading={loading}
+              />
             </div>
-
-            {/* Margins */}
-            {portfolio.margins && (
-              <div className="mt-6">
-                <h3 className="text-lg font-semibold text-white mb-3">Margins</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {portfolio.margins.available !== undefined && (
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <p className="text-gray-400 text-sm mb-1">Available</p>
-                      <p className="text-xl font-semibold text-white">₹{portfolio.margins.available.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    </div>
-                  )}
-                  {portfolio.margins.utilised !== undefined && (
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <p className="text-gray-400 text-sm mb-1">Utilised</p>
-                      <p className="text-xl font-semibold text-white">₹{portfolio.margins.utilised.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    </div>
-                  )}
-                  {portfolio.margins.net !== undefined && (
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <p className="text-gray-400 text-sm mb-1">Net</p>
-                      <p className="text-xl font-semibold text-white">₹{portfolio.margins.net.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Positions */}
