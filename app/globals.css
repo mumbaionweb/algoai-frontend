@@ -29,6 +29,27 @@
   --color-loss: #f43f5e;
   --color-loss-subtle: rgba(244, 63, 94, 0.15);
   --color-loss-border: rgba(244, 63, 94, 0.35);
+
+  /* Interactive Action Semantic Colors - Dark */
+  --color-action-blue: #3b82f6;
+  --color-action-blue-subtle: rgba(59, 130, 246, 0.15);
+  --color-action-blue-border: rgba(59, 130, 246, 0.35);
+  --color-action-blue-hover: rgba(59, 130, 246, 0.25);
+
+  --color-action-amber: #f59e0b;
+  --color-action-amber-subtle: rgba(245, 158, 11, 0.15);
+  --color-action-amber-border: rgba(245, 158, 11, 0.35);
+  --color-action-amber-hover: rgba(245, 158, 11, 0.25);
+
+  --color-action-purple: #c084fc;
+  --color-action-purple-subtle: rgba(192, 132, 252, 0.15);
+  --color-action-purple-border: rgba(192, 132, 252, 0.35);
+  --color-action-purple-hover: rgba(192, 132, 252, 0.25);
+
+  --color-action-neutral: #d1d5db;
+  --color-action-neutral-subtle: rgba(255, 255, 255, 0.05);
+  --color-action-neutral-border: rgba(255, 255, 255, 0.15);
+  --color-action-neutral-hover: rgba(255, 255, 255, 0.12);
 }
 
 [data-theme="light"] {
@@ -59,6 +80,27 @@
   --color-loss: #b91c1c;
   --color-loss-subtle: rgba(185, 28, 28, 0.12);
   --color-loss-border: rgba(185, 28, 28, 0.3);
+
+  /* Interactive Action Semantic Colors - Light (High Contrast) */
+  --color-action-blue: #1d4ed8;
+  --color-action-blue-subtle: rgba(29, 78, 216, 0.08);
+  --color-action-blue-border: rgba(29, 78, 216, 0.25);
+  --color-action-blue-hover: rgba(29, 78, 216, 0.16);
+
+  --color-action-amber: #b45309;
+  --color-action-amber-subtle: rgba(180, 83, 9, 0.08);
+  --color-action-amber-border: rgba(180, 83, 9, 0.25);
+  --color-action-amber-hover: rgba(180, 83, 9, 0.16);
+
+  --color-action-purple: #7e22ce;
+  --color-action-purple-subtle: rgba(126, 34, 206, 0.08);
+  --color-action-purple-border: rgba(126, 34, 206, 0.25);
+  --color-action-purple-hover: rgba(126, 34, 206, 0.16);
+
+  --color-action-neutral: #334155;
+  --color-action-neutral-subtle: rgba(0, 0, 0, 0.04);
+  --color-action-neutral-border: rgba(0, 0, 0, 0.12);
+  --color-action-neutral-hover: rgba(0, 0, 0, 0.08);
 }
 
 [data-theme="solarized-light"] {
@@ -89,6 +131,27 @@
   --color-loss: #dc322f;
   --color-loss-subtle: rgba(220, 50, 47, 0.15);
   --color-loss-border: rgba(220, 50, 47, 0.35);
+
+  /* Interactive Action Semantic Colors - Solarized Light (Authentic Ethan Schoonover) */
+  --color-action-blue: #268bd2;
+  --color-action-blue-subtle: rgba(38, 139, 210, 0.12);
+  --color-action-blue-border: rgba(38, 139, 210, 0.3);
+  --color-action-blue-hover: rgba(38, 139, 210, 0.22);
+
+  --color-action-amber: #b58900;
+  --color-action-amber-subtle: rgba(181, 137, 0, 0.12);
+  --color-action-amber-border: rgba(181, 137, 0, 0.3);
+  --color-action-amber-hover: rgba(181, 137, 0, 0.22);
+
+  --color-action-purple: #6c71c4;
+  --color-action-purple-subtle: rgba(108, 113, 196, 0.12);
+  --color-action-purple-border: rgba(108, 113, 196, 0.3);
+  --color-action-purple-hover: rgba(108, 113, 196, 0.22);
+
+  --color-action-neutral: #586e75;
+  --color-action-neutral-subtle: rgba(0, 43, 54, 0.05);
+  --color-action-neutral-border: rgba(0, 43, 54, 0.15);
+  --color-action-neutral-hover: rgba(0, 43, 54, 0.1);
 }
 
 @theme inline {
@@ -148,6 +211,92 @@
   background-color: var(--color-loss-subtle) !important;
   color: var(--color-loss) !important;
   border: 1px solid var(--color-loss-border) !important;
+}
+
+/* ============================================================
+   GLOBAL INTERACTIVE ACTION & ICON BUTTON CLASSES
+   High contrast, theme-compliant icon & action buttons
+   ============================================================ */
+.btn-action-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem;
+  border-radius: 0.5rem;
+  border-width: 1px;
+  border-style: solid;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.btn-action-icon:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.btn-action-icon:active:not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+.btn-action-icon:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-action-profit {
+  background-color: var(--color-profit-subtle) !important;
+  border-color: var(--color-profit-border) !important;
+  color: var(--color-profit) !important;
+}
+.btn-action-profit:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.btn-action-loss {
+  background-color: var(--color-loss-subtle) !important;
+  border-color: var(--color-loss-border) !important;
+  color: var(--color-loss) !important;
+}
+.btn-action-loss:hover:not(:disabled) {
+  filter: brightness(1.15);
+}
+
+.btn-action-connect {
+  background-color: var(--color-action-blue-subtle) !important;
+  border-color: var(--color-action-blue-border) !important;
+  color: var(--color-action-blue) !important;
+}
+.btn-action-connect:hover:not(:disabled) {
+  background-color: var(--color-action-blue-hover) !important;
+}
+
+.btn-action-history {
+  background-color: var(--color-action-amber-subtle) !important;
+  border-color: var(--color-action-amber-border) !important;
+  color: var(--color-action-amber) !important;
+}
+.btn-action-history:hover:not(:disabled) {
+  background-color: var(--color-action-amber-hover) !important;
+}
+
+.btn-action-profile {
+  background-color: var(--color-action-purple-subtle) !important;
+  border-color: var(--color-action-purple-border) !important;
+  color: var(--color-action-purple) !important;
+}
+.btn-action-profile:hover:not(:disabled) {
+  background-color: var(--color-action-purple-hover) !important;
+}
+
+.btn-action-neutral {
+  background-color: var(--color-action-neutral-subtle) !important;
+  border-color: var(--color-action-neutral-border) !important;
+  color: var(--color-action-neutral) !important;
+}
+.btn-action-neutral:hover:not(:disabled) {
+  background-color: var(--color-action-neutral-hover) !important;
 }
 
 body {

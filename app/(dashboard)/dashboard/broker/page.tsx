@@ -7,6 +7,15 @@ import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import Link from 'next/link';
 import { formatDate } from '@/utils/dateUtils';
 import {
+  LinkIcon,
+  ArrowPathIcon,
+  UserIcon,
+  ClockIcon,
+  PencilSquareIcon,
+  TrashIcon,
+  PlusIcon,
+} from '@heroicons/react/24/outline';
+import {
   getAvailableBrokers,
   getBrokerCredentials,
   createBrokerCredentials,
@@ -430,21 +439,25 @@ function BrokerPageContent() {
                 </p>
               </div>
               {!showAddForm && (
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={loadData}
                     disabled={loading}
-                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                    className="btn-action-icon btn-action-neutral"
                     title="Refresh credentials list"
+                    aria-label="Refresh credentials list"
                   >
-                    {loading ? 'Loading...' : 'Refresh'}
+                    <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                   </button>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors whitespace-nowrap"
-                >
-                  Add Broker
-                </button>
+                  <button
+                    onClick={() => setShowAddForm(true)}
+                    className="btn-action-icon btn-action-connect px-3.5 py-2 text-sm font-medium flex items-center gap-1.5"
+                    title="Add Broker"
+                    aria-label="Add Broker"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                    <span>Add Broker</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -635,10 +648,10 @@ function BrokerPageContent() {
                             <span className="text-sm text-gray-400">({cred.label})</span>
                           )}
                           <span
-                            className={`px-2 py-1 text-xs font-semibold rounded whitespace-nowrap ${
+                            className={`px-2 py-0.5 text-xs font-semibold rounded whitespace-nowrap ${
                               isFullyActive
-                                ? 'bg-green-500/10 text-green-400'
-                                : 'bg-gray-500/10 text-gray-400'
+                                ? 'badge-profit'
+                                : 'bg-gray-500/10 text-gray-400 border border-gray-600/30'
                             }`}
                           >
                             {isFullyActive ? 'Active' : 'Inactive'}
@@ -655,10 +668,11 @@ function BrokerPageContent() {
                         {/* Display token details if available from OAuth status */}
                         {oauthStatuses[cred.id]?.token_details && (
                           <div className="text-xs text-gray-500 mb-2">
-                            Access Token: {oauthStatuses[cred.id].token_details!.access_token_present ? (
-                              <span className="text-green-400">✓ Present ({oauthStatuses[cred.id].token_details!.access_token_length} chars)</span>
+                            Access Token:{' '}
+                            {oauthStatuses[cred.id].token_details!.access_token_present ? (
+                              <span className="text-profit font-medium">✓ Present ({oauthStatuses[cred.id].token_details!.access_token_length} chars)</span>
                             ) : (
-                              <span className="text-red-400">✗ Missing</span>
+                              <span className="text-loss font-medium">✗ Missing</span>
                             )}
                           </div>
                         )}
@@ -666,57 +680,65 @@ function BrokerPageContent() {
                           Created: {formatDate(cred.created_at)}
                         </p>
                       </div>
-                      <div className="flex flex-wrap gap-2 lg:flex-nowrap">
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                         {!isConnected ? (
                           <button
                             onClick={() => handleConnect(cred)}
-                            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                            className="btn-action-icon btn-action-connect"
                             disabled={loading}
-                            title={`Connect to ${brokerTitle} using these credentials`}
+                            title={`Connect to ${brokerTitle}`}
+                            aria-label={`Connect to ${brokerTitle}`}
                           >
-                            Connect
+                            <LinkIcon className="w-5 h-5" />
                           </button>
                         ) : (
                           <>
                             <button
                               onClick={() => handleRefresh(cred)}
-                              className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                              className="btn-action-icon btn-action-profit"
                               disabled={loading}
-                              title={`Refresh ${brokerTitle} access token`}
+                              title={`Refresh ${brokerTitle} token`}
+                              aria-label={`Refresh ${brokerTitle} token`}
                             >
-                              Refresh Token
+                              <ArrowPathIcon className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             <button
                               onClick={() => handleViewProfile(cred.id)}
-                              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                              className="btn-action-icon btn-action-profile"
                               disabled={loading}
                               title={`View ${brokerTitle} user profile`}
+                              aria-label={`View ${brokerTitle} user profile`}
                             >
-                              Profile
+                              <UserIcon className="w-5 h-5" />
                             </button>
                           </>
                         )}
                         <button
                           onClick={() => handleViewHistory(cred.id)}
-                          className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                          className="btn-action-icon btn-action-history"
                           disabled={loading}
-                          title={`View ${brokerTitle} token and connection history for auditability`}
+                          title={`View ${brokerTitle} token & connection history`}
+                          aria-label={`View ${brokerTitle} token & connection history`}
                         >
-                          History
+                          <ClockIcon className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleEdit(cred)}
-                          className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                          className="btn-action-icon btn-action-neutral"
                           disabled={loading}
+                          title={`Edit ${brokerTitle} credentials`}
+                          aria-label={`Edit ${brokerTitle} credentials`}
                         >
-                          Edit
+                          <PencilSquareIcon className="w-5 h-5" />
                         </button>
                         <button
                           onClick={() => handleDelete(cred.id)}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
+                          className="btn-action-icon btn-action-loss"
                           disabled={loading}
+                          title={`Delete ${brokerTitle} credentials`}
+                          aria-label={`Delete ${brokerTitle} credentials`}
                         >
-                          Delete
+                          <TrashIcon className="w-5 h-5" />
                         </button>
                       </div>
                     </div>
