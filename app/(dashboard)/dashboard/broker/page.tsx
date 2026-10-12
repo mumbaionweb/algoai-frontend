@@ -16,8 +16,9 @@ import {
   refreshBrokerToken,
   getBrokerOAuthStatus,
   getBrokerUserProfile,
-  getBrokerTokenHealth,
+  getBrokerConnectionHistory,
 } from '@/lib/api/broker';
+import type { BrokerHistoryResponse } from '@/lib/api/broker';
 import type {
   BrokerInfo,
   BrokerCredentials,
@@ -25,7 +26,6 @@ import type {
   BrokerCredentialsUpdate,
   BrokerType,
   BrokerUserProfile,
-  TokenHealthResponse,
   OAuthStatus,
 } from '@/types';
 
@@ -52,12 +52,12 @@ function BrokerPageContent() {
   const [profile, setProfile] = useState<BrokerUserProfile | null>(null);
   const [profileCredentialsId, setProfileCredentialsId] = useState<string | null>(null);
 
-  // Token health modal state
-  const [showHealthModal, setShowHealthModal] = useState(false);
-  const [healthLoading, setHealthLoading] = useState(false);
-  const [healthError, setHealthError] = useState('');
-  const [health, setHealth] = useState<TokenHealthResponse | null>(null);
-  const [healthCredentialsId, setHealthCredentialsId] = useState<string | null>(null);
+  // Token & connection audit history modal state
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState('');
+  const [historyData, setHistoryData] = useState<BrokerHistoryResponse | null>(null);
+  const [historyCredentialsId, setHistoryCredentialsId] = useState<string | null>(null);
 
   // OAuth status with token details
   const [oauthStatuses, setOauthStatuses] = useState<Record<string, OAuthStatus>>({});
@@ -355,24 +355,24 @@ function BrokerPageContent() {
     }
   };
 
-  const handleCheckTokenHealth = async (credentialsId: string) => {
+  const handleViewHistory = async (credentialsId: string) => {
     try {
       const cred = credentials.find(c => c.id === credentialsId);
       if (!cred) return;
-      setHealthLoading(true);
-      setHealthError('');
-      setHealth(null);
-      setHealthCredentialsId(credentialsId);
-      setShowHealthModal(true);
+      setHistoryLoading(true);
+      setHistoryError('');
+      setHistoryData(null);
+      setHistoryCredentialsId(credentialsId);
+      setShowHistoryModal(true);
 
-      const healthData = await getBrokerTokenHealth(cred.broker_type, credentialsId);
-      setHealth(healthData);
+      const history = await getBrokerConnectionHistory(credentialsId);
+      setHistoryData(history);
     } catch (err: any) {
-      console.error('Failed to check token health:', err);
-      const errorDetail = err.response?.data?.detail || err.message || 'Failed to check token health';
-      setHealthError(errorDetail);
+      console.error('Failed to fetch broker history:', err);
+      const errorDetail = err.response?.data?.detail || err.message || 'Failed to fetch connection history';
+      setHistoryError(errorDetail);
     } finally {
-      setHealthLoading(false);
+      setHistoryLoading(false);
     }
   };
 
@@ -654,21 +654,12 @@ function BrokerPageContent() {
                         )}
                         {/* Display token details if available from OAuth status */}
                         {oauthStatuses[cred.id]?.token_details && (
-                          <div className="text-xs text-gray-500 mb-2 space-y-1">
-                            <div>
-                              Access Token: {oauthStatuses[cred.id].token_details!.access_token_present ? (
-                                <span className="text-green-400">✓ Present ({oauthStatuses[cred.id].token_details!.access_token_length} chars)</span>
-                              ) : (
-                                <span className="text-red-400">✗ Missing</span>
-                              )}
-                            </div>
-                            <div>
-                              Refresh Token: {oauthStatuses[cred.id].token_details!.refresh_token_present ? (
-                                <span className="text-green-400">✓ Present ({oauthStatuses[cred.id].token_details!.refresh_token_length} chars)</span>
-                              ) : (
-                                <span className="text-red-400">✗ Missing</span>
-                              )}
-                            </div>
+                          <div className="text-xs text-gray-500 mb-2">
+                            Access Token: {oauthStatuses[cred.id].token_details!.access_token_present ? (
+                              <span className="text-green-400">✓ Present ({oauthStatuses[cred.id].token_details!.access_token_length} chars)</span>
+                            ) : (
+                              <span className="text-red-400">✗ Missing</span>
+                            )}
                           </div>
                         )}
                         <p className="text-xs text-gray-500">
@@ -703,16 +694,16 @@ function BrokerPageContent() {
                             >
                               Profile
                             </button>
-                            <button
-                              onClick={() => handleCheckTokenHealth(cred.id)}
-                              className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
-                              disabled={loading}
-                              title={`Check ${brokerTitle} token health and diagnostics`}
-                            >
-                              Health
-                            </button>
                           </>
                         )}
+                        <button
+                          onClick={() => handleViewHistory(cred.id)}
+                          className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm rounded-lg transition-colors whitespace-nowrap disabled:opacity-50"
+                          disabled={loading}
+                          title={`View ${brokerTitle} token and connection history for auditability`}
+                        >
+                          History
+                        </button>
                         <button
                           onClick={() => handleEdit(cred)}
                           className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors whitespace-nowrap"
@@ -908,179 +899,173 @@ function BrokerPageContent() {
         </div>
       )}
 
-      {/* Token Health Modal */}
-      {showHealthModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-white">
-                {(() => {
-                  const cred = credentials.find(c => c.id === healthCredentialsId);
-                  const broker = availableBrokers.find(b => b.type === cred?.broker_type);
-                  return `${broker?.name || (cred?.broker_type === 'paytm_money' ? 'Paytm Money' : cred?.broker_type === 'zerodha' ? 'Zerodha' : 'Broker')} Token Health Diagnostics`;
-                })()}
-              </h2>
-              <button
-                onClick={() => {
-                  setShowHealthModal(false);
-                  setHealth(null);
-                  setHealthError('');
-                }}
-                className="text-gray-400 hover:text-white transition-colors"
-                title="Close"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      {/* Token & Connection Audit History Modal */}
+      {showHistoryModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-gray-800 border border-gray-700 rounded-xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl">
+            {/* Modal Header */}
+            <div className="bg-gray-800 border-b border-gray-700 px-6 py-4 flex justify-between items-center shrink-0 rounded-t-xl">
+              <div>
+                <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                  <span>Token & Connection History</span>
+                  {(() => {
+                    const cred = credentials.find(c => c.id === historyCredentialsId);
+                    const broker = availableBrokers.find(b => b.type === cred?.broker_type);
+                    const name = broker?.name || (cred?.broker_type === 'paytm_money' ? 'Paytm Money' : cred?.broker_type === 'zerodha' ? 'Zerodha' : 'Broker');
+                    return <span className="text-sm font-normal text-gray-400">({name})</span>;
+                  })()}
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Full audit log of connection sessions, OAuth token generation, refreshes, and access lifecycle.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => historyCredentialsId && handleViewHistory(historyCredentialsId)}
+                  disabled={historyLoading}
+                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors disabled:opacity-50"
+                  title="Refresh history log"
+                >
+                  <svg className={`w-5 h-5 ${historyLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => {
+                    setShowHistoryModal(false);
+                    setHistoryData(null);
+                    setHistoryError('');
+                  }}
+                  className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"
+                  title="Close"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
-            <div className="p-6">
-              {healthLoading ? (
-                <div className="text-center py-8">
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-5">
+              {historyLoading ? (
+                <div className="text-center py-12">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-                  <p className="mt-4 text-gray-400">Checking token health...</p>
+                  <p className="mt-4 text-sm text-gray-400">Loading audit history...</p>
                 </div>
-              ) : healthError ? (
-                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg">
-                  {healthError}
+              ) : historyError ? (
+                <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg text-sm">
+                  {historyError}
                 </div>
-              ) : health ? (
-                <div className="space-y-6">
-                  {/* Overall Status */}
-                  <div className={`p-4 rounded-lg border-2 ${
-                    health.overall_status.includes('✅') 
-                      ? 'bg-green-500/10 border-green-500' 
-                      : 'bg-yellow-500/10 border-yellow-500'
-                  }`}>
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-white">Overall Status</h3>
-                      <span className={`text-lg font-bold ${
-                        health.overall_status.includes('✅') ? 'text-green-400' : 'text-yellow-400'
-                      }`}>
-                        {health.overall_status}
-                      </span>
-                    </div>
-                    {health.recommendation && (
-                      <div className="mt-3 p-3 bg-gray-700/50 rounded border border-gray-600">
-                        <p className="text-sm font-medium text-gray-300 mb-1">💡 Recommendation:</p>
-                        <p className="text-sm text-gray-400">{health.recommendation}</p>
+              ) : historyData ? (
+                <>
+                  {/* Summary Header Cards */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="bg-gray-900/60 border border-gray-700/60 rounded-lg p-3">
+                      <div className="text-xs text-gray-400">Session Status</div>
+                      <div className="mt-1 flex items-center gap-2">
+                        <span className={`inline-block w-2.5 h-2.5 rounded-full ${historyData.is_connected ? 'bg-green-400' : 'bg-red-400'}`}></span>
+                        <span className={`text-sm font-semibold ${historyData.is_connected ? 'text-green-400' : 'text-red-400'}`}>
+                          {historyData.is_connected ? 'Active / Connected' : 'Disconnected / Expired'}
+                        </span>
                       </div>
-                    )}
+                    </div>
+                    <div className="bg-gray-900/60 border border-gray-700/60 rounded-lg p-3">
+                      <div className="text-xs text-gray-400">Broker User ID</div>
+                      <div className="mt-1 text-sm font-semibold text-white truncate">
+                        {historyData.broker_user_id || 'N/A'}
+                      </div>
+                    </div>
+                    <div className="bg-gray-900/60 border border-gray-700/60 rounded-lg p-3">
+                      <div className="text-xs text-gray-400">Last Token Issued</div>
+                      <div className="mt-1 text-sm font-medium text-gray-200">
+                        {historyData.token_updated_at ? formatDate(historyData.token_updated_at) : 'N/A'}
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Health Checks */}
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold text-white">Health Checks</h3>
-                    
-                    {/* Credentials Check */}
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-white">Credentials</h4>
-                        <span className="text-sm">{health.checks.credentials.status}</span>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        Exists: {health.checks.credentials.exists ? 'Yes' : 'No'}
-                      </p>
+                  {/* Audit Log Entries */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-gray-200 uppercase tracking-wider">
+                        Audit Trail ({historyData.history.length})
+                      </h3>
+                      <span className="text-xs text-gray-400">Chronological history</span>
                     </div>
 
-                    {/* Tokens Storage Check */}
-                    <div className="bg-gray-700 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-medium text-white">Tokens Storage</h4>
-                        <span className="text-sm">{health.checks.tokens_storage.status}</span>
+                    {historyData.history.length === 0 ? (
+                      <div className="text-center py-8 bg-gray-900/40 border border-gray-800 rounded-lg">
+                        <p className="text-sm text-gray-400">No events recorded yet for this connection.</p>
                       </div>
-                      <div className="mt-2 space-y-1 text-xs">
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Storage exists:</span>
-                          <span className={health.checks.tokens_storage.exists ? 'text-green-400' : 'text-red-400'}>
-                            {health.checks.tokens_storage.exists ? 'Yes' : 'No'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Access Token:</span>
-                          <span className={health.checks.tokens_storage.access_token_present ? 'text-green-400' : 'text-red-400'}>
-                            {health.checks.tokens_storage.access_token_present 
-                              ? `Present (${health.checks.tokens_storage.access_token_length} chars)` 
-                              : 'Missing'}
-                          </span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Refresh Token:</span>
-                          <span className={health.checks.tokens_storage.refresh_token_present ? 'text-green-400' : 'text-red-400'}>
-                            {health.checks.tokens_storage.refresh_token_present 
-                              ? `Present (${health.checks.tokens_storage.refresh_token_length} chars)` 
-                              : 'Missing'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {historyData.history.map((item, idx) => {
+                          const isSuccess = item.status === 'SUCCESS' || item.status === 'ACTIVE';
+                          const isFailure = item.status === 'FAILED' || item.status === 'ERROR' || item.status === 'EXPIRED';
 
-                    {/* Token Validation Check */}
-                    {health.checks.token_validation && (
-                      <div className="bg-gray-700 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-white">Token Validation</h4>
-                          <span className={`text-sm ${
-                            health.checks.token_validation.valid ? 'text-green-400' : 'text-red-400'
-                          }`}>
-                            {health.checks.token_validation.status}
-                          </span>
-                        </div>
-                        {health.checks.token_validation.user_name && (
-                          <div className="mt-2 space-y-1 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-gray-400">User Name:</span>
-                              <span className="text-white">{health.checks.token_validation.user_name}</span>
+                          return (
+                            <div
+                              key={item.id || idx}
+                              className="bg-gray-900/70 border border-gray-700/70 hover:border-gray-600 rounded-lg p-4 transition-colors"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className={`px-2 py-0.5 text-xs font-semibold rounded uppercase tracking-wider ${
+                                      isSuccess
+                                        ? 'bg-green-500/10 text-green-400 border border-green-500/20'
+                                        : isFailure
+                                        ? 'bg-red-500/10 text-red-400 border border-red-500/20'
+                                        : 'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                                    }`}
+                                  >
+                                    {item.status}
+                                  </span>
+                                  <h4 className="text-sm font-semibold text-white">
+                                    {item.event_title || item.event_type}
+                                  </h4>
+                                </div>
+                                <div className="text-xs text-gray-400">
+                                  {formatDate(item.timestamp)}
+                                </div>
+                              </div>
+
+                              <p className="text-xs text-gray-300 mb-2 leading-relaxed">
+                                {item.details}
+                              </p>
+
+                              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-gray-800/80 text-[11px] text-gray-400">
+                                <span className="bg-gray-800 px-2 py-0.5 rounded text-gray-300">
+                                  Channel: {item.channel || 'System'}
+                                </span>
+                                {item.event_type && (
+                                  <span className="bg-gray-800 px-2 py-0.5 rounded text-gray-400">
+                                    Event: {item.event_type}
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            {health.checks.token_validation.user_id && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-400">User ID:</span>
-                                <span className="text-white">{health.checks.token_validation.user_id}</span>
-                              </div>
-                            )}
-                            {health.checks.token_validation.is_expired && (
-                              <div className="flex justify-between">
-                                <span className="text-gray-400">Expired:</span>
-                                <span className="text-red-400">Yes</span>
-                              </div>
-                            )}
-                            {health.checks.token_validation.error && (
-                              <div className="mt-2 p-2 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs">
-                                Error: {health.checks.token_validation.error}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Token Refresh Check */}
-                    {health.checks.token_refresh && (
-                      <div className="bg-gray-700 rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-medium text-white">Token Refresh</h4>
-                          <span className={`text-sm ${
-                            health.checks.token_refresh.success ? 'text-green-400' : 'text-red-400'
-                          }`}>
-                            {health.checks.token_refresh.status}
-                          </span>
-                        </div>
-                        {health.checks.token_refresh.error && (
-                          <div className="mt-2 p-2 bg-red-500/10 border border-red-500 rounded text-red-400 text-xs">
-                            Error: {health.checks.token_refresh.error}
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
                     )}
                   </div>
-
-                  {/* Timestamp */}
-                  <div className="text-xs text-gray-500 text-center pt-4 border-t border-gray-700">
-                    Checked at: {formatDate(health.timestamp)}
-                  </div>
-                </div>
+                </>
               ) : null}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-800 border-t border-gray-700 px-6 py-3 flex justify-end shrink-0 rounded-b-xl">
+              <button
+                onClick={() => {
+                  setShowHistoryModal(false);
+                  setHistoryData(null);
+                  setHistoryError('');
+                }}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white text-sm rounded-lg transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>

@@ -202,17 +202,48 @@ export async function getBrokerUserProfile(
 }
 
 /**
- * Unified Broker Token Health Diagnostics
+ * Unified Broker Token Health (Diagnostics)
  */
 export async function getBrokerTokenHealth(
   brokerType: string,
-  credentialsId: string
+  credentialsId?: string
 ): Promise<TokenHealthResponse> {
   const prefix = getBrokerRoutePrefix(brokerType);
-  const params = new URLSearchParams();
-  params.append('credentials_id', credentialsId);
-  const url = `/api/${prefix}/oauth/health?${params.toString()}`;
-  const response = await apiClient.get<TokenHealthResponse>(url);
+  const params = credentialsId ? `?credentials_id=${credentialsId}` : '';
+  const response = await apiClient.get<TokenHealthResponse>(`/api/${prefix}/token/health${params}`);
+  return response.data;
+}
+
+export interface BrokerHistoryEvent {
+  id: string;
+  event_type: string;
+  event_title: string;
+  status: 'SUCCESS' | 'FAILED' | 'EXPIRED' | string;
+  details: string;
+  channel: string;
+  timestamp: string;
+  metadata?: Record<string, any>;
+}
+
+export interface BrokerHistoryResponse {
+  credentials_id: string;
+  broker_type: string;
+  broker_user_id: string;
+  is_connected: boolean;
+  token_updated_at?: string | null;
+  token_expires_at?: string | null;
+  history: BrokerHistoryEvent[];
+}
+
+/**
+ * Get entire token and connection audit history for credentials
+ */
+export async function getBrokerConnectionHistory(
+  credentialsId: string
+): Promise<BrokerHistoryResponse> {
+  const response = await apiClient.get<BrokerHistoryResponse>(
+    `/api/broker-credentials/${credentialsId}/history`
+  );
   return response.data;
 }
 
