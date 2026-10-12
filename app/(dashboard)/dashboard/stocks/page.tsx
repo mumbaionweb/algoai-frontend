@@ -350,10 +350,10 @@ export default function StocksPage() {
                       <td className="px-3 py-3 text-right text-gray-500">{h.sellQty > 0 ? '-' : ''}</td>
                       <td className="px-3 py-3 text-right border-r border-gray-700/50 font-semibold">{h.sellQty > 0 ? `₹${h.sellTotal.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : ''}</td>
                       <td className="px-4 py-3 text-right font-medium">{h.lastPrice > 0 ? `₹${h.lastPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}` : '-'}</td>
-                      <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-emerald-400 bg-emerald-500/10' : 'text-rose-400 bg-rose-500/10'}`}>
+                      <td className={`px-4 py-3 text-right font-medium ${h.pnl >= 0 ? 'text-profit bg-profit-subtle' : 'text-loss bg-loss-subtle'}`}>
                         {h.pnl >= 0 ? '+' : ''}{h.pnl.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
                       </td>
-                      <td className={`px-4 py-3 text-right font-medium ${h.pnlPercentage >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      <td className={`px-4 py-3 text-right font-medium ${h.pnlPercentage >= 0 ? 'text-profit' : 'text-loss'}`}>
                         {h.pnlPercentage >= 0 ? '+' : ''}{h.pnlPercentage.toFixed(2)}%
                       </td>
                       <td className="px-4 py-3 text-right text-gray-400">{h.sourceDisplay}</td>
@@ -411,7 +411,7 @@ export default function StocksPage() {
                         <tr key={idx} className="hover:bg-gray-700/30">
                           <td className="px-4 py-3">{tx.trade_date_raw}</td>
                           <td className="px-4 py-3 font-mono text-gray-400">{tx.order_id || tx.id.substring(0, 8)}</td>
-                          <td className={`px-4 py-3 font-medium uppercase ${tx.trade_type === 'buy' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                          <td className={`px-4 py-3 font-medium uppercase ${tx.trade_type === 'buy' ? 'text-profit' : 'text-loss'}`}>
                             {tx.trade_type}
                           </td>
                           <td className="px-4 py-3 text-right">{tx.quantity}</td>
@@ -421,7 +421,7 @@ export default function StocksPage() {
                               {tx.status || 'COMPLETE'}
                             </span>
                           </td>
-                          <td className={`px-4 py-3 text-right font-medium ${tx.pnl && tx.pnl >= 0 ? 'text-emerald-400' : tx.pnl && tx.pnl < 0 ? 'text-rose-400' : 'text-gray-500'}`}>
+                          <td className={`px-4 py-3 text-right font-medium ${tx.pnl && tx.pnl >= 0 ? 'text-profit' : tx.pnl && tx.pnl < 0 ? 'text-loss' : 'text-gray-500'}`}>
                             {tx.pnl !== undefined ? (tx.pnl >= 0 ? '+' : '') + tx.pnl.toLocaleString('en-IN', { maximumFractionDigits: 2 }) : '-'}
                           </td>
                           <td className="px-4 py-3 text-center text-gray-400">{tx.strategy_type || 'Manual'}</td>

@@ -39,4 +39,9 @@
    - Never use `any` when a known type exists.
 
 2. **Pre-Commit Verification**:
-   - Before completing any task, run `npx tsc --noEmit` and `npm run build` to guarantee zero compile-time or bundling errors.
+   - Before completing any task or committing changes, all agents and developers MUST execute and pass:
+     1. `npm run check:theme` — Verifies 100% theme token parity across Dark, White, and Solarized Light and catches forbidden ad-hoc colors.
+     2. `npm test` — Automated unit test suite verifying global theme standards.
+     3. `npx tsc --noEmit` — Guarantees zero TypeScript compilation errors.
+     4. `npm run build` — Validates successful Next.js production bundling across all routes.
+   - Any failure in the above pipeline constitutes a blocked task that must be resolved prior to user handoff.

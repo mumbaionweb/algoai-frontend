@@ -325,7 +325,7 @@ export default function OrdersPage() {
         {selectedTransactions.length > 0 && (
           <div className="bg-blue-50 border border-blue-200 px-4 py-3 rounded-lg mb-4 flex items-center justify-between shadow-sm animate-fade-in-up">
             <span className="text-sm font-medium text-blue-800">{selectedTransactions.length} transactions selected</span>
-            <button onClick={handleBulkDeleteClick} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-md text-sm font-medium transition-colors inline-flex items-center gap-1.5">
+            <button onClick={handleBulkDeleteClick} className="btn-action-icon btn-action-loss px-3 py-1.5 text-sm font-medium gap-1.5">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
               Delete Selected
             </button>

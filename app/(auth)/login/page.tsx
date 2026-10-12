@@ -203,10 +203,10 @@ function LoginForm() {
         </div>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-3 rounded-md text-sm">{error}</div>
+          <div className="bg-loss-subtle border border-loss text-loss p-3 rounded-md text-sm">{error}</div>
         )}
         {success && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 p-3 rounded-md text-sm">{success}</div>
+          <div className="bg-profit-subtle border border-profit text-profit p-3 rounded-md text-sm">{success}</div>
         )}
 
         {/* STEP 1: Identifier (Email or Phone) */}

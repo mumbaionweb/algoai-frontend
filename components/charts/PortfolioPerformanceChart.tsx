@@ -466,7 +466,7 @@ export default function PortfolioPerformanceChart({
           </div>
 
           {/* Mini Sparkline / Indicator Graphic */}
-          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded bg-gray-700/40 text-[11px] text-emerald-400">
+          <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded bg-profit-subtle text-[11px] text-profit border border-profit">
             <Activity className="w-3.5 h-3.5" />
             <span className="font-medium">Live Curve</span>
           </div>

@@ -40,8 +40,8 @@ function Toast({ type, message, onClose }: { type: 'success' | 'error'; message:
     <div className="fixed top-20 right-6 z-50 animate-slide-in-right">
       <div className={`flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border backdrop-blur-sm ${
         type === 'success'
-          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-          : 'bg-red-500/10 border-red-500/30 text-red-400'
+          ? 'bg-profit-subtle border-profit text-profit'
+          : 'bg-loss-subtle border-loss text-loss'
       }`}>
         <span className="text-base">{type === 'success' ? '✓' : '✕'}</span>
         <span className="text-sm font-medium">{message}</span>
@@ -262,8 +262,8 @@ export default function ProfilePage() {
                 <p className="text-gray-400 text-sm mt-0.5 truncate">{user.email}</p>
                 <div className="flex items-center gap-2 mt-2">
                   {user.is_active && (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium text-emerald-400 bg-emerald-400/10 rounded-full border border-emerald-400/20">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium text-profit bg-profit-subtle rounded-full border border-profit">
+                      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
                       Active
                     </span>
                   )}
