@@ -26,7 +26,7 @@ export default function JobsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Edit Modal State
+  // Edit Modal State with all configurable features
   const [editingJob, setEditingJob] = useState<JobItem | null>(null);
   const [editForm, setEditForm] = useState<{
     name: string;
@@ -35,6 +35,11 @@ export default function JobsPage() {
     cron_schedule: string;
     status: string;
     interval: string;
+    primary_broker: string;
+    fallback_broker: string;
+    max_backfill_years: number;
+    max_fetches_per_hour: number;
+    market_hours_only: boolean;
   }>({
     name: '',
     description: '',
@@ -42,6 +47,11 @@ export default function JobsPage() {
     cron_schedule: '',
     status: 'active',
     interval: '',
+    primary_broker: 'zerodha',
+    fallback_broker: 'paytm_money',
+    max_backfill_years: 10,
+    max_fetches_per_hour: 100,
+    market_hours_only: true,
   });
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -92,7 +102,6 @@ export default function JobsPage() {
     try {
       const res = await runJob(jobId);
       setSuccess(res.message || 'Job executed successfully in background');
-      // Refresh jobs list to reflect running state
       const updated = await getJobs();
       setJobs(updated.jobs || []);
       if (activeTab === 'logs') {
@@ -125,7 +134,7 @@ export default function JobsPage() {
     }
   };
 
-  // 3. Edit modal open & submit
+  // 3. Edit modal open & populate all features
   const handleOpenEdit = (job: JobItem) => {
     setEditingJob(job);
     setEditForm({
@@ -135,6 +144,11 @@ export default function JobsPage() {
       cron_schedule: job.cron_schedule || '',
       status: job.status || 'active',
       interval: job.interval || '',
+      primary_broker: job.primary_broker || 'zerodha',
+      fallback_broker: job.fallback_broker || 'paytm_money',
+      max_backfill_years: job.max_backfill_years !== undefined ? job.max_backfill_years : 10,
+      max_fetches_per_hour: job.max_fetches_per_hour !== undefined ? job.max_fetches_per_hour : 100,
+      market_hours_only: job.market_hours_only !== false,
     });
     setEditError(null);
   };
@@ -157,11 +171,13 @@ export default function JobsPage() {
         target_url: editForm.target_url.trim() || undefined,
         cron_schedule: editForm.cron_schedule.trim() || undefined,
         status: editForm.status,
+        interval: editForm.interval || undefined,
+        primary_broker: editForm.primary_broker || undefined,
+        fallback_broker: editForm.fallback_broker || undefined,
+        max_backfill_years: Number(editForm.max_backfill_years) || 10,
+        max_fetches_per_hour: Number(editForm.max_fetches_per_hour) || 100,
+        market_hours_only: editForm.market_hours_only,
       };
-
-      if (editForm.interval) {
-        payload.interval = editForm.interval;
-      }
 
       await updateJob(editingJob.id, payload);
       setSuccess(`Job "${editForm.name}" updated successfully`);
@@ -522,17 +538,18 @@ export default function JobsPage() {
         </div>
       </main>
 
-      {/* Edit Job Pop-up Modal */}
+      {/* Comprehensive Edit Job Pop-up Modal with All Features */}
       {editingJob && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gray-50/50 dark:bg-gray-900/50">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center z-10">
               <div>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">
                   Edit Job Configuration
                 </h2>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  Modify job name, schedule, target URL, and execution settings.
+                  Configure schedule, broker failover, backfill depth, and execution rails.
                 </p>
               </div>
               <button
@@ -544,103 +561,247 @@ export default function JobsPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-6">
               {editError && (
                 <div className="p-3 rounded-lg bg-loss-subtle border border-loss text-loss text-sm">
                   {editError}
                 </div>
               )}
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
-                  Job Name *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={editForm.name}
-                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
-                  placeholder="e.g. Daily Trades Sync"
-                  className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
-                  Description
-                </label>
-                <textarea
-                  rows={2}
-                  value={editForm.description}
-                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                  placeholder="Brief explanation of what this job does"
-                  className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+              {/* Section 1: General Job Info */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700/60 pb-1">
+                  1. General Information
+                </h3>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
-                    Schedule (Cron)
+                    Job Name *
                   </label>
                   <input
                     type="text"
-                    value={editForm.cron_schedule}
-                    onChange={(e) => setEditForm({ ...editForm, cron_schedule: e.target.value })}
-                    placeholder="e.g. 30 16 * * 1-5"
-                    className="w-full px-3.5 py-2 font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    placeholder="e.g. Daily Trades Sync"
+                    className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <p className="mt-1 text-[11px] text-gray-500">min hr day month weekday</p>
                 </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
-                    Status
+                    Description
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    placeholder="Brief explanation of what this job does"
+                    className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                    Job Status
                   </label>
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
                     className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
+                    <option value="active">Active (Scheduled & Executing)</option>
+                    <option value="inactive">Inactive (Paused)</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
-                  Target URL (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={editForm.target_url}
-                  onChange={(e) => setEditForm({ ...editForm, target_url: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-3.5 py-2 font-mono text-xs bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              {editingJob.interval !== undefined && (
+              {/* Section 2: Scheduling & Execution Rails */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700/60 pb-1">
+                  2. Scheduling & Execution Rails
+                </h3>
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
-                    Data Interval
+                    Schedule (Cron Expression)
                   </label>
-                  <select
-                    value={editForm.interval}
-                    onChange={(e) => setEditForm({ ...editForm, interval: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="minute">1-Minute (minute)</option>
-                    <option value="3minute">3-Minute (3minute)</option>
-                    <option value="5minute">5-Minute (5minute)</option>
-                    <option value="15minute">15-Minute (15minute)</option>
-                    <option value="60minute">60-Minute (60minute)</option>
-                    <option value="day">Daily (day)</option>
-                  </select>
+                  <input
+                    type="text"
+                    value={editForm.cron_schedule}
+                    onChange={(e) => setEditForm({ ...editForm, cron_schedule: e.target.value })}
+                    placeholder="e.g. */15 3-10 * * 1-5"
+                    className="w-full px-3.5 py-2 font-mono bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, cron_schedule: '*/15 3-10 * * 1-5' })}
+                      className="text-[11px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 font-mono transition-colors"
+                    >
+                      Preset: 15-Min Market Hours
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, cron_schedule: '30 16 * * 1-5' })}
+                      className="text-[11px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 font-mono transition-colors"
+                    >
+                      Preset: Daily 4:30 PM IST
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, cron_schedule: '0 18 * * 1-5' })}
+                      className="text-[11px] px-2 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 font-mono transition-colors"
+                    >
+                      Preset: Daily 6:00 PM IST
+                    </button>
+                  </div>
                 </div>
-              )}
 
+                <div className="flex items-center gap-2 pt-1">
+                  <input
+                    type="checkbox"
+                    id="market_hours_only"
+                    checked={editForm.market_hours_only}
+                    onChange={(e) => setEditForm({ ...editForm, market_hours_only: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 rounded bg-gray-100 dark:bg-gray-900 border-gray-300 dark:border-gray-700 focus:ring-blue-500"
+                  />
+                  <label htmlFor="market_hours_only" className="text-xs text-gray-700 dark:text-gray-300">
+                    Enforce Market Hours Window (Skip cron runs outside 08:45 – 16:00 IST Mon–Fri)
+                  </label>
+                </div>
+              </div>
+
+              {/* Section 3: Data Pipeline & Backfill Settings */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700/60 pb-1">
+                  3. Data Interval & Rate Limiting
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                      Data Interval
+                    </label>
+                    <select
+                      value={editForm.interval}
+                      onChange={(e) => setEditForm({ ...editForm, interval: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">None / Web Fetch</option>
+                      <option value="minute">1-Minute (minute)</option>
+                      <option value="3minute">3-Minute (3minute)</option>
+                      <option value="5minute">5-Minute (5minute)</option>
+                      <option value="15minute">15-Minute (15minute)</option>
+                      <option value="60minute">60-Minute (60minute)</option>
+                      <option value="day">Daily (day)</option>
+                      <option value="week">Weekly (week)</option>
+                      <option value="month">Monthly (month)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                      Backfill Depth
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={editForm.max_backfill_years}
+                      onChange={(e) => setEditForm({ ...editForm, max_backfill_years: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-[11px] text-gray-500">Max historical years (1-20)</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                      Hourly Rate Limit
+                    </label>
+                    <input
+                      type="number"
+                      min={10}
+                      max={500}
+                      value={editForm.max_fetches_per_hour}
+                      onChange={(e) => setEditForm({ ...editForm, max_fetches_per_hour: Number(e.target.value) })}
+                      className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <p className="mt-1 text-[11px] text-gray-500">Max API calls/hour cap</p>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                    Target URL (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.target_url}
+                    onChange={(e) => setEditForm({ ...editForm, target_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full px-3.5 py-2 font-mono text-xs bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Section 4: Broker Selection & Failover */}
+              <div className="space-y-4">
+                <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider border-b border-gray-100 dark:border-gray-700/60 pb-1">
+                  4. Broker Providers & Failover
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                      Primary Broker
+                    </label>
+                    <select
+                      value={editForm.primary_broker}
+                      onChange={(e) => setEditForm({ ...editForm, primary_broker: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="zerodha">Zerodha Kite Connect</option>
+                      <option value="paytm_money">Paytm Money</option>
+                      <option value="none">None / Web Source</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                      Fallback Broker (On Failure)
+                    </label>
+                    <select
+                      value={editForm.fallback_broker}
+                      onChange={(e) => setEditForm({ ...editForm, fallback_broker: e.target.value })}
+                      className="w-full px-3.5 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="paytm_money">Paytm Money</option>
+                      <option value="zerodha">Zerodha Kite Connect</option>
+                      <option value="none">None (Fail Fast)</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Section 5: Architecture & Storage Details */}
+              <div className="p-3.5 rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-xs space-y-1.5">
+                <span className="font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[11px] block">
+                  ⚙️ System Architecture & Guarantees
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-600 dark:text-gray-400">
+                  <div>
+                    <span className="font-medium text-gray-900 dark:text-white">Destination:</span> BigQuery (`historical_data`)
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900 dark:text-white">Deduplication:</span> Atomic SQL MERGE
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900 dark:text-white">Universe:</span> User Traded Cash Equities
+                  </div>
+                  <div>
+                    <span className="font-medium text-gray-900 dark:text-white">Checkpoint State:</span> Firestore `historical_sync_state`
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
               <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
                 <button
                   type="button"
@@ -660,7 +821,7 @@ export default function JobsPage() {
                       Saving...
                     </span>
                   ) : (
-                    'Save Changes'
+                    'Save Configuration'
                   )}
                 </button>
               </div>

@@ -704,6 +704,11 @@ export interface JobItem {
   cron_schedule?: string;
   status: 'active' | 'inactive' | 'running' | 'error' | string;
   interval?: string;
+  primary_broker?: string;
+  fallback_broker?: string;
+  max_backfill_years?: number;
+  max_fetches_per_hour?: number;
+  market_hours_only?: boolean;
   created_at?: string;
   created_by?: string;
   updated_at?: string;
@@ -720,6 +725,11 @@ export interface JobUpdatePayload {
   cron_schedule?: string;
   status?: string;
   interval?: string;
+  primary_broker?: string;
+  fallback_broker?: string;
+  max_backfill_years?: number;
+  max_fetches_per_hour?: number;
+  market_hours_only?: boolean;
 }
 
 export interface JobExecutionLog {
