@@ -28,15 +28,19 @@ import {
   CheckCircleIcon,
   ClockIcon,
   ArrowPathIcon,
+  UserIcon,
 } from '@heroicons/react/24/outline';
 import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
 import { formatCronSchedule } from '@/lib/utils/cron';
+import { useAuthStore } from '@/store/authStore';
 
 export default function JobsPage() {
+  const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'jobs' | 'logs'>('jobs');
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [logs, setLogs] = useState<JobExecutionLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [previewLimit, setPreviewLimit] = useState<number>(100);
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [togglingJobId, setTogglingJobId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
@@ -134,13 +138,18 @@ export default function JobsPage() {
     };
   }, [activeTab, hasRunningJobs]);
 
-  const handleOpenViewData = async (jobId: string, jobName: string, log?: JobExecutionLog) => {
+  const handleOpenViewData = async (
+    jobId: string,
+    jobName: string,
+    log?: JobExecutionLog,
+    limit: number = previewLimit
+  ) => {
     setViewingDataJob({ jobId, jobName, log });
     setLoadingPreview(true);
     setPreviewError(null);
     setDataPreview(null);
     try {
-      const res = await getJobDataPreview(jobId, 50);
+      const res = await getJobDataPreview(jobId, limit);
       setDataPreview(res);
     } catch (err: any) {
       setPreviewError(err.message || 'Failed to fetch data preview');
@@ -604,10 +613,11 @@ export default function JobsPage() {
       {
         key: 'executed_at',
         header: 'Time Executed',
-        width: '220px',
+        width: '230px',
         minWidth: '200px',
         sortable: true,
         filterable: true,
+        filterType: 'datetime',
         accessor: (log) => log.executed_at,
         render: (log) => (
           <span className="whitespace-nowrap font-medium text-gray-800 dark:text-gray-200">
@@ -651,16 +661,40 @@ export default function JobsPage() {
       {
         key: 'executed_by',
         header: 'Executed By',
-        width: '150px',
-        minWidth: '130px',
+        width: '180px',
+        minWidth: '150px',
         sortable: true,
         filterable: true,
-        accessor: (log) => log.executed_by,
-        render: (log) => (
-          <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
-            {log.executed_by || '-'}
-          </span>
-        ),
+        accessor: (log) => {
+          if (log.executed_by_name) return log.executed_by_name;
+          if (user && user.id === log.executed_by) return user.name;
+          return log.executed_by;
+        },
+        render: (log) => {
+          const isCron = log.executed_by === 'cron-tick';
+          const isCurrentUser = user && user.id === log.executed_by;
+          const displayName =
+            log.executed_by_name ||
+            (isCurrentUser ? user?.name : null) ||
+            log.executed_by;
+
+          return (
+            <div className="flex items-center gap-1.5 whitespace-nowrap">
+              {isCron ? (
+                <ClockIcon className="w-4 h-4 text-gray-400 shrink-0" />
+              ) : (
+                <UserIcon className="w-4 h-4 text-blue-500 shrink-0" />
+              )}
+              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                {isCron
+                  ? 'Automated Scheduler (Cron)'
+                  : isCurrentUser
+                  ? `${displayName} (You)`
+                  : displayName}
+              </span>
+            </div>
+          );
+        },
       },
       {
         key: 'message',
@@ -679,8 +713,64 @@ export default function JobsPage() {
         ),
       },
     ],
-    [runningJobId]
+    [runningJobId, user]
   );
+
+  // Dynamic column definitions for Ingested Records Preview Modal
+  const previewColumns: ColumnDef<any>[] = useMemo(() => {
+    if (!dataPreview || !dataPreview.columns) return [];
+    return dataPreview.columns.map((colName) => {
+      const isTimestamp =
+        colName.toLowerCase().includes('time') ||
+        colName.toLowerCase().includes('date') ||
+        colName === 'updated_at';
+      const isNumeric =
+        colName === 'open' ||
+        colName === 'high' ||
+        colName === 'low' ||
+        colName === 'close' ||
+        colName === 'volume';
+
+      return {
+        key: colName,
+        header: colName.toUpperCase(),
+        sortable: true,
+        filterable: true,
+        filterType: isTimestamp ? 'datetime' : isNumeric ? 'number' : 'text',
+        minWidth:
+          colName === 'NAME OF COMPANY'
+            ? '260px'
+            : colName === 'symbol'
+            ? '140px'
+            : isTimestamp
+            ? '220px'
+            : '120px',
+        accessor: (row) => row[colName],
+        render: (row) => {
+          const val = row[colName];
+          if (typeof val === 'number') {
+            return (
+              <span className="font-mono text-xs text-gray-900 dark:text-gray-100">
+                {colName === 'volume' ? val.toLocaleString() : val.toFixed(2)}
+              </span>
+            );
+          }
+          if (isTimestamp && val) {
+            return (
+              <span className="font-mono text-xs text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                {formatDate(val)}
+              </span>
+            );
+          }
+          return (
+            <span className="font-mono text-xs text-gray-800 dark:text-gray-200 whitespace-nowrap">
+              {String(val ?? '-')}
+            </span>
+          );
+        },
+      };
+    });
+  }, [dataPreview]);
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors">
@@ -758,6 +848,7 @@ export default function JobsPage() {
               emptyMessage="No jobs configured."
               enableSearch={true}
               searchPlaceholder="Search jobs by name, schedule, description..."
+              storageKey="jobs_schedule"
             />
           )}
 
@@ -771,6 +862,7 @@ export default function JobsPage() {
               emptyMessage="No execution logs found."
               enableSearch={true}
               searchPlaceholder="Search logs by job, status, message..."
+              storageKey="jobs_logs"
             />
           )}
         </div>
@@ -1124,7 +1216,7 @@ export default function JobsPage() {
       {/* Ingested Data & Records Verification Modal */}
       {viewingDataJob && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
               <div className="flex items-center gap-3">
@@ -1212,19 +1304,50 @@ export default function JobsPage() {
 
               {/* Data Table / State */}
               <div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     Ingested Records Preview ({dataPreview?.total_records ?? 0} loaded)
                   </h3>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenViewData(viewingDataJob.jobId, viewingDataJob.jobName, viewingDataJob.log)}
-                    disabled={loadingPreview}
-                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
-                  >
-                    <ArrowPathIcon className={`w-3.5 h-3.5 ${loadingPreview ? 'animate-spin' : ''}`} />
-                    Refresh Records
-                  </button>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <span>Show:</span>
+                      <select
+                        value={previewLimit}
+                        onChange={(e) => {
+                          const newLimit = Number(e.target.value);
+                          setPreviewLimit(newLimit);
+                          handleOpenViewData(
+                            viewingDataJob.jobId,
+                            viewingDataJob.jobName,
+                            viewingDataJob.log,
+                            newLimit
+                          );
+                        }}
+                        className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-hidden"
+                      >
+                        <option value={50}>50 rows</option>
+                        <option value={100}>100 rows</option>
+                        <option value={250}>250 rows</option>
+                        <option value={500}>500 rows</option>
+                      </select>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleOpenViewData(
+                          viewingDataJob.jobId,
+                          viewingDataJob.jobName,
+                          viewingDataJob.log,
+                          previewLimit
+                        )
+                      }
+                      disabled={loadingPreview}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <ArrowPathIcon className={`w-3.5 h-3.5 ${loadingPreview ? 'animate-spin' : ''}`} />
+                      Refresh Records
+                    </button>
+                  </div>
                 </div>
 
                 {loadingPreview ? (
@@ -1237,33 +1360,19 @@ export default function JobsPage() {
                     Failed to fetch preview: {previewError}
                   </div>
                 ) : dataPreview && dataPreview.records.length > 0 ? (
-                  <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 max-h-80">
-                    <table className="w-full text-left text-xs text-gray-600 dark:text-gray-300">
-                      <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 uppercase font-semibold text-[11px] text-gray-500 sticky top-0">
-                        <tr>
-                          {dataPreview.columns.map((col) => (
-                            <th key={col} className="px-4 py-2.5 whitespace-nowrap">
-                              {col}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-mono">
-                        {dataPreview.records.map((row, idx) => (
-                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                            {dataPreview.columns.map((col) => {
-                              const val = row[col];
-                              const isNumeric = typeof val === 'number';
-                              return (
-                                <td key={col} className="px-4 py-2 whitespace-nowrap text-gray-900 dark:text-gray-200">
-                                  {isNumeric ? Number(val).toFixed(2) : String(val ?? '-')}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
+                    <DataTable<any>
+                      data={dataPreview.records}
+                      columns={previewColumns}
+                      keyExtractor={(_, idx) => `preview_record_${idx}`}
+                      enableSearch={true}
+                      searchPlaceholder="Search in ingested records..."
+                      enableColumnResizing={true}
+                      enableColumnReordering={true}
+                      enableColumnVisibility={true}
+                      maxHeight="440px"
+                      storageKey={`job_preview_${viewingDataJob.jobId}`}
+                    />
                   </div>
                 ) : (
                   <div className="p-8 text-center rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 space-y-3">

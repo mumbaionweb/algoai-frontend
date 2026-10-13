@@ -740,6 +740,7 @@ export interface JobExecutionLog {
   message: string;
   executed_at: string;
   executed_by: string;
+  executed_by_name?: string;
 }
 
 export interface JobDataPreviewResponse {
