@@ -100,10 +100,26 @@ export async function initializeAuth(): Promise<void> {
                 useAuthStore.getState().setToken(idToken);
                 useAuthStore.getState().setUser(response.data.user);
                 useAuthStore.getState().setInitialized(true);
-              } catch (loginError) {
-                // Both failed, clear everything
-                console.error('Both token verification and login failed:', loginError);
-                useAuthStore.getState().logout();
+              } catch (loginError: any) {
+                // If login endpoint returned 401, session is invalid - clear it
+                if (loginError.response?.status === 401) {
+                  console.error('Both token verification and login failed with 401:', loginError);
+                  useAuthStore.getState().logout();
+                } else if (firebaseUser) {
+                  // Network timeout or temporary backend unavailability: preserve Firebase user session
+                  console.warn('Backend temporarily unavailable, falling back to authenticated Firebase user session');
+                  const fallbackUser: User = {
+                    id: firebaseUser.uid,
+                    email: firebaseUser.email || '',
+                    name: firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'User',
+                    is_active: true,
+                  };
+                  useAuthStore.getState().setToken(idToken);
+                  useAuthStore.getState().setUser(fallbackUser);
+                } else {
+                  console.error('Both token verification and login failed:', loginError);
+                  useAuthStore.getState().logout();
+                }
                 useAuthStore.getState().setInitialized(true);
               }
             }

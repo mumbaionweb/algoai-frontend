@@ -91,21 +91,45 @@ export default function JobsPage() {
   }, [activeTab]);
 
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
-    // Auto-refresh: 2.5s when jobs are actively running or adhoc execution triggered; 8s idle polling
-    const pollInterval = hasRunningJobs ? 2500 : 8000;
-    intervalId = setInterval(() => {
-      if (activeTab === 'jobs') {
-        getJobs()
-          .then((res) => setJobs(res.jobs || []))
-          .catch(console.error);
-      } else {
-        getJobLogs()
-          .then((res) => setLogs(res.logs || []))
-          .catch(console.error);
+    let timeoutId: NodeJS.Timeout;
+    let isCancelled = false;
+
+    const poll = async () => {
+      // Pause polling if browser tab is backgrounded
+      if (typeof document !== 'undefined' && document.hidden) {
+        timeoutId = setTimeout(poll, 6000);
+        return;
       }
-    }, pollInterval);
-    return () => clearInterval(intervalId);
+
+      try {
+        if (activeTab === 'jobs') {
+          const res = await getJobs();
+          if (!isCancelled && res.jobs) {
+            setJobs(res.jobs);
+          }
+        } else {
+          const res = await getJobLogs();
+          if (!isCancelled && res.logs) {
+            setLogs(res.logs);
+          }
+        }
+      } catch (err) {
+        // Silently catch polling errors
+      } finally {
+        if (!isCancelled) {
+          const nextInterval = hasRunningJobs ? 4000 : 10000;
+          timeoutId = setTimeout(poll, nextInterval);
+        }
+      }
+    };
+
+    const initialInterval = hasRunningJobs ? 4000 : 10000;
+    timeoutId = setTimeout(poll, initialInterval);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [activeTab, hasRunningJobs]);
 
   const handleOpenViewData = async (jobId: string, jobName: string, log?: JobExecutionLog) => {
