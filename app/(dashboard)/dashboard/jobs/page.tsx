@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
 import {
   getJobs,
@@ -29,6 +29,8 @@ import {
   ClockIcon,
   ArrowPathIcon,
 } from '@heroicons/react/24/outline';
+import { DataTable, type ColumnDef } from '@/components/ui/DataTable';
+import { formatCronSchedule } from '@/lib/utils/cron';
 
 export default function JobsPage() {
   const [activeTab, setActiveTab] = useState<'jobs' | 'logs'>('jobs');
@@ -309,6 +311,377 @@ export default function JobsPage() {
     return 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700';
   };
 
+  // Column Definitions for Jobs Schedule Table
+  const scheduleColumns: ColumnDef<JobItem>[] = useMemo(
+    () => [
+      {
+        key: 'actions',
+        header: 'Actions',
+        width: '220px',
+        minWidth: '210px',
+        sortable: false,
+        filterable: false,
+        render: (job) => (
+          <div className="flex items-center space-x-2">
+            {/* Run Icon: Adhoc Execution Service */}
+            <button
+              className="btn-action-icon btn-action-connect"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleRunJob(job.id);
+              }}
+              disabled={runningJobId === job.id || job.status === 'running'}
+              title="Run Job Now (Adhoc Execution)"
+              aria-label={`Run ${job.name} adhoc now`}
+            >
+              {runningJobId === job.id || job.status === 'running' ? (
+                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <BoltIcon className="w-4 h-4" />
+              )}
+            </button>
+
+            {/* Start (when inactive) / Pause (when active) */}
+            {job.status === 'active' || job.status === 'running' ? (
+              <button
+                className="btn-action-icon btn-action-history"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleStatus(job);
+                }}
+                disabled={togglingJobId === job.id}
+                title="Pause Schedule (Active → Inactive)"
+                aria-label={`Pause ${job.name} schedule`}
+              >
+                {togglingJobId === job.id ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <PauseIcon className="w-4 h-4" />
+                )}
+              </button>
+            ) : (
+              <button
+                className="btn-action-icon btn-action-profit"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleToggleStatus(job);
+                }}
+                disabled={togglingJobId === job.id}
+                title="Start Schedule (Inactive → Active)"
+                aria-label={`Start ${job.name} schedule`}
+              >
+                {togglingJobId === job.id ? (
+                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <PlayIcon className="w-4 h-4" />
+                )}
+              </button>
+            )}
+
+            {/* View Ingested Data Icon */}
+            <button
+              className="btn-action-icon btn-action-neutral"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenViewData(job.id, job.name);
+              }}
+              title="View Ingested Data & BigQuery Records"
+              aria-label={`View data for ${job.name}`}
+            >
+              <EyeIcon className="w-4 h-4" />
+            </button>
+
+            {/* Edit Icon: Opens Configuration Pop-up */}
+            <button
+              className="btn-action-icon btn-action-neutral"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenEdit(job);
+              }}
+              title="Edit Job Configuration"
+              aria-label={`Edit ${job.name} config`}
+            >
+              <PencilSquareIcon className="w-4 h-4" />
+            </button>
+
+            {/* Delete Icon: Confirmation & Removal */}
+            <button
+              className="btn-action-icon btn-action-loss"
+              onClick={(e) => {
+                e.stopPropagation();
+                setJobToDelete(job);
+              }}
+              title="Delete Job"
+              aria-label={`Delete ${job.name}`}
+            >
+              <TrashIcon className="w-4 h-4" />
+            </button>
+          </div>
+        ),
+      },
+      {
+        key: 'name',
+        header: 'Job Name',
+        width: '280px',
+        minWidth: '220px',
+        sortable: true,
+        filterable: true,
+        accessor: (job) => job.name,
+        render: (job) => (
+          <div className="flex flex-col">
+            <span className="font-semibold text-gray-900 dark:text-white whitespace-nowrap">{job.name}</span>
+            {job.interval && (
+              <span className="text-[11px] text-gray-500 dark:text-gray-400 font-mono mt-0.5">
+                interval: {job.interval}
+              </span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'description',
+        header: 'Description',
+        minWidth: '260px',
+        sortable: true,
+        filterable: true,
+        accessor: (job) => job.description,
+        render: (job) => (
+          <span className="text-gray-600 dark:text-gray-300 max-w-sm block">
+            {job.description || '-'}
+          </span>
+        ),
+      },
+      {
+        key: 'target_url',
+        header: 'Target URL',
+        minWidth: '180px',
+        sortable: true,
+        filterable: true,
+        accessor: (job) => job.target_url,
+        render: (job) => (
+          <span
+            className="text-xs font-mono text-gray-500 dark:text-gray-400 max-w-xs truncate block"
+            title={job.target_url}
+          >
+            {job.target_url || '-'}
+          </span>
+        ),
+      },
+      {
+        key: 'cron_schedule',
+        header: 'Schedule (Cron)',
+        minWidth: '300px',
+        sortable: true,
+        filterable: true,
+        accessor: (job) => job.cron_schedule,
+        render: (job) => {
+          const humanReadable = formatCronSchedule(job.cron_schedule);
+          return (
+            <div className="flex flex-col gap-1 items-start">
+              <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
+                {humanReadable}
+              </span>
+              {job.cron_schedule && (
+                <span className="px-2 py-0.5 bg-gray-100 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 font-mono text-[11px] text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                  {job.cron_schedule}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        width: '160px',
+        minWidth: '140px',
+        sortable: true,
+        filterable: true,
+        filterType: 'select',
+        accessor: (job) => job.status,
+        render: (job) => (
+          <div className="flex flex-col gap-1.5">
+            <span
+              className={`px-2.5 py-1 border rounded text-xs font-semibold uppercase w-max ${getStatusBadge(
+                job.status
+              )}`}
+            >
+              {job.status === 'running' ? (
+                <span className="flex items-center gap-1.5">
+                  <div className="w-3 h-3 border-[1.5px] border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  RUNNING{' '}
+                  {job.progress_percent !== undefined
+                    ? `(${job.progress_percent}%)`
+                    : ''}
+                </span>
+              ) : (
+                job.status
+              )}
+            </span>
+            {job.status === 'running' && job.progress_percent !== undefined && (
+              <div className="w-28 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+                <div
+                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${job.progress_percent}%` }}
+                />
+              </div>
+            )}
+            {job.status === 'running' && job.message && (
+              <span
+                className="text-[10px] text-gray-500 dark:text-gray-400 font-medium max-w-xs truncate"
+                title={job.message}
+              >
+                {job.message}
+              </span>
+            )}
+          </div>
+        ),
+      },
+    ],
+    [runningJobId, togglingJobId]
+  );
+
+  // Column Definitions for Execution Logs Table
+  const logColumns: ColumnDef<JobExecutionLog>[] = useMemo(
+    () => [
+      {
+        key: 'action',
+        header: 'Action',
+        width: '110px',
+        minWidth: '100px',
+        sortable: false,
+        filterable: false,
+        render: (log, index) => (
+          <div className="flex items-center space-x-2.5">
+            {/* 1 - Progress circle: Real-time animated indicator */}
+            {log.status === 'running' || (runningJobId === log.job_id && index === 0) ? (
+              <div
+                className="relative flex items-center justify-center w-7 h-7"
+                title="Job execution is currently running in background..."
+              >
+                <div className="w-5 h-5 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
+                <span className="absolute w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+              </div>
+            ) : log.status === 'success' || log.status === 'completed' ? (
+              <div
+                className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-profit transition-transform hover:scale-110"
+                title="Completed successfully"
+              >
+                <CheckCircleIcon className="w-4 h-4 text-profit" />
+              </div>
+            ) : log.status === 'error' || log.status === 'failed' ? (
+              <div
+                className="flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/10 dark:bg-rose-500/20 text-loss transition-transform hover:scale-110"
+                title="Execution error"
+              >
+                <ExclamationTriangleIcon className="w-4 h-4 text-loss" />
+              </div>
+            ) : (
+              <div
+                className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/10 dark:bg-amber-500/20 text-amber-500 transition-transform hover:scale-110"
+                title={`Status: ${log.status}`}
+              >
+                <ClockIcon className="w-4 h-4 text-amber-500" />
+              </div>
+            )}
+
+            {/* 2 - View icon: Inspect ingested data & records */}
+            <button
+              type="button"
+              className="btn-action-icon btn-action-neutral"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleOpenViewData(log.job_id, log.job_name, log);
+              }}
+              title="View Ingested Data & Execution Details"
+              aria-label={`View ingested data for ${log.job_name}`}
+            >
+              <EyeIcon className="w-4 h-4" />
+            </button>
+          </div>
+        ),
+      },
+      {
+        key: 'executed_at',
+        header: 'Time Executed',
+        width: '220px',
+        minWidth: '200px',
+        sortable: true,
+        filterable: true,
+        accessor: (log) => log.executed_at,
+        render: (log) => (
+          <span className="whitespace-nowrap font-medium text-gray-800 dark:text-gray-200">
+            {formatDate(log.executed_at)}
+          </span>
+        ),
+      },
+      {
+        key: 'job_name',
+        header: 'Job Name',
+        width: '280px',
+        minWidth: '220px',
+        sortable: true,
+        filterable: true,
+        accessor: (log) => log.job_name,
+        render: (log) => (
+          <span className="font-semibold text-gray-900 dark:text-white whitespace-nowrap block">
+            {log.job_name}
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        header: 'Status',
+        width: '140px',
+        minWidth: '130px',
+        sortable: true,
+        filterable: true,
+        filterType: 'select',
+        accessor: (log) => log.status,
+        render: (log) => (
+          <span
+            className={`px-2 py-0.5 border rounded text-xs font-semibold uppercase ${getStatusBadge(
+              log.status
+            )}`}
+          >
+            {log.status}
+          </span>
+        ),
+      },
+      {
+        key: 'executed_by',
+        header: 'Executed By',
+        width: '150px',
+        minWidth: '130px',
+        sortable: true,
+        filterable: true,
+        accessor: (log) => log.executed_by,
+        render: (log) => (
+          <span className="text-xs font-mono text-gray-500 dark:text-gray-400">
+            {log.executed_by || '-'}
+          </span>
+        ),
+      },
+      {
+        key: 'message',
+        header: 'Message',
+        minWidth: '320px',
+        sortable: true,
+        filterable: true,
+        accessor: (log) => log.message,
+        render: (log) => (
+          <span
+            className="text-gray-500 dark:text-gray-400 text-sm max-w-lg block truncate"
+            title={log.message}
+          >
+            {log.message || '-'}
+          </span>
+        ),
+      },
+    ],
+    [runningJobId]
+  );
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-sans transition-colors">
       <DashboardNavigation title="Algo AI" />
@@ -373,307 +746,32 @@ export default function JobsPage() {
           </div>
         </div>
 
-        {/* Tab Content */}
+        {/* Tab Content with Global Reusable DataTable */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
           {activeTab === 'jobs' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
-                <thead className="bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-700 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400">
-                  <tr>
-                    <th className="px-6 py-4 text-left">Actions</th>
-                    <th className="px-6 py-4">Job Name</th>
-                    <th className="px-6 py-4">Description</th>
-                    <th className="px-6 py-4">Target URL</th>
-                    <th className="px-6 py-4">Schedule (Cron)</th>
-                    <th className="px-6 py-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                        Loading jobs...
-                      </td>
-                    </tr>
-                  ) : jobs.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No jobs configured.
-                      </td>
-                    </tr>
-                  ) : (
-                    jobs.map((job) => (
-                      <tr
-                        key={job.id}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                      >
-                        {/* Action Column on the LEFT */}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center space-x-2">
-                            {/* Run Icon: Adhoc Execution Service */}
-                            <button
-                              className="btn-action-icon btn-action-connect"
-                              onClick={() => handleRunJob(job.id)}
-                              disabled={runningJobId === job.id || job.status === 'running'}
-                              title="Run Job Now (Adhoc Execution)"
-                              aria-label={`Run ${job.name} adhoc now`}
-                            >
-                              {runningJobId === job.id || job.status === 'running' ? (
-                                <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <BoltIcon className="w-4 h-4" />
-                              )}
-                            </button>
-
-                            {/* Start (when inactive) / Pause (when active) */}
-                            {job.status === 'active' || job.status === 'running' ? (
-                              <button
-                                className="btn-action-icon btn-action-history"
-                                onClick={() => handleToggleStatus(job)}
-                                disabled={togglingJobId === job.id}
-                                title="Pause Schedule (Active → Inactive)"
-                                aria-label={`Pause ${job.name} schedule`}
-                              >
-                                {togglingJobId === job.id ? (
-                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <PauseIcon className="w-4 h-4" />
-                                )}
-                              </button>
-                            ) : (
-                              <button
-                                className="btn-action-icon btn-action-profit"
-                                onClick={() => handleToggleStatus(job)}
-                                disabled={togglingJobId === job.id}
-                                title="Start Schedule (Inactive → Active)"
-                                aria-label={`Start ${job.name} schedule`}
-                              >
-                                {togglingJobId === job.id ? (
-                                  <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <PlayIcon className="w-4 h-4" />
-                                )}
-                              </button>
-                            )}
-
-                            {/* View Ingested Data Icon */}
-                            <button
-                              className="btn-action-icon btn-action-neutral"
-                              onClick={() => handleOpenViewData(job.id, job.name)}
-                              title="View Ingested Data & BigQuery Records"
-                              aria-label={`View data for ${job.name}`}
-                            >
-                              <EyeIcon className="w-4 h-4" />
-                            </button>
-
-                            {/* Edit Icon: Opens Configuration Pop-up */}
-                            <button
-                              className="btn-action-icon btn-action-neutral"
-                              onClick={() => handleOpenEdit(job)}
-                              title="Edit Job Configuration"
-                              aria-label={`Edit ${job.name} config`}
-                            >
-                              <PencilSquareIcon className="w-4 h-4" />
-                            </button>
-
-                            {/* Delete Icon: Confirmation & Removal */}
-                            <button
-                              className="btn-action-icon btn-action-loss"
-                              onClick={() => setJobToDelete(job)}
-                              title="Delete Job"
-                              aria-label={`Delete ${job.name}`}
-                            >
-                              <TrashIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-
-                        {/* Job Name */}
-                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                          <div className="flex flex-col">
-                            <span>{job.name}</span>
-                            {job.interval && (
-                              <span className="text-[11px] text-gray-500 font-mono mt-0.5">
-                                interval: {job.interval}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-
-                        {/* Description */}
-                        <td className="px-6 py-4 text-gray-600 dark:text-gray-300 max-w-sm">
-                          {job.description || '-'}
-                        </td>
-
-                        {/* Target URL */}
-                        <td
-                          className="px-6 py-4 text-xs font-mono text-gray-500 max-w-xs truncate"
-                          title={job.target_url}
-                        >
-                          {job.target_url || '-'}
-                        </td>
-
-                        {/* Schedule (Cron) */}
-                        <td className="px-6 py-4">
-                          <span className="px-2 py-1 bg-gray-100 dark:bg-gray-900 rounded border border-gray-200 dark:border-gray-700 font-mono text-xs text-gray-700 dark:text-gray-300">
-                            {job.cron_schedule || '-'}
-                          </span>
-                        </td>
-
-                        {/* Status */}
-                        <td className="px-6 py-4">
-                          <div className="flex flex-col gap-1.5">
-                            <span
-                              className={`px-2.5 py-1 border rounded text-xs font-semibold uppercase w-max ${getStatusBadge(
-                                job.status
-                              )}`}
-                            >
-                              {job.status === 'running' ? (
-                                <span className="flex items-center gap-1.5">
-                                  <div className="w-3 h-3 border-[1.5px] border-blue-600 border-t-transparent rounded-full animate-spin" />
-                                  RUNNING{' '}
-                                  {job.progress_percent !== undefined
-                                    ? `(${job.progress_percent}%)`
-                                    : ''}
-                                </span>
-                              ) : (
-                                job.status
-                              )}
-                            </span>
-                            {job.status === 'running' && job.progress_percent !== undefined && (
-                              <div className="w-28 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
-                                <div
-                                  className="bg-blue-600 h-1.5 rounded-full transition-all duration-500 ease-out"
-                                  style={{ width: `${job.progress_percent}%` }}
-                                />
-                              </div>
-                            )}
-                            {job.status === 'running' && job.message && (
-                              <span
-                                className="text-[10px] text-gray-500 font-medium max-w-xs truncate"
-                                title={job.message}
-                              >
-                                {job.message}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<JobItem>
+              data={jobs}
+              columns={scheduleColumns}
+              keyExtractor={(job) => job.id}
+              isLoading={loading}
+              loadingMessage="Loading jobs..."
+              emptyMessage="No jobs configured."
+              enableSearch={true}
+              searchPlaceholder="Search jobs by name, schedule, description..."
+            />
           )}
 
           {activeTab === 'logs' && (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
-                <thead className="bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-700 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400">
-                  <tr>
-                    <th className="px-6 py-4">Action</th>
-                    <th className="px-6 py-4">Time Executed</th>
-                    <th className="px-6 py-4">Job Name</th>
-                    <th className="px-6 py-4">Status</th>
-                    <th className="px-6 py-4">Executed By</th>
-                    <th className="px-6 py-4">Message</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                        Loading logs...
-                      </td>
-                    </tr>
-                  ) : logs.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                        No execution logs found.
-                      </td>
-                    </tr>
-                  ) : (
-                    logs.map((log, index) => (
-                      <tr
-                        key={log.id}
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
-                      >
-                        {/* Action Column on the LEFT with Progress Circle & View Icon */}
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center space-x-2.5">
-                            {/* 1 - Progress circle: Real-time animated indicator */}
-                            {log.status === 'running' || (runningJobId === log.job_id && index === 0) ? (
-                              <div
-                                className="relative flex items-center justify-center w-7 h-7"
-                                title="Job execution is currently running in background..."
-                              >
-                                <div className="w-5 h-5 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
-                                <span className="absolute w-2 h-2 rounded-full bg-blue-500 animate-ping" />
-                              </div>
-                            ) : log.status === 'success' || log.status === 'completed' ? (
-                              <div
-                                className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-profit transition-transform hover:scale-110"
-                                title="Completed successfully"
-                              >
-                                <CheckCircleIcon className="w-4 h-4 text-profit" />
-                              </div>
-                            ) : log.status === 'error' || log.status === 'failed' ? (
-                              <div
-                                className="flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/10 dark:bg-rose-500/20 text-loss transition-transform hover:scale-110"
-                                title="Execution error"
-                              >
-                                <ExclamationTriangleIcon className="w-4 h-4 text-loss" />
-                              </div>
-                            ) : (
-                              <div
-                                className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/10 dark:bg-amber-500/20 text-amber-500 transition-transform hover:scale-110"
-                                title={`Status: ${log.status}`}
-                              >
-                                <ClockIcon className="w-4 h-4 text-amber-500" />
-                              </div>
-                            )}
-
-                            {/* 2 - View icon: Inspect ingested data & records */}
-                            <button
-                              type="button"
-                              className="btn-action-icon btn-action-neutral"
-                              onClick={() => handleOpenViewData(log.job_id, log.job_name, log)}
-                              title="View Ingested Data & Execution Details"
-                              aria-label={`View ingested data for ${log.job_name}`}
-                            >
-                              <EyeIcon className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-
-                        <td className="px-6 py-4 whitespace-nowrap">{formatDate(log.executed_at)}</td>
-                        <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                          {log.job_name}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span
-                            className={`px-2 py-0.5 border rounded text-xs font-semibold uppercase ${getStatusBadge(
-                              log.status
-                            )}`}
-                          >
-                            {log.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-xs font-mono text-gray-500 dark:text-gray-400">
-                          {log.executed_by || '-'}
-                        </td>
-                        <td
-                          className="px-6 py-4 text-gray-500 dark:text-gray-400 text-sm max-w-lg truncate"
-                          title={log.message}
-                        >
-                          {log.message}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+            <DataTable<JobExecutionLog>
+              data={logs}
+              columns={logColumns}
+              keyExtractor={(log) => log.id}
+              isLoading={loading}
+              loadingMessage="Loading execution logs..."
+              emptyMessage="No execution logs found."
+              enableSearch={true}
+              searchPlaceholder="Search logs by job, status, message..."
+            />
           )}
         </div>
       </main>
