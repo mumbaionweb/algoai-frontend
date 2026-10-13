@@ -67,7 +67,26 @@ export default function DatasetsPage() {
             symbolMap[row.symbol].intervals.push({ interval: row.interval, exchange: row.exchange });
           }
         });
-        setEquities(Object.values(symbolMap));
+
+        const INTERVAL_ORDER: Record<string, number> = {
+          'minute': 1,
+          '1minute': 1,
+          '3minute': 2,
+          '5minute': 3,
+          '15minute': 4,
+          '30minute': 5,
+          '60minute': 6,
+          'day': 7,
+          'week': 8,
+          'month': 9,
+        };
+
+        const resultEquities = Object.values(symbolMap).map((item: any) => {
+          item.intervals.sort((a: any, b: any) => (INTERVAL_ORDER[a.interval.toLowerCase()] || 99) - (INTERVAL_ORDER[b.interval.toLowerCase()] || 99));
+          return item;
+        });
+
+        setEquities(resultEquities);
       }
     } catch (error) {
       console.error('Failed to fetch cache', error);

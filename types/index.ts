@@ -695,3 +695,41 @@ export interface MarketplaceApiStatusUpdate {
   credentials?: Record<string, string>;
 }
 
+// Job Management Types
+export interface JobItem {
+  id: string;
+  name: string;
+  description?: string;
+  target_url?: string;
+  cron_schedule?: string;
+  status: 'active' | 'inactive' | 'running' | 'error' | string;
+  interval?: string;
+  created_at?: string;
+  created_by?: string;
+  updated_at?: string;
+  updated_by?: string;
+  last_run?: string;
+  progress_percent?: number;
+  message?: string;
+}
+
+export interface JobUpdatePayload {
+  name?: string;
+  description?: string;
+  target_url?: string;
+  cron_schedule?: string;
+  status?: string;
+  interval?: string;
+}
+
+export interface JobExecutionLog {
+  id: string;
+  job_id: string;
+  job_name: string;
+  status: 'success' | 'failed' | 'error' | 'deleted' | string;
+  message: string;
+  executed_at: string;
+  executed_by: string;
+}
+
+
