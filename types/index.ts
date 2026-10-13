@@ -742,4 +742,23 @@ export interface JobExecutionLog {
   executed_by: string;
 }
 
+export interface JobDataPreviewResponse {
+  job_id: string;
+  job_name: string;
+  interval?: string;
+  storage_destination?: string;
+  state?: {
+    current_symbol?: string;
+    completed_symbols_count?: number;
+    total_bars_synced?: number;
+    hourly_fetches_count?: number;
+    hourly_window_start?: string;
+  };
+  columns: string[];
+  records: Record<string, any>[];
+  total_records: number;
+  message?: string;
+  error?: string;
+}
+
 

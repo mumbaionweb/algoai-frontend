@@ -2,8 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import DashboardNavigation from '@/components/layout/DashboardNavigation';
-import { getJobs, getJobLogs, runJob, updateJob, deleteJob } from '@/lib/api/jobs';
-import type { JobItem, JobExecutionLog, JobUpdatePayload } from '@/types';
+import {
+  getJobs,
+  getJobLogs,
+  runJob,
+  updateJob,
+  deleteJob,
+  getJobDataPreview,
+} from '@/lib/api/jobs';
+import type {
+  JobItem,
+  JobExecutionLog,
+  JobUpdatePayload,
+  JobDataPreviewResponse,
+} from '@/types';
 import {
   BoltIcon,
   PlayIcon,
@@ -12,6 +24,10 @@ import {
   TrashIcon,
   XMarkIcon,
   ExclamationTriangleIcon,
+  EyeIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 export default function JobsPage() {
@@ -58,7 +74,17 @@ export default function JobsPage() {
   // Delete Confirmation Modal State
   const [jobToDelete, setJobToDelete] = useState<JobItem | null>(null);
 
-  const hasRunningJobs = jobs.some((j) => j.status === 'running');
+  // Ingested Data Preview Modal State
+  const [viewingDataJob, setViewingDataJob] = useState<{
+    jobId: string;
+    jobName: string;
+    log?: JobExecutionLog;
+  } | null>(null);
+  const [dataPreview, setDataPreview] = useState<JobDataPreviewResponse | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+
+  const hasRunningJobs = jobs.some((j) => j.status === 'running') || runningJobId !== null;
 
   useEffect(() => {
     fetchData();
@@ -66,15 +92,36 @@ export default function JobsPage() {
 
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
-    if (activeTab === 'jobs' && hasRunningJobs) {
-      intervalId = setInterval(() => {
+    // Auto-refresh: 2.5s when jobs are actively running or adhoc execution triggered; 8s idle polling
+    const pollInterval = hasRunningJobs ? 2500 : 8000;
+    intervalId = setInterval(() => {
+      if (activeTab === 'jobs') {
         getJobs()
           .then((res) => setJobs(res.jobs || []))
           .catch(console.error);
-      }, 2000);
-    }
+      } else {
+        getJobLogs()
+          .then((res) => setLogs(res.logs || []))
+          .catch(console.error);
+      }
+    }, pollInterval);
     return () => clearInterval(intervalId);
   }, [activeTab, hasRunningJobs]);
+
+  const handleOpenViewData = async (jobId: string, jobName: string, log?: JobExecutionLog) => {
+    setViewingDataJob({ jobId, jobName, log });
+    setLoadingPreview(true);
+    setPreviewError(null);
+    setDataPreview(null);
+    try {
+      const res = await getJobDataPreview(jobId, 50);
+      setDataPreview(res);
+    } catch (err: any) {
+      setPreviewError(err.message || 'Failed to fetch data preview');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -268,28 +315,38 @@ export default function JobsPage() {
           </div>
         )}
 
-        {/* Tabs */}
-        <div className="flex border-b border-gray-200 dark:border-gray-700 mb-6">
-          <button
-            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
-              activeTab === 'jobs'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('jobs')}
-          >
-            Jobs Schedule
-          </button>
-          <button
-            className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
-              activeTab === 'logs'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() => setActiveTab('logs')}
-          >
-            Execution Logs
-          </button>
+        {/* Tabs & Live Refresh Indicator */}
+        <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 mb-6">
+          <div className="flex">
+            <button
+              className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'jobs'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('jobs')}
+            >
+              Jobs Schedule
+            </button>
+            <button
+              className={`py-3 px-6 font-medium text-sm border-b-2 transition-colors ${
+                activeTab === 'logs'
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setActiveTab('logs')}
+            >
+              Execution Logs
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 pr-2 text-xs text-gray-500 dark:text-gray-400">
+            <span className="relative flex h-2 w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${hasRunningJobs ? 'bg-blue-400' : 'bg-emerald-400'} opacity-75`} />
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${hasRunningJobs ? 'bg-blue-500' : 'bg-emerald-500'}`} />
+            </span>
+            <span>{hasRunningJobs ? 'Sync in progress' : 'Live updates active'}</span>
+          </div>
         </div>
 
         {/* Tab Content */}
@@ -374,6 +431,16 @@ export default function JobsPage() {
                                 )}
                               </button>
                             )}
+
+                            {/* View Ingested Data Icon */}
+                            <button
+                              className="btn-action-icon btn-action-neutral"
+                              onClick={() => handleOpenViewData(job.id, job.name)}
+                              title="View Ingested Data & BigQuery Records"
+                              aria-label={`View data for ${job.name}`}
+                            >
+                              <EyeIcon className="w-4 h-4" />
+                            </button>
 
                             {/* Edit Icon: Opens Configuration Pop-up */}
                             <button
@@ -480,6 +547,7 @@ export default function JobsPage() {
               <table className="w-full text-left text-sm text-gray-600 dark:text-gray-300">
                 <thead className="bg-gray-50 dark:bg-gray-900/60 border-b border-gray-200 dark:border-gray-700 text-xs uppercase font-semibold text-gray-500 dark:text-gray-400">
                   <tr>
+                    <th className="px-6 py-4">Action</th>
                     <th className="px-6 py-4">Time Executed</th>
                     <th className="px-6 py-4">Job Name</th>
                     <th className="px-6 py-4">Status</th>
@@ -490,22 +558,70 @@ export default function JobsPage() {
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
                   {loading ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                         Loading logs...
                       </td>
                     </tr>
                   ) : logs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                         No execution logs found.
                       </td>
                     </tr>
                   ) : (
-                    logs.map((log) => (
+                    logs.map((log, index) => (
                       <tr
                         key={log.id}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/30 transition-colors"
                       >
+                        {/* Action Column on the LEFT with Progress Circle & View Icon */}
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-2.5">
+                            {/* 1 - Progress circle: Real-time animated indicator */}
+                            {log.status === 'running' || (runningJobId === log.job_id && index === 0) ? (
+                              <div
+                                className="relative flex items-center justify-center w-7 h-7"
+                                title="Job execution is currently running in background..."
+                              >
+                                <div className="w-5 h-5 rounded-full border-2 border-blue-500/30 border-t-blue-500 animate-spin" />
+                                <span className="absolute w-2 h-2 rounded-full bg-blue-500 animate-ping" />
+                              </div>
+                            ) : log.status === 'success' || log.status === 'completed' ? (
+                              <div
+                                className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500/10 dark:bg-emerald-500/20 text-profit transition-transform hover:scale-110"
+                                title="Completed successfully"
+                              >
+                                <CheckCircleIcon className="w-4 h-4 text-profit" />
+                              </div>
+                            ) : log.status === 'error' || log.status === 'failed' ? (
+                              <div
+                                className="flex items-center justify-center w-7 h-7 rounded-full bg-rose-500/10 dark:bg-rose-500/20 text-loss transition-transform hover:scale-110"
+                                title="Execution error"
+                              >
+                                <ExclamationTriangleIcon className="w-4 h-4 text-loss" />
+                              </div>
+                            ) : (
+                              <div
+                                className="flex items-center justify-center w-7 h-7 rounded-full bg-amber-500/10 dark:bg-amber-500/20 text-amber-500 transition-transform hover:scale-110"
+                                title={`Status: ${log.status}`}
+                              >
+                                <ClockIcon className="w-4 h-4 text-amber-500" />
+                              </div>
+                            )}
+
+                            {/* 2 - View icon: Inspect ingested data & records */}
+                            <button
+                              type="button"
+                              className="btn-action-icon btn-action-neutral"
+                              onClick={() => handleOpenViewData(log.job_id, log.job_name, log)}
+                              title="View Ingested Data & Execution Details"
+                              aria-label={`View ingested data for ${log.job_name}`}
+                            >
+                              <EyeIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+
                         <td className="px-6 py-4 whitespace-nowrap">{formatDate(log.executed_at)}</td>
                         <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                           {log.job_name}
@@ -879,6 +995,190 @@ export default function JobsPage() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Ingested Data & Records Verification Modal */}
+      {viewingDataJob && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4">
+          <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                  <EyeIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <span>{viewingDataJob.jobName}</span>
+                    <span className="text-xs px-2 py-0.5 rounded border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-900 font-mono text-gray-700 dark:text-gray-300">
+                      {viewingDataJob.jobId}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Storage: <span className="font-semibold text-gray-700 dark:text-gray-300">{dataPreview?.storage_destination || 'BigQuery historical_data'}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingDataJob(null)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                title="Close modal"
+              >
+                <XMarkIcon className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: Scrollable */}
+            <div className="p-6 overflow-y-auto space-y-5 flex-1">
+              {/* Optional Execution Log Context */}
+              {viewingDataJob.log && (
+                <div className="p-4 rounded-xl bg-gray-50 dark:bg-gray-900/60 border border-gray-200 dark:border-gray-700 text-xs space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 dark:border-gray-700/60 pb-2">
+                    <span className="font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider text-[11px]">
+                      Execution Run Details
+                    </span>
+                    <span className="text-gray-500 font-mono">
+                      Executed at: {formatDate(viewingDataJob.log.executed_at)}
+                    </span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span
+                      className={`px-2 py-0.5 border rounded text-xs font-semibold uppercase shrink-0 ${getStatusBadge(
+                        viewingDataJob.log.status
+                      )}`}
+                    >
+                      {viewingDataJob.log.status}
+                    </span>
+                    <span className="text-gray-700 dark:text-gray-300 font-mono text-[12px] break-words">
+                      {viewingDataJob.log.message}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Checkpoint & Quota Telemetry Cards */}
+              {dataPreview?.state && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <span className="text-gray-500 block text-[11px]">Current Symbol</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white font-mono">
+                      {dataPreview.state.current_symbol || 'None'}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <span className="text-gray-500 block text-[11px]">Completed Symbols</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white font-mono">
+                      {dataPreview.state.completed_symbols_count ?? 0}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <span className="text-gray-500 block text-[11px]">Total Bars Synced</span>
+                    <span className="text-sm font-bold text-profit font-mono">
+                      {dataPreview.state.total_bars_synced?.toLocaleString() ?? 0}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700">
+                    <span className="text-gray-500 block text-[11px]">Hourly API Quota</span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-white font-mono">
+                      {dataPreview.state.hourly_fetches_count ?? 0} / 100
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Data Table / State */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Ingested Records Preview ({dataPreview?.total_records ?? 0} loaded)
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenViewData(viewingDataJob.jobId, viewingDataJob.jobName, viewingDataJob.log)}
+                    disabled={loadingPreview}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-medium"
+                  >
+                    <ArrowPathIcon className={`w-3.5 h-3.5 ${loadingPreview ? 'animate-spin' : ''}`} />
+                    Refresh Records
+                  </button>
+                </div>
+
+                {loadingPreview ? (
+                  <div className="py-12 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center gap-2">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs">Querying storage for ingested records...</span>
+                  </div>
+                ) : previewError ? (
+                  <div className="p-4 rounded-xl bg-loss-subtle border border-loss text-loss text-xs">
+                    Failed to fetch preview: {previewError}
+                  </div>
+                ) : dataPreview && dataPreview.records.length > 0 ? (
+                  <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 max-h-80">
+                    <table className="w-full text-left text-xs text-gray-600 dark:text-gray-300">
+                      <thead className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 uppercase font-semibold text-[11px] text-gray-500 sticky top-0">
+                        <tr>
+                          {dataPreview.columns.map((col) => (
+                            <th key={col} className="px-4 py-2.5 whitespace-nowrap">
+                              {col}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100 dark:divide-gray-800 font-mono">
+                        {dataPreview.records.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                            {dataPreview.columns.map((col) => {
+                              const val = row[col];
+                              const isNumeric = typeof val === 'number';
+                              return (
+                                <td key={col} className="px-4 py-2 whitespace-nowrap text-gray-900 dark:text-gray-200">
+                                  {isNumeric ? Number(val).toFixed(2) : String(val ?? '-')}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="p-8 text-center rounded-xl bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 space-y-3">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                      No Records Ingested in Storage Yet
+                    </p>
+                    <p className="text-xs text-gray-500 max-w-md mx-auto">
+                      {viewingDataJob.log?.message?.includes('Outside operational window')
+                        ? 'The scheduled job execution skipped because market hours (08:45 – 16:00 IST Mon-Fri) were closed.'
+                        : viewingDataJob.log?.message || 'Data sync has not yet written bars to storage. Trigger an adhoc run to begin fetching immediately.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const jId = viewingDataJob.jobId;
+                        setViewingDataJob(null);
+                        handleRunJob(jId);
+                      }}
+                      className="btn-action-icon btn-action-connect px-4 py-2 text-xs font-semibold rounded-lg inline-flex items-center gap-1.5"
+                    >
+                      <BoltIcon className="w-4 h-4" />
+                      Run Sync Adhoc Now
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end bg-gray-50 dark:bg-gray-900/40 shrink-0">
+              <button
+                type="button"
+                onClick={() => setViewingDataJob(null)}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 text-xs font-medium transition-colors"
+              >
+                Close Viewer
+              </button>
             </div>
           </div>
         </div>

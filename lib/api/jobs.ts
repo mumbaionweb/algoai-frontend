@@ -1,5 +1,5 @@
 import api from './client';
-import type { JobItem, JobUpdatePayload, JobExecutionLog } from '@/types';
+import type { JobItem, JobUpdatePayload, JobExecutionLog, JobDataPreviewResponse } from '@/types';
 
 export interface JobsResponse {
   jobs: JobItem[];
@@ -36,5 +36,13 @@ export const deleteJob = async (
   jobId: string
 ): Promise<{ status: string; message: string }> => {
   const response = await api.delete(`/api/jobs/${jobId}`);
+  return response.data;
+};
+
+export const getJobDataPreview = async (
+  jobId: string,
+  limit: number = 50
+): Promise<JobDataPreviewResponse> => {
+  const response = await api.get(`/api/jobs/${jobId}/data-preview?limit=${limit}`);
   return response.data;
 };
