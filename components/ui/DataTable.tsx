@@ -139,6 +139,16 @@ export function DataTable<T>({
   const filterPopoverRef = useRef<HTMLDivElement | null>(null);
   const colVisibilityRef = useRef<HTMLDivElement | null>(null);
   const tableContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchDebounceRef = useRef<NodeJS.Timeout | null>(null);
+  const filterDebounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+    };
+  }, []);
 
   // Load persistent view from localStorage if storageKey is provided
   useEffect(() => {
@@ -325,8 +335,8 @@ export function DataTable<T>({
     });
   };
 
-  // Handle Filters
-  const handleFilterChange = (colKey: string, value: any) => {
+  // Handle Filters (with 350ms debounce for server-side queries)
+  const handleFilterChange = (colKey: string, value: any, immediate = false) => {
     setColumnFilters((prev) => {
       const updated = { ...prev };
       if (value === undefined || value === null || value === '') {
@@ -335,7 +345,14 @@ export function DataTable<T>({
         updated[colKey] = value;
       }
       if (serverSide) {
-        onServerFilter?.(updated);
+        if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+        if (immediate) {
+          onServerFilter?.(updated);
+        } else {
+          filterDebounceRef.current = setTimeout(() => {
+            onServerFilter?.(updated);
+          }, 350);
+        }
       } else {
         setClientPage(1);
       }
@@ -348,6 +365,7 @@ export function DataTable<T>({
       const updated = { ...prev };
       delete updated[colKey];
       if (serverSide) {
+        if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
         onServerFilter?.(updated);
       } else {
         setClientPage(1);
@@ -357,6 +375,8 @@ export function DataTable<T>({
   };
 
   const clearAllFilters = () => {
+    if (filterDebounceRef.current) clearTimeout(filterDebounceRef.current);
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     setColumnFilters({});
     setGlobalSearch('');
     setSortConfig(null);
@@ -597,9 +617,18 @@ export function DataTable<T>({
                     const val = e.target.value;
                     setGlobalSearch(val);
                     if (serverSide) {
-                      onServerSearch?.(val);
+                      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+                      searchDebounceRef.current = setTimeout(() => {
+                        onServerSearch?.(val);
+                      }, 350);
                     } else {
                       setClientPage(1);
+                    }
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+                      if (serverSide) onServerSearch?.(globalSearch);
                     }
                   }}
                   placeholder={searchPlaceholder}
@@ -609,6 +638,7 @@ export function DataTable<T>({
                   <button
                     onClick={() => {
                       setGlobalSearch('');
+                      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
                       if (serverSide) {
                         onServerSearch?.('');
                       } else {
@@ -750,6 +780,13 @@ export function DataTable<T>({
           </div>
         </div>
       )}
+
+      {/* Top subtle indeterminate progress bar for background fetching */}
+      <div className="w-full h-0.5 overflow-hidden bg-transparent">
+        {isLoading && (
+          <div className="w-full h-full bg-blue-500 animate-pulse" />
+        )}
+      </div>
 
       {/* Main Table Container */}
       <div
@@ -1014,20 +1051,49 @@ export function DataTable<T>({
                                     autoFocus
                                     value={columnFilters[col.key] || ''}
                                     onChange={(e) => handleFilterChange(col.key, e.target.value)}
-                                    placeholder={`Filter ${col.header}...`}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        handleFilterChange(col.key, (e.target as HTMLInputElement).value, true);
+                                        setActiveFilterColumn(null);
+                                      }
+                                    }}
+                                    placeholder={`Filter ${col.header}... (Enter to apply)`}
                                     className="w-full px-2.5 py-1.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                                   />
                                 </div>
                               )}
 
-                              <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveFilterColumn(null)}
-                                  className="px-2.5 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium"
-                                >
-                                  Close
-                                </button>
+                              <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+                                {columnFilters[col.key] ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearFilter(col.key)}
+                                    className="text-xs text-loss hover:underline font-medium"
+                                  >
+                                    Clear
+                                  </button>
+                                ) : (
+                                  <span />
+                                )}
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleFilterChange(col.key, columnFilters[col.key], true);
+                                      setActiveFilterColumn(null);
+                                    }}
+                                    className="px-2.5 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 font-medium transition-colors"
+                                  >
+                                    Apply
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveFilterColumn(null)}
+                                    className="px-2.5 py-1 text-xs rounded bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 font-medium"
+                                  >
+                                    Close
+                                  </button>
+                                </div>
                               </div>
                             </div>
                           )}
@@ -1049,8 +1115,12 @@ export function DataTable<T>({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-            {isLoading ? (
+          <tbody
+            className={`divide-y divide-gray-100 dark:divide-gray-700/60 transition-opacity duration-150 ${
+              isLoading ? 'opacity-50 pointer-events-none' : 'opacity-100'
+            }`}
+          >
+            {isLoading && displayedData.length === 0 ? (
               <tr>
                 <td
                   colSpan={orderedColumns.length}

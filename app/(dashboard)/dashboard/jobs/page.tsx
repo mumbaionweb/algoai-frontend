@@ -151,6 +151,9 @@ export default function JobsPage() {
     filters: Record<string, any> = {},
     refresh: boolean = false
   ) => {
+    if (!viewingDataJob || viewingDataJob.jobId !== jobId) {
+      setDataPreview(null);
+    }
     setViewingDataJob({ jobId, jobName, log });
     setPreviewPage(page);
     setPreviewLimit(limit);
@@ -1355,7 +1358,7 @@ export default function JobsPage() {
                   </div>
                 </div>
 
-                {loadingPreview ? (
+                {loadingPreview && !dataPreview ? (
                   <div className="py-12 text-center text-gray-500 dark:text-gray-400 flex flex-col items-center justify-center gap-2">
                     <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
                     <span className="text-xs">Querying storage for ingested records...</span>
@@ -1364,10 +1367,12 @@ export default function JobsPage() {
                   <div className="p-4 rounded-xl bg-loss-subtle border border-loss text-loss text-xs">
                     Failed to fetch preview: {previewError}
                   </div>
-                ) : dataPreview && dataPreview.records.length > 0 ? (
+                ) : dataPreview ? (
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden bg-white dark:bg-gray-800">
                     <DataTable<any>
                       data={dataPreview.records}
+                      isLoading={loadingPreview}
+                      loadingMessage="Updating records from dataset..."
                       columns={previewColumns}
                       keyExtractor={(_, idx) => `preview_record_${idx}`}
                       enableSearch={true}
