@@ -1047,6 +1047,7 @@ export function DataTable<T>({
                               ) : (
                                 <div className="flex flex-col gap-2">
                                   <input
+                                    id={`filter_input_${col.key}`}
                                     type="text"
                                     autoFocus
                                     value={columnFilters[col.key] || ''}
@@ -1079,7 +1080,9 @@ export function DataTable<T>({
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      handleFilterChange(col.key, columnFilters[col.key], true);
+                                      const el = document.getElementById(`filter_input_${col.key}`) as HTMLInputElement | null;
+                                      const val = el ? el.value : (columnFilters[col.key] || '');
+                                      handleFilterChange(col.key, val, true);
                                       setActiveFilterColumn(null);
                                     }}
                                     className="px-2.5 py-1 text-xs rounded bg-blue-600 text-white hover:bg-blue-700 font-medium transition-colors"

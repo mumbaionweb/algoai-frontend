@@ -47,6 +47,7 @@ export interface JobDataPreviewParams {
   status?: string;
   from_date?: string;
   to_date?: string;
+  filters?: Record<string, any>;
   refresh?: boolean;
 }
 
@@ -66,6 +67,9 @@ export const getJobDataPreview = async (
     if (params.status) qp.append('status', params.status);
     if (params.from_date) qp.append('from_date', params.from_date);
     if (params.to_date) qp.append('to_date', params.to_date);
+    if (params.filters && Object.keys(params.filters).length > 0) {
+      qp.append('filters', JSON.stringify(params.filters));
+    }
     if (params.refresh) qp.append('refresh', 'true');
     queryStr = qp.toString();
   }

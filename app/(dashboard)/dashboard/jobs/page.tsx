@@ -170,6 +170,7 @@ export default function JobsPage() {
         symbol: filters['symbol'] || undefined,
         from_date: filters['updated_at']?.from || filters['timestamp']?.from || undefined,
         to_date: filters['updated_at']?.to || filters['timestamp']?.to || undefined,
+        filters: Object.keys(filters).length > 0 ? filters : undefined,
         refresh,
       });
       setDataPreview(res);
