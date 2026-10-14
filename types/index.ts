@@ -758,6 +758,12 @@ export interface JobDataPreviewResponse {
   columns: string[];
   records: Record<string, any>[];
   total_records: number;
+  total_matching?: number;
+  page?: number;
+  limit?: number;
+  total_pages?: number;
+  has_next?: boolean;
+  has_prev?: boolean;
   message?: string;
   error?: string;
 }

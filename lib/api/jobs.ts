@@ -39,10 +39,36 @@ export const deleteJob = async (
   return response.data;
 };
 
+export interface JobDataPreviewParams {
+  limit?: number;
+  page?: number;
+  search?: string;
+  symbol?: string;
+  status?: string;
+  from_date?: string;
+  to_date?: string;
+  refresh?: boolean;
+}
+
 export const getJobDataPreview = async (
   jobId: string,
-  limit: number = 50
+  params: number | JobDataPreviewParams = 50
 ): Promise<JobDataPreviewResponse> => {
-  const response = await api.get(`/api/jobs/${jobId}/data-preview?limit=${limit}`);
+  let queryStr = '';
+  if (typeof params === 'number') {
+    queryStr = `limit=${params}&page=1`;
+  } else {
+    const qp = new URLSearchParams();
+    if (params.limit !== undefined) qp.append('limit', String(params.limit));
+    if (params.page !== undefined) qp.append('page', String(params.page));
+    if (params.search) qp.append('search', params.search);
+    if (params.symbol) qp.append('symbol', params.symbol);
+    if (params.status) qp.append('status', params.status);
+    if (params.from_date) qp.append('from_date', params.from_date);
+    if (params.to_date) qp.append('to_date', params.to_date);
+    if (params.refresh) qp.append('refresh', 'true');
+    queryStr = qp.toString();
+  }
+  const response = await api.get(`/api/jobs/${jobId}/data-preview?${queryStr}`);
   return response.data;
 };

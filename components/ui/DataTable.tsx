@@ -52,6 +52,20 @@ export interface DataTableProps<T> {
   tableClassName?: string;
   maxHeight?: string;
   onRowClick?: (row: T) => void;
+
+  // Pagination & Server-side props
+  enablePagination?: boolean;
+  serverSide?: boolean;
+  page?: number;
+  pageSize?: number;
+  totalPages?: number;
+  totalRecords?: number;
+  totalMatching?: number;
+  pageSizeOptions?: number[];
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
+  onServerSearch?: (searchQuery: string) => void;
+  onServerFilter?: (filters: Record<string, any>) => void;
 }
 
 type SortDirection = 'asc' | 'desc';
@@ -85,12 +99,31 @@ export function DataTable<T>({
   tableClassName = '',
   maxHeight,
   onRowClick,
+  enablePagination = false,
+  serverSide = false,
+  page = 1,
+  pageSize = 50,
+  totalPages,
+  totalRecords,
+  totalMatching,
+  pageSizeOptions = [50, 100, 250, 500],
+  onPageChange,
+  onPageSizeChange,
+  onServerSearch,
+  onServerFilter,
 }: DataTableProps<T>) {
   const [globalSearch, setGlobalSearch] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [columnFilters, setColumnFilters] = useState<Record<string, any>>({});
   const [activeFilterColumn, setActiveFilterColumn] = useState<string | null>(null);
   const [showColumnVisibilityPopover, setShowColumnVisibilityPopover] = useState(false);
+
+  // Client-side pagination state
+  const [clientPage, setClientPage] = useState<number>(1);
+  const [clientPageSize, setClientPageSize] = useState<number>(pageSize);
+
+  const activePage = serverSide ? page : clientPage;
+  const activePageSize = serverSide ? pageSize : clientPageSize;
 
   // Column Ordering & Widths & Visibility with LocalStorage Persistence
   const [columnOrder, setColumnOrder] = useState<string[]>(() => columns.map((c) => c.key));
@@ -301,6 +334,11 @@ export function DataTable<T>({
       } else {
         updated[colKey] = value;
       }
+      if (serverSide) {
+        onServerFilter?.(updated);
+      } else {
+        setClientPage(1);
+      }
       return updated;
     });
   };
@@ -309,6 +347,11 @@ export function DataTable<T>({
     setColumnFilters((prev) => {
       const updated = { ...prev };
       delete updated[colKey];
+      if (serverSide) {
+        onServerFilter?.(updated);
+      } else {
+        setClientPage(1);
+      }
       return updated;
     });
   };
@@ -317,6 +360,12 @@ export function DataTable<T>({
     setColumnFilters({});
     setGlobalSearch('');
     setSortConfig(null);
+    if (serverSide) {
+      onServerFilter?.({});
+      onServerSearch?.('');
+    } else {
+      setClientPage(1);
+    }
   };
 
   const isFiltered =
@@ -373,6 +422,9 @@ export function DataTable<T>({
 
   // Data Filtering & Sorting Logic
   const processedData = useMemo(() => {
+    if (serverSide) {
+      return data;
+    }
     let result = [...data];
 
     // 1. Column-specific filters
@@ -480,7 +532,19 @@ export function DataTable<T>({
     }
 
     return result;
-  }, [data, columns, orderedColumns, columnFilters, globalSearch, sortConfig]);
+  }, [serverSide, data, columns, orderedColumns, columnFilters, globalSearch, sortConfig]);
+
+  const activeTotalPages = serverSide
+    ? (totalPages ?? Math.max(1, Math.ceil((totalMatching ?? data.length) / activePageSize)))
+    : Math.max(1, Math.ceil(processedData.length / activePageSize));
+
+  const displayedData = useMemo(() => {
+    if (!enablePagination || serverSide) {
+      return processedData;
+    }
+    const start = (activePage - 1) * activePageSize;
+    return processedData.slice(start, start + activePageSize);
+  }, [enablePagination, serverSide, processedData, activePage, activePageSize]);
 
   // Date Filter Quick Presets
   const applyDatePreset = (colKey: string, preset: string) => {
@@ -529,13 +593,28 @@ export function DataTable<T>({
                 <input
                   type="text"
                   value={globalSearch}
-                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setGlobalSearch(val);
+                    if (serverSide) {
+                      onServerSearch?.(val);
+                    } else {
+                      setClientPage(1);
+                    }
+                  }}
                   placeholder={searchPlaceholder}
                   className="w-full pl-9 pr-8 py-1.5 text-xs rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                 />
                 {globalSearch && (
                   <button
-                    onClick={() => setGlobalSearch('')}
+                    onClick={() => {
+                      setGlobalSearch('');
+                      if (serverSide) {
+                        onServerSearch?.('');
+                      } else {
+                        setClientPage(1);
+                      }
+                    }}
                     className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
                     title="Clear search"
                   >
@@ -559,7 +638,45 @@ export function DataTable<T>({
 
           <div className="flex items-center space-x-3">
             <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-              Showing {processedData.length} of {data.length} records
+              {serverSide ? (
+                <>
+                  Showing{' '}
+                  {totalMatching === 0
+                    ? 0
+                    : `${(activePage - 1) * activePageSize + 1}–${Math.min(
+                        activePage * activePageSize,
+                        totalMatching ?? totalRecords ?? data.length
+                      )}`}{' '}
+                  of {totalMatching ?? totalRecords ?? data.length} records
+                  {totalMatching !== undefined &&
+                    totalRecords !== undefined &&
+                    totalMatching !== totalRecords && (
+                      <span className="text-blue-500 dark:text-blue-400 ml-1">
+                        (filtered from {totalRecords} total)
+                      </span>
+                    )}
+                </>
+              ) : enablePagination ? (
+                <>
+                  Showing{' '}
+                  {processedData.length === 0
+                    ? 0
+                    : `${(activePage - 1) * activePageSize + 1}–${Math.min(
+                        activePage * activePageSize,
+                        processedData.length
+                      )}`}{' '}
+                  of {processedData.length} records
+                  {isFiltered && (
+                    <span className="text-blue-500 dark:text-blue-400 ml-1">
+                      (filtered from {data.length} total)
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  Showing {processedData.length} of {data.length} records
+                </>
+              )}
             </span>
 
             {/* Column Visibility Menu */}
@@ -945,7 +1062,7 @@ export function DataTable<T>({
                   </div>
                 </td>
               </tr>
-            ) : processedData.length === 0 ? (
+            ) : displayedData.length === 0 ? (
               <tr>
                 <td
                   colSpan={orderedColumns.length}
@@ -966,7 +1083,7 @@ export function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              processedData.map((row, rowIndex) => {
+              displayedData.map((row, rowIndex) => {
                 const rowKey = keyExtractor(row, rowIndex);
                 return (
                   <tr
@@ -1014,6 +1131,103 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
+
+      {/* Pagination Bar */}
+      {enablePagination && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40 text-xs text-gray-600 dark:text-gray-300">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-gray-500 dark:text-gray-400">Rows per page:</span>
+              <select
+                value={activePageSize}
+                onChange={(e) => {
+                  const newSize = Number(e.target.value);
+                  if (serverSide) {
+                    onPageSizeChange?.(newSize);
+                  } else {
+                    setClientPageSize(newSize);
+                    setClientPage(1);
+                  }
+                }}
+                className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded px-2 py-1 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium"
+              >
+                {pageSizeOptions.map((opt) => (
+                  <option key={opt} value={opt}>
+                    {opt}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <span className="text-gray-300 dark:text-gray-700">|</span>
+            <span className="text-gray-500 dark:text-gray-400 font-medium">
+              Page <span className="font-bold text-gray-900 dark:text-white">{activePage}</span> of{' '}
+              <span className="font-bold text-gray-900 dark:text-white">{activeTotalPages}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={activePage <= 1}
+              onClick={() => {
+                const nextP = Math.max(1, activePage - 1);
+                if (serverSide) onPageChange?.(nextP);
+                else setClientPage(nextP);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium transition-colors"
+            >
+              Previous
+            </button>
+
+            {/* Quick page jump pills */}
+            <div className="hidden sm:flex items-center gap-1">
+              {Array.from({ length: Math.min(5, activeTotalPages) }, (_, idx) => {
+                let pNum: number;
+                if (activeTotalPages <= 5) {
+                  pNum = idx + 1;
+                } else if (activePage <= 3) {
+                  pNum = idx + 1;
+                } else if (activePage >= activeTotalPages - 2) {
+                  pNum = activeTotalPages - 4 + idx;
+                } else {
+                  pNum = activePage - 2 + idx;
+                }
+                const isCurrent = pNum === activePage;
+                return (
+                  <button
+                    key={pNum}
+                    type="button"
+                    onClick={() => {
+                      if (serverSide) onPageChange?.(pNum);
+                      else setClientPage(pNum);
+                    }}
+                    className={`w-7 h-7 rounded-lg text-xs font-semibold flex items-center justify-center transition-colors ${
+                      isCurrent
+                        ? 'bg-blue-600 text-white'
+                        : 'border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                    }`}
+                  >
+                    {pNum}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              type="button"
+              disabled={activePage >= activeTotalPages}
+              onClick={() => {
+                const nextP = Math.min(activeTotalPages, activePage + 1);
+                if (serverSide) onPageChange?.(nextP);
+                else setClientPage(nextP);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 font-medium transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

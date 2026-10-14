@@ -41,6 +41,9 @@ export default function JobsPage() {
   const [logs, setLogs] = useState<JobExecutionLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [previewLimit, setPreviewLimit] = useState<number>(100);
+  const [previewPage, setPreviewPage] = useState<number>(1);
+  const [previewSearch, setPreviewSearch] = useState<string>('');
+  const [previewFilters, setPreviewFilters] = useState<Record<string, any>>({});
   const [runningJobId, setRunningJobId] = useState<string | null>(null);
   const [togglingJobId, setTogglingJobId] = useState<string | null>(null);
   const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
@@ -142,14 +145,30 @@ export default function JobsPage() {
     jobId: string,
     jobName: string,
     log?: JobExecutionLog,
-    limit: number = previewLimit
+    page: number = 1,
+    limit: number = previewLimit,
+    search: string = '',
+    filters: Record<string, any> = {},
+    refresh: boolean = false
   ) => {
     setViewingDataJob({ jobId, jobName, log });
+    setPreviewPage(page);
+    setPreviewLimit(limit);
+    setPreviewSearch(search);
+    setPreviewFilters(filters);
     setLoadingPreview(true);
     setPreviewError(null);
-    setDataPreview(null);
     try {
-      const res = await getJobDataPreview(jobId, limit);
+      const res = await getJobDataPreview(jobId, {
+        page,
+        limit,
+        search: search || undefined,
+        status: filters['status'] || undefined,
+        symbol: filters['symbol'] || undefined,
+        from_date: filters['updated_at']?.from || filters['timestamp']?.from || undefined,
+        to_date: filters['updated_at']?.to || filters['timestamp']?.to || undefined,
+        refresh,
+      });
       setDataPreview(res);
     } catch (err: any) {
       setPreviewError(err.message || 'Failed to fetch data preview');
@@ -1306,31 +1325,13 @@ export default function JobsPage() {
               <div>
                 <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                   <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Ingested Records Preview ({dataPreview?.total_records ?? 0} loaded)
+                    Ingested Records Preview (
+                    {dataPreview?.total_matching !== undefined
+                      ? `${dataPreview.total_matching.toLocaleString()} matching / ${dataPreview.total_records.toLocaleString()} total in dataset`
+                      : `${dataPreview?.total_records?.toLocaleString() ?? 0} records`}
+                    )
                   </h3>
                   <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                      <span>Show:</span>
-                      <select
-                        value={previewLimit}
-                        onChange={(e) => {
-                          const newLimit = Number(e.target.value);
-                          setPreviewLimit(newLimit);
-                          handleOpenViewData(
-                            viewingDataJob.jobId,
-                            viewingDataJob.jobName,
-                            viewingDataJob.log,
-                            newLimit
-                          );
-                        }}
-                        className="bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-200 text-xs rounded px-2 py-1 focus:ring-1 focus:ring-blue-500 outline-hidden"
-                      >
-                        <option value={50}>50 rows</option>
-                        <option value={100}>100 rows</option>
-                        <option value={250}>250 rows</option>
-                        <option value={500}>500 rows</option>
-                      </select>
-                    </div>
                     <button
                       type="button"
                       onClick={() =>
@@ -1338,7 +1339,11 @@ export default function JobsPage() {
                           viewingDataJob.jobId,
                           viewingDataJob.jobName,
                           viewingDataJob.log,
-                          previewLimit
+                          previewPage,
+                          previewLimit,
+                          previewSearch,
+                          previewFilters,
+                          true
                         )
                       }
                       disabled={loadingPreview}
@@ -1366,12 +1371,64 @@ export default function JobsPage() {
                       columns={previewColumns}
                       keyExtractor={(_, idx) => `preview_record_${idx}`}
                       enableSearch={true}
-                      searchPlaceholder="Search in ingested records..."
+                      searchPlaceholder="Search in entire dataset..."
                       enableColumnResizing={true}
                       enableColumnReordering={true}
                       enableColumnVisibility={true}
                       maxHeight="440px"
                       storageKey={`job_preview_${viewingDataJob.jobId}`}
+                      enablePagination={true}
+                      serverSide={true}
+                      page={dataPreview.page ?? previewPage}
+                      pageSize={dataPreview.limit ?? previewLimit}
+                      totalPages={dataPreview.total_pages}
+                      totalRecords={dataPreview.total_records}
+                      totalMatching={dataPreview.total_matching}
+                      pageSizeOptions={[50, 100, 250, 500]}
+                      onPageChange={(newPage) => {
+                        handleOpenViewData(
+                          viewingDataJob.jobId,
+                          viewingDataJob.jobName,
+                          viewingDataJob.log,
+                          newPage,
+                          previewLimit,
+                          previewSearch,
+                          previewFilters
+                        );
+                      }}
+                      onPageSizeChange={(newLimit) => {
+                        handleOpenViewData(
+                          viewingDataJob.jobId,
+                          viewingDataJob.jobName,
+                          viewingDataJob.log,
+                          1,
+                          newLimit,
+                          previewSearch,
+                          previewFilters
+                        );
+                      }}
+                      onServerSearch={(query) => {
+                        handleOpenViewData(
+                          viewingDataJob.jobId,
+                          viewingDataJob.jobName,
+                          viewingDataJob.log,
+                          1,
+                          previewLimit,
+                          query,
+                          previewFilters
+                        );
+                      }}
+                      onServerFilter={(filters) => {
+                        handleOpenViewData(
+                          viewingDataJob.jobId,
+                          viewingDataJob.jobName,
+                          viewingDataJob.log,
+                          1,
+                          previewLimit,
+                          previewSearch,
+                          filters
+                        );
+                      }}
                     />
                   </div>
                 ) : (
