@@ -32,8 +32,12 @@ export async function uploadTransactionsCSV(file: File, profileId: string = "def
   return await response.json();
 }
 
-export async function getStoredTransactions() {
-  const response = await apiClient.get('/api/transactions/');
+export async function getStoredTransactions(params?: { profile_id?: string; symbol?: string }) {
+  const query = new URLSearchParams();
+  if (params?.profile_id) query.append('profile_id', params.profile_id);
+  if (params?.symbol) query.append('symbol', params.symbol);
+  const qStr = query.toString() ? `?${query.toString()}` : '';
+  const response = await apiClient.get(`/api/transactions/${qStr}`);
   return response.data;
 }
 
