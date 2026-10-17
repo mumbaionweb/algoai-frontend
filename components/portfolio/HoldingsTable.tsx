@@ -242,9 +242,9 @@ export default function HoldingsTable({
   );
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700/60 shadow-sm">
+    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700/60 shadow-sm overflow-hidden">
       {/* Top Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 py-4 border-b border-gray-200 dark:border-gray-750 bg-white dark:bg-gray-800">
         <div className="flex items-center gap-3">
           <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white tracking-tight">
             Holdings
@@ -280,6 +280,8 @@ export default function HoldingsTable({
         emptyMessage="No holdings found in your portfolio."
         enableSearch={true}
         searchPlaceholder="Search stock name or symbol..."
+        enablePagination={true}
+        pageSize={50}
         storageKey="portfolio_holdings_table"
       />
     </div>
