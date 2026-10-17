@@ -1292,6 +1292,11 @@ export default function JobsPage() {
                       {viewingDataJob.log.message}
                     </span>
                   </div>
+                  {(viewingDataJob.log.status === 'error' || viewingDataJob.log.status === 'failed') && (
+                    <div className="pt-2 border-t border-gray-200 dark:border-gray-700/60 text-loss text-[11px] font-medium flex items-start gap-1.5">
+                      <span>⚠️ Note: This run did not ingest any new records due to the error above. The table below displays the existing dataset retained in storage up to the last successful sync.</span>
+                    </div>
+                  )}
                 </div>
               )}
 
