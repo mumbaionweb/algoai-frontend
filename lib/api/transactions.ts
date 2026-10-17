@@ -1,10 +1,18 @@
 import { apiClient } from './client';
 
-export async function uploadTransactionsCSV(file: File, profileId: string = "default", brokerId: string = "default") {
+export async function uploadTransactionsCSV(
+  file: File, 
+  profileId: string = "default", 
+  brokerId: string = "default",
+  brokerName?: string,
+  brokerUserId?: string
+) {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('profile_id', profileId);
   formData.append('broker_id', brokerId);
+  if (brokerName) formData.append('broker_name', brokerName);
+  if (brokerUserId) formData.append('broker_user_id', brokerUserId);
 
   const token = localStorage.getItem('firebase_token');
   const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://algoai-backend-606435458040.asia-south1.run.app';

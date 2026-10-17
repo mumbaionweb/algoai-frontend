@@ -768,4 +768,29 @@ export interface JobDataPreviewResponse {
   error?: string;
 }
 
+export interface AggregatedStock {
+  id: string;
+  tradingsymbol: string;
+  name: string;
+  trxType: string;
+  buyDate: string;
+  buyQty: number;
+  buyAvg: number;
+  buyChgs: number;
+  buyTotal: number;
+  sellQty: number;
+  sellAvg: number;
+  sellChgs: number;
+  sellTotal: number;
+  currentUnit: number;
+  currentValue: number;
+  lastPrice: number;
+  pnl: number;
+  pnlPercentage: number;
+  broker: string;
+  brokerUserId: string;
+  source: string;
+  sourceDisplay: string;
+}
+
 
